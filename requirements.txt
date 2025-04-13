@@ -1,6 +1,7 @@
-streamlit
-pandas
-openpyxl
-geopy
-folium
-streamlit-folium
+pandas==2.0.0
+geopy==2.3.0
+streamlit==1.16.0
+folium==0.12.1
+streamlit-folium==0.8.0
+openpyxl==3.0.10
+python-pptx==0.6.21
