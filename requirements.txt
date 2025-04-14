@@ -1,11 +1,9 @@
 geopy==2.3.0
-streamlit==1.16.0
+streamlit==1.16.0  # or consider upgrading to 1.18.x if not restricted
 folium==0.12.1
 streamlit-folium==0.8.0
 openpyxl>=3.1.0
 python-pptx==0.6.21
-numpy==1.26.4
-pandas==2.2.1
-selenium==4.11.0  # For automating PowerPoint screenshot
-Pillow==9.3.0    # For image handling in PowerPoint export
-webdriver-manager==4.8.0  # For managing web drivers automatically
+numpy==1.24.3  # or latest stable version
+pandas==2.2.1  # or check compatibility with 1.5.x/1.6.x if necessary
+altair==4.2.2  # or latest stable version
