@@ -4,9 +4,10 @@ from geopy.geocoders import Nominatim
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
-from pptx import Presentation
-from pptx.util import Inches
+import folium.plugins as plugins
 from io import BytesIO
+from python_pptx import Presentation
+from PIL import Image
 
 # Streamlit setup
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
@@ -14,10 +15,32 @@ st.title("📍 Find 8 Closest Centres")
 
 input_address = st.text_input("Enter an address:")
 
+def generate_ppt(image_bytes):
+    # Create PowerPoint presentation
+    prs = Presentation()
+    slide_layout = prs.slide_layouts[5]  # Blank slide layout
+    slide = prs.slides.add_slide(slide_layout)
+
+    # Add title to the slide
+    title = slide.shapes.title
+    title.text = "Closest Centres Map"
+
+    # Add image to the slide
+    image_stream = BytesIO(image_bytes)
+    slide.shapes.add_picture(image_stream, 0, 0, width=prs.slide_width, height=prs.slide_height)
+
+    # Save the presentation
+    pptx_filename = "Closest_Centres_Presentation.pptx"
+    pptx_output = BytesIO()
+    prs.save(pptx_output)
+    pptx_output.seek(0)
+    
+    return pptx_output, pptx_filename
+
 if input_address:
     try:
-        # Geocode the input address
-        geolocator = Nominatim(user_agent="centre_map_app", timeout=10)
+        # Geocode the input address with a longer timeout
+        geolocator = Nominatim(user_agent="centre_map_app", timeout=10)  # Timeout set to 10 seconds
         location = geolocator.geocode(input_address)
 
         if location is None:
@@ -25,8 +48,8 @@ if input_address:
         else:
             input_coords = (location.latitude, location.longitude)
 
-            # Load data
-            file_path = "Database IC.xlsx"
+            # Load and process data
+            file_path = "Database IC.xlsx"  # Ensure you have this file in your repo or use a URL
             sheets = ["Comps", "Active Centre", "Centre Opened"]
             all_data = []
 
@@ -47,83 +70,47 @@ if input_address:
                 # Find 8 closest
                 closest = data.nsmallest(8, "Distance (miles)")
 
-            # Create map
+            # Create map centered on the input address
             m = folium.Map(location=input_coords, zoom_start=12)
 
-            # Marker for input address
+            # Add marker for input address
             folium.Marker(
                 location=input_coords,
                 popup=f"Your Address: {input_address}",
                 icon=folium.Icon(color="green")
             ).add_to(m)
 
-            bullet_points = []
+            # Prepare text data to display the distances below the map
+            distance_text = f"Your Address: {input_address} - Coordinates: {input_coords[0]}, {input_coords[1]}\n"
+            distance_text += "\nClosest Centres (Distances in miles):\n"
 
+            # Draw lines and add markers for the closest centres
             for _, row in closest.iterrows():
                 dest_coords = (row["Latitude"], row["Longitude"])
 
-                # Draw line
+                # Draw a line from input address to the closest centre
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
 
-                # One-line readable label
-                label = (
-                    f"Centre #{row['Centre Number']} | {row['Addresses']} | "
-                    f"{row['Distance (miles)']:.2f} miles"
-                )
+                # Add marker for the closest centre
                 folium.Marker(
                     location=dest_coords,
-                    icon=folium.DivIcon(html=f'<div style="font-size: 10px; color: black; background-color: white;">{label}</div>')
+                    popup=f"Centre #{row['Centre Number']}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {row['Distance (miles)']:.2f} miles",
+                    icon=folium.Icon(color="blue")
                 ).add_to(m)
 
-                bullet_points.append(label)
+                # Add distance to text output
+                distance_text += f"Centre #{row['Centre Number']} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
-            # Display map
-            st_data = st_folium(m, width=800, height=600)
+            # Display the map with the lines and markers
+            st_folium(m, width=800, height=600)
 
-            # PowerPoint Export Section
-            def generate_pptx(address, bullets):
-                prs = Presentation()
-                slide_layout = prs.slide_layouts[5]  # Title only
-                slide = prs.slides.add_slide(slide_layout)
+            # Display the distances as text below the map
+            st.subheader("Distances from Your Address to the Closest Centres:")
+            st.text(distance_text)
 
-                title = slide.shapes.title
-                title.text = "8 Closest Centres"
-
-                # Add bullet list
-                left = Inches(0.5)
-                top = Inches(1.2)
-                width = Inches(8)
-                height = Inches(4)
-
-                textbox = slide.shapes.add_textbox(left, top, width, height)
-                tf = textbox.text_frame
-                tf.word_wrap = True
-
-                for point in bullets:
-                    p = tf.add_paragraph()
-                    p.text = point
-                    p.level = 0
-
-                # Add placeholder for screenshot
-                slide.shapes.add_textbox(
-                    Inches(0.5), Inches(5.5), Inches(8), Inches(1)
-                ).text = "[Paste screenshot of map here]"
-
-                # Return binary PPTX
-                pptx_io = BytesIO()
-                prs.save(pptx_io)
-                pptx_io.seek(0)
-                return pptx_io
-
-            pptx_bytes = generate_pptx(input_address, bullet_points)
-
-            # Download button
-            st.download_button(
-                label="📥 Download PowerPoint Summary",
-                data=pptx_bytes,
-                file_name="Closest_Centres_Summary.pptx",
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            )
+            # Capture map image for PowerPoint export
+            map_image = m._to_png(5)  # Capture the map as PNG image
+            st.download_button("Download as PowerPoint", data=generate_ppt(map_image)[0], file_name="Closest_Centres_Presentation.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
 
     except Exception as e:
         st.error(f"Error: {e}")
