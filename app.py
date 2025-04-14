@@ -8,6 +8,7 @@ from io import BytesIO
 from pptx import Presentation
 from pptx.util import Inches, Pt
 import requests
+import urllib.parse
 
 # Streamlit setup
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
@@ -20,12 +21,18 @@ input_address = st.text_input("Enter an address:")
 
 if input_address:
     try:
+        # URL encode the input address to handle special characters and spaces
+        encoded_address = urllib.parse.quote(input_address)
+
         # Use OpenCage API to get location data
-        url = f"https://api.opencagedata.com/geocode/v1/json?q={input_address}&key={api_key}"
+        url = f"https://api.opencagedata.com/geocode/v1/json?q={encoded_address}&key={api_key}"
         response = requests.get(url)
         data = response.json()
 
-        if response.status_code != 200 or data['results'] == []:
+        # Check the status code and results
+        if response.status_code != 200:
+            st.error(f"❌ API Error: {response.status_code}. Try again.")
+        elif not data.get('results'):
             st.error("❌ Address not found. Try again.")
         else:
             # Geocode the input address
@@ -173,51 +180,25 @@ if input_address:
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
             title.text = "Distances to Closest Centres"
+            table = slide.shapes.add_table(rows=len(closest) + 1, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(9), height=Inches(4.5))
+            table.table.cell(0, 0).text = "Centre #"
+            table.table.cell(0, 1).text = "Address"
+            table.table.cell(0, 2).text = "Type of Centre"
+            table.table.cell(0, 3).text = "Transaction Milestone"
+            table.table.cell(0, 4).text = "Distance (miles)"
 
-            # Adjusted table dimensions to fit within the slide
-            rows = len(closest) + 1  # Include header row
-            cols = 5  # Centre Number, Address, Format, Milestone, Distance
+            for i, row in enumerate(closest.iterrows()):
+                table.table.cell(i + 1, 0).text = str(row[1]["Centre Number"])
+                table.table.cell(i + 1, 1).text = str(row[1]["Addresses"])
+                table.table.cell(i + 1, 2).text = str(row[1]["Format - Type of Centre"])
+                table.table.cell(i + 1, 3).text = str(row[1]["Transaction Milestone Status"])
+                table.table.cell(i + 1, 4).text = f"{row[1]['Distance (miles)']:.2f}"
 
-            table_width = Inches(9)  # Set table width to 9 inches (leaving margins)
-            table_height = Inches(5)  # Set table height to 5 inches
-
-            # Set the table position (left, top, width, height)
-            left = Inches(0.5)  # Center the table with some margin
-            top = Inches(1)  # Starting from the top of the slide
-
-            table = slide.shapes.add_table(rows, cols, left, top, table_width, table_height).table
-
-            # Set the header row
-            table.cell(0, 0).text = "Centre #"
-            table.cell(0, 1).text = "Address"
-            table.cell(0, 2).text = "Format"
-            table.cell(0, 3).text = "Milestone Status"
-            table.cell(0, 4).text = "Distance (miles)"
-
-            # Fill the table with the closest centres data
-            for i, (_, row) in enumerate(closest.iterrows()):
-                table.cell(i + 1, 0).text = str(row["Centre Number"])
-                table.cell(i + 1, 1).text = str(row["Addresses"])
-                table.cell(i + 1, 2).text = str(row["Format - Type of Centre"])
-                table.cell(i + 1, 3).text = str(row["Transaction Milestone Status"])
-                table.cell(i + 1, 4).text = f"{row['Distance (miles)']:.2f}"
-
-            # Adjust font size for table text
-            for row in table.rows:
-                for cell in row.cells:
-                    for paragraph in cell.text_frame.paragraphs:
-                        for run in paragraph.runs:
-                            run.font.size = Pt(10)
-
-            # Save presentation
-            pptx_path = "Closest_Centres_Presentation.pptx"
-            prs.save(pptx_path)
-            st.download_button(
-                label="Download PowerPoint Presentation",
-                data=open(pptx_path, "rb").read(),
-                file_name="Closest_Centres_Presentation.pptx",
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            )
+            # Save the PowerPoint presentation to a file
+            presentation_file = BytesIO()
+            prs.save(presentation_file)
+            presentation_file.seek(0)
+            st.download_button("Download Presentation", presentation_file, "closest_centres_presentation.pptx")
 
     except Exception as e:
-        st.error(f"❌ An error occurred: {str(e)}")
+        st.error(f"❌ Error: {str(e)}")
