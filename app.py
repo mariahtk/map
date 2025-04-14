@@ -8,7 +8,7 @@ import folium.plugins as plugins
 
 # Streamlit setup
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
-st.title("📍 Find 8 Closest Centres")
+st.title("📍 Find 8 Closest IWG Centres")
 
 input_address = st.text_input("Enter an address:")
 
