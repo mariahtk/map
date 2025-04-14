@@ -43,7 +43,7 @@ if input_address:
                 closest = data.nsmallest(8, "Distance (miles)")
 
             # Create map centered on input address
-            m = folium.Map(location=input_coords, zoom_start=14)  # Increased zoom level
+            m = folium.Map(location=input_coords, zoom_start=14)  # Starting zoom level
 
             # Add marker for input address
             folium.Marker(
@@ -52,9 +52,13 @@ if input_address:
                 icon=folium.Icon(color="green")
             ).add_to(m)
 
+            # Coordinates list for all centers
+            center_coords = [input_coords]  # Add input address as first point
+
             # Add markers with text box that appears automatically
             for i, (_, row) in enumerate(closest.iterrows()):
                 dest_coords = (row["Latitude"], row["Longitude"])
+                center_coords.append(dest_coords)
 
                 # Draw line
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
@@ -74,6 +78,17 @@ if input_address:
                     popup=folium.Popup(label_text, max_width=300),
                     icon=folium.Icon(color="blue")
                 ).add_to(m)
+
+            # Calculate bounds (min/max latitudes and longitudes)
+            latitudes = [coord[0] for coord in center_coords]
+            longitudes = [coord[1] for coord in center_coords]
+
+            # Get bounding box
+            min_lat, max_lat = min(latitudes), max(latitudes)
+            min_lon, max_lon = min(longitudes), max(longitudes)
+
+            # Adjust the zoom dynamically based on the bounding box
+            m.fit_bounds([[min_lat, min_lon], [max_lat, max_lon]])
 
             # Show the map
             st_folium(m, width=950, height=650)
