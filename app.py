@@ -4,6 +4,7 @@ from geopy.geocoders import Nominatim
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
+import folium.plugins as plugins
 
 # Streamlit setup
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
@@ -13,7 +14,8 @@ input_address = st.text_input("Enter an address:")
 
 if input_address:
     try:
-        geolocator = Nominatim(user_agent="centre_map_app", timeout=10)
+        # Geocode the input address with a longer timeout
+        geolocator = Nominatim(user_agent="centre_map_app", timeout=10)  # Timeout set to 10 seconds
         location = geolocator.geocode(input_address)
 
         if location is None:
@@ -22,7 +24,7 @@ if input_address:
             input_coords = (location.latitude, location.longitude)
 
             # Load and process data
-            file_path = "Database IC.xlsx"
+            file_path = "Database IC.xlsx"  # Ensure you have this file in your repo or use a URL
             sheets = ["Comps", "Active Centre", "Centre Opened"]
             all_data = []
 
@@ -40,14 +42,25 @@ if input_address:
                     lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1
                 )
 
+                # Find 8 closest
                 closest = data.nsmallest(8, "Distance (miles)")
 
-            # Calculate dynamic zoom level based on the distance between the input location and the closest center
-            max_distance = closest["Distance (miles)"].max()
-            zoom_level = 12 - (max_distance / 5)  # Adjust this formula as needed
-            zoom_level = max(zoom_level, 10)  # Set a minimum zoom level for better view
+            # Calculate the bounding box to fit all markers and determine dynamic zoom level
+            lats = [input_coords[0]] + closest["Latitude"].tolist()
+            lngs = [input_coords[1]] + closest["Longitude"].tolist()
+            lat_min, lat_max = min(lats), max(lats)
+            lng_min, lng_max = min(lngs), max(lngs)
 
-            # Create map centered on input address
+            # Dynamic zoom based on bounding box
+            lat_diff = lat_max - lat_min
+            lng_diff = lng_max - lng_min
+            max_diff = max(lat_diff, lng_diff)
+
+            # Adjust zoom level
+            zoom_level = 12 - (max_diff * 3)  # Dynamic zoom formula
+            zoom_level = max(zoom_level, 10)  # Minimum zoom level
+
+            # Create map centered on the input address
             m = folium.Map(location=input_coords, zoom_start=int(zoom_level))
 
             # Add marker for input address
@@ -57,22 +70,29 @@ if input_address:
                 icon=folium.Icon(color="green")
             ).add_to(m)
 
+            # Prepare text data to display the distances below the map
+            distance_text = f"Your Address: {input_address} - Coordinates: {input_coords[0]}, {input_coords[1]}\n"
+            distance_text += "\nClosest Centres (Distances in miles):\n"
+
             # For staggering the labels vertically
             stagger_offsets = [-0.002, 0.002, -0.0015, 0.0015, -0.001, 0.001, -0.0005, 0.0005]
 
-            # Add markers and floating label boxes
+            # Draw lines and add markers for the closest centres
             for i, (_, row) in enumerate(closest.iterrows()):
                 dest_coords = (row["Latitude"], row["Longitude"])
 
-                # Draw line
+                # Draw a line from input address to the closest centre
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
 
-                # Marker at centre
+                # Add marker for the closest centre
                 folium.Marker(
                     location=dest_coords,
                     popup=f"Centre #{row['Centre Number']}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {row['Distance (miles)']:.2f} miles",
                     icon=folium.Icon(color="blue")
                 ).add_to(m)
+
+                # Add distance to text output
+                distance_text += f"Centre #{row['Centre Number']} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
                 # Floating label box that appears automatically
                 label_text = f"#{row['Centre Number']} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
@@ -101,8 +121,12 @@ if input_address:
                     )
                 ).add_to(m)
 
-            # Show the map
+            # Display the map with the lines and markers
             st_folium(m, width=950, height=650)
+
+            # Display the distances as text below the map
+            st.subheader("Distances from Your Address to the Closest Centres:")
+            st.text(distance_text)
 
     except Exception as e:
         st.error(f"Error: {e}")
