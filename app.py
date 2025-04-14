@@ -88,7 +88,12 @@ if input_address:
             min_lon, max_lon = min(longitudes), max(longitudes)
 
             # Adjust the zoom dynamically based on the bounding box
+            # This will zoom in more closely to the areas with markers
             m.fit_bounds([[min_lat, min_lon], [max_lat, max_lon]])
+
+            # To ensure the zoom is appropriate, we can also set a minimum zoom level for compact areas
+            if m.zoom < 15:
+                m.zoom_start = 15  # Ensure a higher zoom if centers are close together
 
             # Show the map
             st_folium(m, width=950, height=650)
