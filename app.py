@@ -172,7 +172,7 @@ if input_address:
             rows = len(closest) + 1  # Include header row
             cols = 5  # Centre Number, Address, Format, Milestone, Distance
 
-            table = slide.shapes.add_table(rows, cols, Inches(1), Inches(1.5), Inches(8), Inches(4)).table
+            table = slide.shapes.add_table(rows, cols, Inches(0.5), Inches(1.5), Inches(9), Inches(4)).table
 
             # Set the header row
             table.cell(0, 0).text = "Centre #"
