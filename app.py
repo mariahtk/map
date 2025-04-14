@@ -4,14 +4,14 @@ from geopy.geocoders import Nominatim
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
-import folium.plugins as plugins
-from io import BytesIO
 from pptx import Presentation
-from pptx.util import Pt
+from pptx.util import Inches, Pt
+from pptx.enum.text import PP_ALIGN
+from pptx.dml.color import RGBColor
 
 # Streamlit setup
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
-st.title("📍 Find 8 Closest Centres")
+st.title("📍 Find 8 Closest IWG Centres")
 
 input_address = st.text_input("Enter an address:")
 
@@ -48,107 +48,78 @@ if input_address:
                 # Find 8 closest
                 closest = data.nsmallest(8, "Distance (miles)")
 
-            # Calculate bounds
-            lats = [input_coords[0]] + closest["Latitude"].tolist()
-            lngs = [input_coords[1]] + closest["Longitude"].tolist()
-            lat_min, lat_max = min(lats), max(lats)
-            lng_min, lng_max = min(lngs), max(lngs)
-            max_diff = max(lat_max - lat_min, lng_max - lng_min)
-            zoom_level = max(14 - (max_diff * 3), 14)
-
             # Map
-            m = folium.Map(location=input_coords, zoom_start=int(zoom_level))
+            m = folium.Map(location=input_coords, zoom_start=12)
             folium.Marker(
                 location=input_coords,
                 popup=f"Your Address: {input_address}",
                 icon=folium.Icon(color="green")
             ).add_to(m)
 
-            distance_text = f"Your Address: {input_address} - Coordinates: {input_coords[0]}, {input_coords[1]}\n"
-            distance_text += "\nClosest Centres (Distances in miles):\n"
-
-            stagger_offsets = [-0.002, 0.002, -0.0015, 0.0015, -0.001, 0.001, -0.0005, 0.0005]
-
-            for i, (_, row) in enumerate(closest.iterrows()):
+            for _, row in closest.iterrows():
                 dest_coords = (row["Latitude"], row["Longitude"])
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
-
                 folium.Marker(
                     location=dest_coords,
-                    popup=f"Centre #{row['Centre Number']}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {row['Distance (miles)']:.2f} miles",
+                    popup=f"Centre #{row['Centre Number']}<br>{row['Addresses']}<br>{row['Format - Type of Centre']}<br>{row['Transaction Milestone Status']}<br>{row['Distance (miles)']:.2f} miles",
                     icon=folium.Icon(color="blue")
                 ).add_to(m)
 
-                distance_text += (
-                    f"Centre #{row['Centre Number']} - {row['Addresses']} - "
-                    f"Format: {row['Format - Type of Centre']} - "
-                    f"Milestone: {row['Transaction Milestone Status']} - "
-                    f"{row['Distance (miles)']:.2f} miles\n"
-                )
-
-                label_text = f"#{row['Centre Number']} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
-                offset_lat = stagger_offsets[i % len(stagger_offsets)]
-                label_lat = max(min(row["Latitude"] + offset_lat, lat_max - 0.0005), lat_min + 0.0005)
-                label_lon = max(min(row["Longitude"], lng_max - 0.0005), lng_min + 0.0005)
-
-                folium.Marker(
-                    location=(label_lat, label_lon),
-                    icon=folium.DivIcon(
-                        icon_size=(250, 40),
-                        icon_anchor=(0, 0),
-                        html=f"""
-                            <div style="
-                                background-color: white;
-                                color: black;
-                                padding: 6px 10px;
-                                border: 1px solid black;
-                                border-radius: 6px;
-                                font-size: 13px;
-                                font-family: Arial, sans-serif;
-                                white-space: nowrap;
-                                box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
-                            ">
-                                {label_text}
-                            </div>
-                        """
-                    )
-                ).add_to(m)
-
-            # Display map and distances
             m.save("closest_centres_map.html")
             st_folium(m, width=950, height=650)
-            st.subheader("Distances from Your Address to the Closest Centres:")
-            st.text(distance_text)
 
             # --- PowerPoint Slides ---
             prs = Presentation()
 
-            # Slide 1 - Title Placeholder
-            slide = prs.slides.add_slide(prs.slide_layouts[0])
-            title = slide.shapes.title
-            subtitle = slide.placeholders[1]
-            title.text = "Closest Centres Presentation"
-            subtitle.text = f"Closest Centres to: {input_address}"
+            # Slide 1 - Map placeholder
+            slide1 = prs.slides.add_slide(prs.slide_layouts[1])
+            slide1.shapes.title.text = "Map Overview"
+            content1 = slide1.placeholders[1].text_frame
+            content1.text = "Insert map screenshot here."
 
-            # Slide 2 - Distance data
-            slide = prs.slides.add_slide(prs.slide_layouts[1])
-            title = slide.shapes.title
-            title.text = "Distances to Closest Centres"
-            textbox = slide.shapes.placeholders[1].text_frame
-            textbox.clear()
-            textbox.text = f"Your Address: {input_address} - Coordinates: {input_coords[0]:.6f}, {input_coords[1]:.6f}"
+            # Slide 2 - Table of closest centres
+            slide2 = prs.slides.add_slide(prs.slide_layouts[5])
+            slide2.shapes.title.text = "Closest Centres Data"
 
+            rows = len(closest) + 1
+            cols = 5
+            left = Inches(0.5)
+            top = Inches(1.5)
+            width = Inches(9)
+            height = Inches(0.8)
+
+            table = slide2.shapes.add_table(rows, cols, left, top, width, height).table
+
+            # Set column headings
+            col_names = ["Centre #", "Address", "Format", "Milestone", "Distance (mi)"]
+            for col_idx, name in enumerate(col_names):
+                cell = table.cell(0, col_idx)
+                cell.text = name
+                cell.text_frame.paragraphs[0].font.bold = True
+                cell.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+                cell.fill.solid()
+                cell.fill.fore_color.rgb = RGBColor(200, 200, 200)
+
+            # Populate rows
             for i, (_, row) in enumerate(closest.iterrows(), start=1):
-                paragraph = textbox.add_paragraph()
-                paragraph.text = (
-                    f"\n{i}. Centre #{row['Centre Number']} - {row['Addresses']} - "
-                    f"Format: {row['Format - Type of Centre']} - "
-                    f"Milestone: {row['Transaction Milestone Status']} - "
-                    f"Distance: {row['Distance (miles)']:.2f} miles"
-                )
-                paragraph.space_after = Pt(10)
+                table.cell(i, 0).text = str(row["Centre Number"])
+                table.cell(i, 1).text = row["Addresses"]
+                table.cell(i, 2).text = str(row["Format - Type of Centre"])
+                table.cell(i, 3).text = str(row["Transaction Milestone Status"])
+                table.cell(i, 4).text = f"{row['Distance (miles)']:.2f}"
 
-            # Save the PowerPoint presentation
+                for j in range(cols):
+                    table.cell(i, j).text_frame.paragraphs[0].font.size = Pt(10)
+                    table.cell(i, j).text_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
+
+            # Adjust column widths
+            table.columns[0].width = Inches(1)
+            table.columns[1].width = Inches(3.5)
+            table.columns[2].width = Inches(1.6)
+            table.columns[3].width = Inches(2.3)
+            table.columns[4].width = Inches(1)
+
+            # Save PowerPoint
             pptx_file = "closest_centres_presentation.pptx"
             prs.save(pptx_file)
 
