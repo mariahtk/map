@@ -59,18 +59,25 @@ if input_address:
             distance_text = f"Your Address: {input_address} - Coordinates: {input_coords[0]}, {input_coords[1]}\n"
             distance_text += "\nClosest Centres (Distances in miles):\n"
 
-            # Draw lines and add markers for the closest centres
+            # Draw lines and add text markers for the closest centres
             for _, row in closest.iterrows():
                 dest_coords = (row["Latitude"], row["Longitude"])
 
                 # Draw a line from input address to the closest centre
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
 
-                # Add marker for the closest centre
+                # Add static text to the map for the closest centre using a DivIcon
+                text = (
+                    f"Centre #{row['Centre Number']}<br>"
+                    f"Address: {row['Addresses']}<br>"
+                    f"Format: {row['Format - Type of Centre']}<br>"
+                    f"Transaction Milestone: {row['Transaction Milestone Status']}<br>"
+                    f"Distance: {row['Distance (miles)']:.2f} miles"
+                )
+
                 folium.Marker(
                     location=dest_coords,
-                    popup=f"Centre #{row['Centre Number']}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {row['Distance (miles)']:.2f} miles",
-                    icon=folium.Icon(color="blue")
+                    icon=folium.DivIcon(html=f'<div style="font-size: 12px; color: black;">{text}</div>')  # Custom text as HTML
                 ).add_to(m)
 
                 # Add distance to text output
