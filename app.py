@@ -14,8 +14,7 @@ input_address = st.text_input("Enter an address:")
 
 if input_address:
     try:
-        # Geocode the input address with a longer timeout
-        geolocator = Nominatim(user_agent="centre_map_app", timeout=10)  # Timeout set to 10 seconds
+        geolocator = Nominatim(user_agent="centre_map_app", timeout=10)
         location = geolocator.geocode(input_address)
 
         if location is None:
@@ -23,8 +22,7 @@ if input_address:
         else:
             input_coords = (location.latitude, location.longitude)
 
-            # Load and process data
-            file_path = "Database IC.xlsx"  # Ensure you have this file in your repo or use a URL
+            file_path = "Database IC.xlsx"
             sheets = ["Comps", "Active Centre", "Centre Opened"]
             all_data = []
 
@@ -37,56 +35,73 @@ if input_address:
                 data = pd.concat(all_data)
                 data = data.dropna(subset=["Latitude", "Longitude"])
 
-                # Calculate distances
                 data["Distance (miles)"] = data.apply(
                     lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1
                 )
 
-                # Find 8 closest
                 closest = data.nsmallest(8, "Distance (miles)")
 
-            # Create map centered on the input address
             m = folium.Map(location=input_coords, zoom_start=12)
 
-            # Add marker for input address
             folium.Marker(
                 location=input_coords,
                 popup=f"Your Address: {input_address}",
                 icon=folium.Icon(color="green")
             ).add_to(m)
 
-            # Prepare text data to display the distances below the map
             distance_text = f"Your Address: {input_address} - Coordinates: {input_coords[0]}, {input_coords[1]}\n"
             distance_text += "\nClosest Centres (Distances in miles):\n"
 
-            # Draw lines and add text markers for the closest centres
             for _, row in closest.iterrows():
                 dest_coords = (row["Latitude"], row["Longitude"])
 
-                # Draw a line from input address to the closest centre
+                # Draw line
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
 
-                # Add static text to the map for the closest centre using a DivIcon
-                text = (
+                # Add marker for centre with popup
+                popup_text = (
                     f"Centre #{row['Centre Number']}<br>"
                     f"Address: {row['Addresses']}<br>"
                     f"Format: {row['Format - Type of Centre']}<br>"
                     f"Transaction Milestone: {row['Transaction Milestone Status']}<br>"
                     f"Distance: {row['Distance (miles)']:.2f} miles"
                 )
-
                 folium.Marker(
                     location=dest_coords,
-                    icon=folium.DivIcon(html=f'<div style="font-size: 12px; color: black;">{text}</div>')  # Custom text as HTML
+                    popup=popup_text,
+                    icon=folium.Icon(color="blue")
                 ).add_to(m)
 
-                # Add distance to text output
+                # Add floating text box above the line (at midpoint)
+                midpoint_lat = (input_coords[0] + dest_coords[0]) / 2
+                midpoint_lon = (input_coords[1] + dest_coords[1]) / 2
+                floating_label = (
+                    f"{row['Addresses']}<br>{row['Distance (miles)']:.2f} miles"
+                )
+                folium.map.Marker(
+                    [midpoint_lat, midpoint_lon],
+                    icon=folium.DivIcon(
+                        html=f"""
+                            <div style="
+                                font-size: 11px;
+                                background-color: white;
+                                padding: 4px;
+                                border: 1px solid gray;
+                                border-radius: 4px;
+                                box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+                                max-width: 250px;
+                            ">
+                                {floating_label}
+                            </div>
+                        """
+                    )
+                ).add_to(m)
+
+                # Text output
                 distance_text += f"Centre #{row['Centre Number']} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
-            # Display the map with the lines and markers
+            # Display results
             st_folium(m, width=800, height=600)
-
-            # Display the distances as text below the map
             st.subheader("Distances from Your Address to the Closest Centres:")
             st.text(distance_text)
 
