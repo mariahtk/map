@@ -9,6 +9,11 @@ from io import BytesIO
 from PIL import Image
 from pptx import Presentation
 from pptx.util import Inches, Pt
+from selenium import webdriver
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
 
 # Streamlit setup
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
