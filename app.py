@@ -42,8 +42,13 @@ if input_address:
 
                 closest = data.nsmallest(8, "Distance (miles)")
 
+            # Calculate dynamic zoom level based on the distance between the input location and the closest center
+            max_distance = closest["Distance (miles)"].max()
+            zoom_level = 12 - (max_distance / 5)  # Adjust this formula as needed
+            zoom_level = max(zoom_level, 10)  # Set a minimum zoom level for better view
+
             # Create map centered on input address
-            m = folium.Map(location=input_coords, zoom_start=14)  # Starting zoom level
+            m = folium.Map(location=input_coords, zoom_start=int(zoom_level))
 
             # Add marker for input address
             folium.Marker(
@@ -52,48 +57,49 @@ if input_address:
                 icon=folium.Icon(color="green")
             ).add_to(m)
 
-            # Coordinates list for all centers
-            center_coords = [input_coords]  # Add input address as first point
+            # For staggering the labels vertically
+            stagger_offsets = [-0.002, 0.002, -0.0015, 0.0015, -0.001, 0.001, -0.0005, 0.0005]
 
-            # Add markers with text box that appears automatically
+            # Add markers and floating label boxes
             for i, (_, row) in enumerate(closest.iterrows()):
                 dest_coords = (row["Latitude"], row["Longitude"])
-                center_coords.append(dest_coords)
 
                 # Draw line
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
 
-                # Create a label as popup content
-                label_text = f"""
-                    <div style="background-color: white; color: black; padding: 10px 15px; border: 1px solid black; border-radius: 6px; font-size: 13px; font-family: Arial, sans-serif; box-shadow: 2px 2px 5px rgba(0,0,0,0.2);">
-                        <strong>Centre #{row['Centre Number']}</strong><br>
-                        <strong>Address:</strong> {row['Addresses']}<br>
-                        <strong>Distance:</strong> {row['Distance (miles)']:.2f} miles
-                    </div>
-                """
-
-                # Popup that will show the label text automatically
+                # Marker at centre
                 folium.Marker(
                     location=dest_coords,
-                    popup=folium.Popup(label_text, max_width=300),
+                    popup=f"Centre #{row['Centre Number']}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {row['Distance (miles)']:.2f} miles",
                     icon=folium.Icon(color="blue")
                 ).add_to(m)
 
-            # Calculate bounds (min/max latitudes and longitudes)
-            latitudes = [coord[0] for coord in center_coords]
-            longitudes = [coord[1] for coord in center_coords]
+                # Floating label box that appears automatically
+                label_text = f"#{row['Centre Number']} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
+                offset_lat = stagger_offsets[i % len(stagger_offsets)]
 
-            # Get bounding box
-            min_lat, max_lat = min(latitudes), max(latitudes)
-            min_lon, max_lon = min(longitudes), max(longitudes)
-
-            # Adjust the zoom dynamically based on the bounding box
-            # This will zoom in more closely to the areas with markers
-            m.fit_bounds([[min_lat, min_lon], [max_lat, max_lon]])
-
-            # To ensure the zoom is appropriate, we can also set a minimum zoom level for compact areas
-            if m.zoom < 15:
-                m.zoom_start = 15  # Ensure a higher zoom if centers are close together
+                folium.Marker(
+                    location=(row["Latitude"] + offset_lat, row["Longitude"]),
+                    icon=folium.DivIcon(
+                        icon_size=(250, 40),
+                        icon_anchor=(0, 0),
+                        html=f"""
+                            <div style="
+                                background-color: white;
+                                color: black;
+                                padding: 6px 10px;
+                                border: 1px solid black;
+                                border-radius: 6px;
+                                font-size: 13px;
+                                font-family: Arial, sans-serif;
+                                white-space: nowrap;
+                                box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+                            ">
+                                {label_text}
+                            </div>
+                        """
+                    )
+                ).add_to(m)
 
             # Show the map
             st_folium(m, width=950, height=650)
