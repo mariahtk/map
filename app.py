@@ -5,12 +5,10 @@ import streamlit as st
 import folium
 from streamlit_folium import st_folium
 import folium.plugins as plugins
-import asyncio
-from playwright.async_api import async_playwright
 from io import BytesIO
+from PIL import Image
 from pptx import Presentation
 from pptx.util import Inches, Pt
-import base64
 
 # Streamlit setup
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
@@ -101,7 +99,7 @@ if input_address:
                 distance_text += f"Centre #{row['Centre Number']} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
                 # Floating label box that appears automatically
-                label_text = f"#{row['Centre Number']} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
+                label_text = f"#{row['Centre Number']} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi})"
                 offset_lat = stagger_offsets[i % len(stagger_offsets)]
 
                 # Adjust label placement if too close to the edges of the map
@@ -141,58 +139,52 @@ if input_address:
                 ).add_to(m)
 
             # Display the map with the lines and markers
+            folium_map_path = "closest_centres_map.html"
+            m.save(folium_map_path)
             st_folium(m, width=950, height=650)
 
             # Display the distances as text below the map
             st.subheader("Distances from Your Address to the Closest Centres:")
             st.text(distance_text)
 
-            # Function to take screenshot of Streamlit view using Playwright
-            async def screenshot_streamlit_view(output_path="map_screenshot.png"):
-                async with async_playwright() as p:
-                    browser = await p.chromium.launch()
-                    page = await browser.new_page()
-                    # Assumes app is running locally — replace URL with deployed Streamlit app if needed
-                    await page.goto("http://localhost:8501", wait_until="networkidle")
-                    await page.screenshot(path=output_path, full_page=True)
-                    await browser.close()
+            # Save PowerPoint presentation
+            prs = Presentation()
 
-            # Function to create PowerPoint with map image and data
-            def create_ppt_with_map_and_data(image_path, text, ppt_path="Closest_Centres_Report.pptx"):
-                prs = Presentation()
-                slide = prs.slides.add_slide(prs.slide_layouts[5])
-                
-                # Add image
-                left = Inches(0.5)
-                top = Inches(0.5)
-                height = Inches(4.5)
-                slide.shapes.add_picture(image_path, left, top, height=height)
-                
-                # Add text box
-                left = Inches(0.5)
-                top = Inches(5.1)
-                width = Inches(9)
-                height = Inches(2)
-                textbox = slide.shapes.add_textbox(left, top, width, height)
-                text_frame = textbox.text_frame
-                text_frame.word_wrap = True
-                p = text_frame.add_paragraph()
-                p.text = text
-                p.font.size = Pt(12)
-                
-                prs.save(ppt_path)
+            # Title Slide
+            slide = prs.slides.add_slide(prs.slide_layouts[0])
+            title = slide.shapes.title
+            subtitle = slide.placeholders[1]
+            title.text = "Closest Centres Presentation"
+            subtitle.text = f"Closest Centres to: {input_address}"
 
-            # Download button
-            if st.button("📥 Download Map & Data as PowerPoint"):
-                with st.spinner("Generating PowerPoint..."):
-                    asyncio.run(screenshot_streamlit_view("map_screenshot.png"))
-                    create_ppt_with_map_and_data("map_screenshot.png", distance_text, "Closest_Centres_Report.pptx")
-                    
-                    # Read the file and create a download link
-                    with open("Closest_Centres_Report.pptx", "rb") as f:
-                        b64 = base64.b64encode(f.read()).decode()
-                    href = f'<a href="data:application/vnd.openxmlformats-officedocument.presentationml.presentation;base64,{b64}" download="Closest_Centres_Report.pptx">📎 Click here to download your PowerPoint</a>'
-                    st.markdown(href, unsafe_allow_html=True)
+            # Add map image slide
+            slide = prs.slides.add_slide(prs.slide_layouts[5])
+            title = slide.shapes.title
+            title.text = "Closest Centres Map"
+            img = Image.open(folium_map_path)
+            img_stream = BytesIO()
+            img.save(img_stream, format='PNG')
+            img_stream.seek(0)
+            slide.shapes.add_picture(img_stream, Inches(0), Inches(1), width=Inches(9), height=Inches(5))
+
+            # Add distance data slide
+            slide = prs.slides.add_slide(prs.slide_layouts[1])
+            title = slide.shapes.title
+            title.text = "Distances to Closest Centres"
+            textbox = slide.shapes.placeholders[1].text_frame
+            for i, (_, row) in enumerate(closest.iterrows()):
+                textbox.add_paragraph(f"Centre #{row['Centre Number']} - {row['Addresses']} - Distance: {row['Distance (miles)']:.2f} miles")
+
+            # Save the PowerPoint presentation
+            pptx_file = "closest_centres_presentation.pptx"
+            prs.save(pptx_file)
+
+            st.download_button(
+                label="Download PowerPoint",
+                data=open(pptx_file, "rb").read(),
+                file_name=pptx_file,
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            )
 
     except Exception as e:
         st.error(f"Error: {e}")
