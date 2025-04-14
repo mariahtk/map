@@ -12,7 +12,6 @@ from pptx.util import Inches, Pt
 from selenium import webdriver
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 import time
 
@@ -155,8 +154,10 @@ if input_address:
 
             # Use Selenium to open the HTML map and take a screenshot
             options = Options()
-            options.headless = True
-            driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+            options.headless = True  # Run Chrome in headless mode
+
+            # Use webdriver-manager to get the latest ChromeDriver
+            driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
             driver.get(f"file://{folium_map_path}")
 
             # Wait for the map to load properly
