@@ -98,8 +98,21 @@ if input_address:
                 label_text = f"#{row['Centre Number']} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
                 offset_lat = stagger_offsets[i % len(stagger_offsets)]
 
+                # Adjust label placement if too close to the edges of the map
+                label_lat = row["Latitude"] + offset_lat
+                label_lon = row["Longitude"]
+                if label_lat > lat_max:
+                    label_lat = lat_max - 0.0005  # Ensure it's within bounds
+                if label_lat < lat_min:
+                    label_lat = lat_min + 0.0005  # Ensure it's within bounds
+                if label_lon > lng_max:
+                    label_lon = lng_max - 0.0005  # Ensure it's within bounds
+                if label_lon < lng_min:
+                    label_lon = lng_min + 0.0005  # Ensure it's within bounds
+
+                # Add the adjusted label with proper offset
                 folium.Marker(
-                    location=(row["Latitude"] + offset_lat, row["Longitude"]),
+                    location=(label_lat, label_lon),
                     icon=folium.DivIcon(
                         icon_size=(250, 40),
                         icon_anchor=(0, 0),
