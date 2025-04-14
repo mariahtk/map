@@ -14,8 +14,8 @@ input_address = st.text_input("Enter an address:")
 
 if input_address:
     try:
-        # Geocode the input address
-        geolocator = Nominatim(user_agent="centre_map_app")
+        # Geocode the input address with a longer timeout
+        geolocator = Nominatim(user_agent="centre_map_app", timeout=10)  # Timeout set to 10 seconds
         location = geolocator.geocode(input_address)
 
         if location is None:
@@ -85,3 +85,4 @@ if input_address:
 
     except Exception as e:
         st.error(f"Error: {e}")
+
