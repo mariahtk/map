@@ -5,37 +5,12 @@ import streamlit as st
 import folium
 from streamlit_folium import st_folium
 import folium.plugins as plugins
-from io import BytesIO
-from python_pptx import Presentation
-from PIL import Image
 
 # Streamlit setup
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 st.title("📍 Find 8 Closest Centres")
 
 input_address = st.text_input("Enter an address:")
-
-def generate_ppt(image_bytes):
-    # Create PowerPoint presentation
-    prs = Presentation()
-    slide_layout = prs.slide_layouts[5]  # Blank slide layout
-    slide = prs.slides.add_slide(slide_layout)
-
-    # Add title to the slide
-    title = slide.shapes.title
-    title.text = "Closest Centres Map"
-
-    # Add image to the slide
-    image_stream = BytesIO(image_bytes)
-    slide.shapes.add_picture(image_stream, 0, 0, width=prs.slide_width, height=prs.slide_height)
-
-    # Save the presentation
-    pptx_filename = "Closest_Centres_Presentation.pptx"
-    pptx_output = BytesIO()
-    prs.save(pptx_output)
-    pptx_output.seek(0)
-    
-    return pptx_output, pptx_filename
 
 if input_address:
     try:
@@ -107,10 +82,6 @@ if input_address:
             # Display the distances as text below the map
             st.subheader("Distances from Your Address to the Closest Centres:")
             st.text(distance_text)
-
-            # Capture map image for PowerPoint export
-            map_image = m._to_png(5)  # Capture the map as PNG image
-            st.download_button("Download as PowerPoint", data=generate_ppt(map_image)[0], file_name="Closest_Centres_Presentation.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
 
     except Exception as e:
         st.error(f"Error: {e}")
