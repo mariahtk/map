@@ -8,9 +8,10 @@ import folium.plugins as plugins
 from io import BytesIO
 from PIL import Image
 from pptx import Presentation
-from pptx.util import Inches, Pt
+from pptx.util import Inches
 from selenium import webdriver
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 import time
 
@@ -151,11 +152,11 @@ if input_address:
             st.subheader("Distances from Your Address to the Closest Centres:")
             st.text(distance_text)
 
-            # Use WebDriverManager to get the ChromeDriver automatically and launch Chrome in headless mode
+            # Use Selenium to open the HTML map and take a screenshot
             options = Options()
             options.headless = True  # Run Chrome in headless mode
 
-            # Using WebDriverManager to automatically download the ChromeDriver
+            # Use webdriver-manager to get the latest ChromeDriver
             driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
             driver.get(f"file://{folium_map_path}")
 
