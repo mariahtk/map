@@ -15,7 +15,7 @@ input_address = st.text_input("Enter an address:")
 if input_address:
     try:
         # Geocode the input address with a longer timeout
-        geolocator = Nominatim(user_agent="centre_map_app", timeout=10)  # Timeout set to 10 seconds
+        geolocator = Nominatim(user_agent="centre_map_app", timeout=10)
         location = geolocator.geocode(input_address)
 
         if location is None:
@@ -24,7 +24,7 @@ if input_address:
             input_coords = (location.latitude, location.longitude)
 
             # Load and process data
-            file_path = "Database IC.xlsx"  # Ensure you have this file in your repo or use a URL
+            file_path = "Database IC.xlsx"
             sheets = ["Comps", "Active Centre", "Centre Opened"]
             all_data = []
 
@@ -66,15 +66,21 @@ if input_address:
                 # Draw a line from input address to the closest centre
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
 
-                # Add marker for the closest centre
+                # Add marker for the closest centre (MODIFIED HERE)
                 folium.Marker(
                     location=dest_coords,
-                    popup=f"Centre #{row['Centre Number']}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {row['Distance (miles)']:.2f} miles",
+                    popup=(
+                        f"{row['Addresses']} - {row['Format - Type of Centre']} "
+                        f"({row['Transaction Milestone Status']}): {row['Distance (miles)']:.2f} miles"
+                    ),
                     icon=folium.Icon(color="blue")
                 ).add_to(m)
 
                 # Add distance to text output
-                distance_text += f"Centre #{row['Centre Number']} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+                distance_text += (
+                    f"Centre #{row['Centre Number']} - {row['Addresses']} - Format: {row['Format - Type of Centre']} "
+                    f"- Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+                )
 
             # Display the map with the lines and markers
             st_folium(m, width=800, height=600)
