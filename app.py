@@ -160,13 +160,15 @@ if input_address:
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
             title.text = "Closest Centres Map"
-            slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4), "Insert screenshot here.")
+            # Add the placeholder text in the slide
+            slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
 
             # Add slide with table of closest centres
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
             title.text = "Distances to Closest Centres"
-            slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4), "Insert screenshot here.")  # Placeholder text
+            # Add the placeholder text in the slide
+            slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
 
             # Save the PowerPoint presentation
             pptx_file = "closest_centres_presentation.pptx"
