@@ -52,49 +52,27 @@ if input_address:
                 icon=folium.Icon(color="green")
             ).add_to(m)
 
-            # Add markers and solid white text boxes for closest centres
+            # Add markers with text box that appears automatically
             for i, (_, row) in enumerate(closest.iterrows()):
                 dest_coords = (row["Latitude"], row["Longitude"])
 
                 # Draw line
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
 
-                # Marker at centre
+                # Create a label as popup content
+                label_text = f"""
+                    <div style="background-color: white; color: black; padding: 10px 15px; border: 1px solid black; border-radius: 6px; font-size: 13px; font-family: Arial, sans-serif; box-shadow: 2px 2px 5px rgba(0,0,0,0.2);">
+                        <strong>Centre #{row['Centre Number']}</strong><br>
+                        <strong>Address:</strong> {row['Addresses']}<br>
+                        <strong>Distance:</strong> {row['Distance (miles)']:.2f} miles
+                    </div>
+                """
+
+                # Popup that will show the label text automatically
                 folium.Marker(
                     location=dest_coords,
-                    popup=f"Centre #{row['Centre Number']}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {row['Distance (miles)']:.2f} miles",
+                    popup=folium.Popup(label_text, max_width=300),
                     icon=folium.Icon(color="blue")
-                ).add_to(m)
-
-                # Solid white text box that shows automatically
-                label_text = f"Centre #{row['Centre Number']} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
-                
-                # Offsetting the text box slightly for better visibility
-                offset_lat = 0.0008 * (i + 1)  # Slight vertical offset for each label
-                offset_lon = 0.0008 * (i + 1)  # Slight horizontal offset for each label
-
-                folium.Marker(
-                    location=(dest_coords[0] + offset_lat, dest_coords[1] + offset_lon),
-                    icon=folium.DivIcon(
-                        icon_size=(250, 40),
-                        icon_anchor=(0, 0),
-                        html=f"""
-                            <div style="
-                                background-color: white;
-                                color: black;
-                                padding: 10px 15px;
-                                border: 1px solid black;
-                                border-radius: 6px;
-                                font-size: 13px;
-                                font-family: Arial, sans-serif;
-                                box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
-                                width: auto;
-                                white-space: nowrap;
-                            ">
-                                {label_text}
-                            </div>
-                        """
-                    )
                 ).add_to(m)
 
             # Show the map
