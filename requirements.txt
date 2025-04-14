@@ -7,5 +7,3 @@ python-pptx==0.6.21
 numpy==1.26.4
 pandas==2.2.1
 altair==4.2.2
-playwright==1.25.0  # Ensure you're using the correct version of Playwright
-pyppeteer==1.0.2
