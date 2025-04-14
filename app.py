@@ -5,63 +5,18 @@ import streamlit as st
 import folium
 from streamlit_folium import st_folium
 import folium.plugins as plugins
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
-import time
+import asyncio
+from playwright.async_api import async_playwright
+from io import BytesIO
 from pptx import Presentation
-from pptx.util import Inches
-import os
+from pptx.util import Inches, Pt
+import base64
 
 # Streamlit setup
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 st.title("📍 Find 8 Closest Centres")
 
 input_address = st.text_input("Enter an address:")
-
-def capture_map_screenshot(m, map_filename="map.html"):
-    # Save the folium map to an HTML file
-    m.save(map_filename)
-
-    # Use selenium to take a screenshot of the saved HTML
-    options = webdriver.ChromeOptions()
-    options.headless = True
-    options.add_argument("--window-size=1280x1024")
-
-    # Set up selenium webdriver
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-    driver.get(f"file://{os.path.abspath(map_filename)}")
-    time.sleep(3)  # Allow the map to render
-    screenshot_filename = "map_screenshot.png"
-    driver.save_screenshot(screenshot_filename)
-    driver.quit()
-
-    return screenshot_filename
-
-def create_powerpoint(data, screenshot_filename="map_screenshot.png", pptx_filename="Closest_Centres_Presentation.pptx"):
-    # Create PowerPoint Presentation
-    prs = Presentation()
-
-    # Slide 1: Map Screenshot
-    slide_1 = prs.slides.add_slide(prs.slide_layouts[5])  # 5 is a blank layout
-    slide_1.shapes.add_picture(screenshot_filename, Inches(0), Inches(0), width=Inches(10), height=Inches(7.5))
-
-    # Slide 2: Distance Data
-    slide_2 = prs.slides.add_slide(prs.slide_layouts[1])  # 1 is the title and content layout
-    slide_2.shapes.title.text = "Closest Centres Distance Data"
-
-    # Prepare data to add in the second slide
-    distance_data = "Your Address: " + input_address + "\n\nClosest Centres (Distances in miles):\n"
-    for _, row in data.iterrows():
-        distance_data += f"Centre #{row['Centre Number']} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
-    
-    # Add data to slide
-    slide_2.shapes.placeholders[1].text = distance_data
-
-    # Save the PowerPoint presentation
-    prs.save(pptx_filename)
-
-    return pptx_filename
 
 if input_address:
     try:
@@ -188,19 +143,56 @@ if input_address:
             # Display the map with the lines and markers
             st_folium(m, width=950, height=650)
 
-            # Capture the screenshot
-            screenshot_filename = capture_map_screenshot(m)
+            # Display the distances as text below the map
+            st.subheader("Distances from Your Address to the Closest Centres:")
+            st.text(distance_text)
 
-            # Create the PowerPoint and allow for download
-            pptx_filename = create_powerpoint(closest, screenshot_filename)
+            # Function to take screenshot of Streamlit view using Playwright
+            async def screenshot_streamlit_view(output_path="map_screenshot.png"):
+                async with async_playwright() as p:
+                    browser = await p.chromium.launch()
+                    page = await browser.new_page()
+                    # Assumes app is running locally — replace URL with deployed Streamlit app if needed
+                    await page.goto("http://localhost:8501", wait_until="networkidle")
+                    await page.screenshot(path=output_path, full_page=True)
+                    await browser.close()
 
-            # Provide download link for the PowerPoint
-            st.download_button(
-                label="Download PowerPoint Presentation",
-                data=open(pptx_filename, "rb").read(),
-                file_name=pptx_filename,
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            )
+            # Function to create PowerPoint with map image and data
+            def create_ppt_with_map_and_data(image_path, text, ppt_path="Closest_Centres_Report.pptx"):
+                prs = Presentation()
+                slide = prs.slides.add_slide(prs.slide_layouts[5])
+                
+                # Add image
+                left = Inches(0.5)
+                top = Inches(0.5)
+                height = Inches(4.5)
+                slide.shapes.add_picture(image_path, left, top, height=height)
+                
+                # Add text box
+                left = Inches(0.5)
+                top = Inches(5.1)
+                width = Inches(9)
+                height = Inches(2)
+                textbox = slide.shapes.add_textbox(left, top, width, height)
+                text_frame = textbox.text_frame
+                text_frame.word_wrap = True
+                p = text_frame.add_paragraph()
+                p.text = text
+                p.font.size = Pt(12)
+                
+                prs.save(ppt_path)
+
+            # Download button
+            if st.button("📥 Download Map & Data as PowerPoint"):
+                with st.spinner("Generating PowerPoint..."):
+                    asyncio.run(screenshot_streamlit_view("map_screenshot.png"))
+                    create_ppt_with_map_and_data("map_screenshot.png", distance_text, "Closest_Centres_Report.pptx")
+                    
+                    # Read the file and create a download link
+                    with open("Closest_Centres_Report.pptx", "rb") as f:
+                        b64 = base64.b64encode(f.read()).decode()
+                    href = f'<a href="data:application/vnd.openxmlformats-officedocument.presentationml.presentation;base64,{b64}" download="Closest_Centres_Report.pptx">📎 Click here to download your PowerPoint</a>'
+                    st.markdown(href, unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"Error: {e}")
