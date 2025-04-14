@@ -52,10 +52,7 @@ if input_address:
                 icon=folium.Icon(color="green")
             ).add_to(m)
 
-            # For staggering the labels vertically
-            stagger_offsets = [-0.002, 0.002, -0.0015, 0.0015, -0.001, 0.001, -0.0005, 0.0005]
-
-            # Add markers and floating label boxes
+            # Add markers and solid white text boxes for closest centres
             for i, (_, row) in enumerate(closest.iterrows()):
                 dest_coords = (row["Latitude"], row["Longitude"])
 
@@ -69,12 +66,11 @@ if input_address:
                     icon=folium.Icon(color="blue")
                 ).add_to(m)
 
-                # Floating label box that appears automatically
-                label_text = f"#{row['Centre Number']} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
-                offset_lat = stagger_offsets[i % len(stagger_offsets)]
-
+                # Solid white text box that shows automatically
+                label_text = f"Centre #{row['Centre Number']} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
+                
                 folium.Marker(
-                    location=(row["Latitude"] + offset_lat, row["Longitude"]),
+                    location=dest_coords,
                     icon=folium.DivIcon(
                         icon_size=(250, 40),
                         icon_anchor=(0, 0),
@@ -82,13 +78,14 @@ if input_address:
                             <div style="
                                 background-color: white;
                                 color: black;
-                                padding: 6px 10px;
+                                padding: 10px 15px;
                                 border: 1px solid black;
                                 border-radius: 6px;
                                 font-size: 13px;
                                 font-family: Arial, sans-serif;
+                                box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+                                width: auto;
                                 white-space: nowrap;
-                                box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
                             ">
                                 {label_text}
                             </div>
@@ -101,4 +98,3 @@ if input_address:
 
     except Exception as e:
         st.error(f"Error: {e}")
-
