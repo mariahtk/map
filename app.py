@@ -1,6 +1,5 @@
 import pandas as pd
 from geopy.distance import geodesic
-from geopy.geocoders import Nominatim
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
@@ -8,23 +7,30 @@ import folium.plugins as plugins
 from io import BytesIO
 from pptx import Presentation
 from pptx.util import Inches, Pt
+import requests
 
 # Streamlit setup
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 st.title("📍 Find 8 Closest Centres")
 
+# Your API key
+api_key = "d469d27da60d449f9511bdddc58c6cba"
+
 input_address = st.text_input("Enter an address:")
 
 if input_address:
     try:
-        # Geocode the input address with a longer timeout
-        geolocator = Nominatim(user_agent="centre_map_app", timeout=10)  # Timeout set to 10 seconds
-        location = geolocator.geocode(input_address)
+        # Use OpenCage API to get location data
+        url = f"https://api.opencagedata.com/geocode/v1/json?q={input_address}&key={api_key}"
+        response = requests.get(url)
+        data = response.json()
 
-        if location is None:
+        if response.status_code != 200 or data['results'] == []:
             st.error("❌ Address not found. Try again.")
         else:
-            input_coords = (location.latitude, location.longitude)
+            # Geocode the input address
+            location = data['results'][0]
+            input_coords = (location['geometry']['lat'], location['geometry']['lng'])
 
             # Load and process data
             file_path = "Database IC.xlsx"  # Ensure you have this file in your repo or use a URL
@@ -201,18 +207,17 @@ if input_address:
                 for cell in row.cells:
                     for paragraph in cell.text_frame.paragraphs:
                         for run in paragraph.runs:
-                            run.font.size = Pt(8)
+                            run.font.size = Pt(10)
 
-            # Save PowerPoint file
-            pptx_file = "closest_centres_presentation.pptx"
-            prs.save(pptx_file)
-
-            # Offer PowerPoint file for download
+            # Save presentation
+            pptx_path = "Closest_Centres_Presentation.pptx"
+            prs.save(pptx_path)
             st.download_button(
                 label="Download PowerPoint Presentation",
-                data=open(pptx_file, "rb").read(),
-                file_name=pptx_file,
+                data=open(pptx_path, "rb").read(),
+                file_name="Closest_Centres_Presentation.pptx",
                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
             )
+
     except Exception as e:
-        st.error(f"An error occurred: {e}")
+        st.error(f"❌ An error occurred: {str(e)}")
