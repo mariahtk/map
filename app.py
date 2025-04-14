@@ -167,8 +167,27 @@ if input_address:
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
             title.text = "Distances to Closest Centres"
-            # Add the placeholder text in the slide
-            slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
+
+            # Create the table on the slide
+            rows = len(closest) + 1  # Include header row
+            cols = 5  # Centre Number, Address, Format, Milestone, Distance
+
+            table = slide.shapes.add_table(rows, cols, Inches(1), Inches(1.5), Inches(8), Inches(4)).table
+
+            # Set the header row
+            table.cell(0, 0).text = "Centre #"
+            table.cell(0, 1).text = "Address"
+            table.cell(0, 2).text = "Format"
+            table.cell(0, 3).text = "Milestone Status"
+            table.cell(0, 4).text = "Distance (miles)"
+
+            # Fill the table with the closest centres data
+            for i, (_, row) in enumerate(closest.iterrows()):
+                table.cell(i + 1, 0).text = str(row["Centre Number"])
+                table.cell(i + 1, 1).text = str(row["Addresses"])
+                table.cell(i + 1, 2).text = str(row["Format - Type of Centre"])
+                table.cell(i + 1, 3).text = str(row["Transaction Milestone Status"])
+                table.cell(i + 1, 4).text = f"{row['Distance (miles)']:.2f}"
 
             # Save the PowerPoint presentation
             pptx_file = "closest_centres_presentation.pptx"
