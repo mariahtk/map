@@ -8,7 +8,7 @@ import folium.plugins as plugins
 
 # Streamlit setup
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
-st.title("📍 Find 8 Closest Centres")
+st.title("📍 Find 8 Closest IWG Centres")
 
 input_address = st.text_input("Enter an address:")
 
@@ -58,7 +58,7 @@ if input_address:
 
             # Adjust zoom level
             zoom_level = 12 - (max_diff * 3)  # Dynamic zoom formula
-            zoom_level = max(zoom_level, 10)  # Minimum zoom level
+            zoom_level = max(zoom_level, 12)  # Minimum zoom level
 
             # Create map centered on the input address
             m = folium.Map(location=input_coords, zoom_start=int(zoom_level))
@@ -127,6 +127,14 @@ if input_address:
             # Display the distances as text below the map
             st.subheader("Distances from Your Address to the Closest Centres:")
             st.text(distance_text)
+
+            # Include a button for downloading the map as an image (workaround via screenshot tool)
+            st.download_button(
+                label="Download Map as Image",
+                data="Image download not supported directly. Use screenshot tool to capture the map.",
+                file_name="centres_map.png",
+                mime="image/png"
+            )
 
     except Exception as e:
         st.error(f"Error: {e}")
