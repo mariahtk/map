@@ -8,11 +8,7 @@ import folium.plugins as plugins
 from io import BytesIO
 from PIL import Image
 from pptx import Presentation
-from pptx.util import Inches
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
-from time import sleep
+from pptx.util import Inches, Pt
 
 # Streamlit setup
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
@@ -103,7 +99,7 @@ if input_address:
                 distance_text += f"Centre #{row['Centre Number']} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
                 # Floating label box that appears automatically
-                label_text = f"#{row['Centre Number']} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi})"
+                label_text = f"#{row['Centre Number']} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi}}"
                 offset_lat = stagger_offsets[i % len(stagger_offsets)]
 
                 # Adjust label placement if too close to the edges of the map
