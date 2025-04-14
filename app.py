@@ -160,38 +160,13 @@ if input_address:
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
             title.text = "Closest Centres Map"
-            slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4), "Insert map screenshot here.")
+            slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4), "Insert screenshot here.")
 
             # Add slide with table of closest centres
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
             title.text = "Distances to Closest Centres"
-
-            rows, cols = 9, 5
-            left = Inches(0.5)
-            top = Inches(1.5)
-            width = Inches(9)
-            height = Inches(4.5)
-
-            table = slide.shapes.add_table(rows, cols, left, top, width, height).table
-
-            col_names = ["Centre #", "Address", "Format", "Milestone", "Distance (mi)"]
-            for col_idx, name in enumerate(col_names):
-                cell = table.cell(0, col_idx)
-                cell.text = name
-                cell.text_frame.paragraphs[0].font.bold = True
-
-            for row_idx, (_, row) in enumerate(closest.iterrows(), start=1):
-                table.cell(row_idx, 0).text = str(row['Centre Number'])
-                table.cell(row_idx, 1).text = str(row['Addresses'])
-                table.cell(row_idx, 2).text = str(row['Format - Type of Centre'])
-                table.cell(row_idx, 3).text = str(row['Transaction Milestone Status'])
-                table.cell(row_idx, 4).text = f"{row['Distance (miles)']:.2f}"
-
-            for row in table.rows:
-                for cell in row.cells:
-                    for paragraph in cell.text_frame.paragraphs:
-                        paragraph.font.size = Pt(12)
+            slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4), "Insert screenshot here.")  # Placeholder text
 
             # Save the PowerPoint presentation
             pptx_file = "closest_centres_presentation.pptx"
