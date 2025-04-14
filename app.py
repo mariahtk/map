@@ -43,7 +43,7 @@ if input_address:
                 closest = data.nsmallest(8, "Distance (miles)")
 
             # Create map centered on input address
-            m = folium.Map(location=input_coords, zoom_start=12)
+            m = folium.Map(location=input_coords, zoom_start=14)  # Increased zoom level
 
             # Add marker for input address
             folium.Marker(
@@ -69,8 +69,12 @@ if input_address:
                 # Solid white text box that shows automatically
                 label_text = f"Centre #{row['Centre Number']} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
                 
+                # Offsetting the text box slightly for better visibility
+                offset_lat = 0.0008 * (i + 1)  # Slight vertical offset for each label
+                offset_lon = 0.0008 * (i + 1)  # Slight horizontal offset for each label
+
                 folium.Marker(
-                    location=dest_coords,
+                    location=(dest_coords[0] + offset_lat, dest_coords[1] + offset_lon),
                     icon=folium.DivIcon(
                         icon_size=(250, 40),
                         icon_anchor=(0, 0),
