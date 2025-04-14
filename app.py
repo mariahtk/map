@@ -168,11 +168,18 @@ if input_address:
             title = slide.shapes.title
             title.text = "Distances to Closest Centres"
 
-            # Create the table on the slide
+            # Adjusted table dimensions to fit within the slide
             rows = len(closest) + 1  # Include header row
             cols = 5  # Centre Number, Address, Format, Milestone, Distance
 
-            table = slide.shapes.add_table(rows, cols, Inches(0.5), Inches(1.5), Inches(9), Inches(4)).table
+            table_width = Inches(9)  # Set table width to 9 inches (leaving margins)
+            table_height = Inches(5)  # Set table height to 5 inches
+
+            # Set the table position (left, top, width, height)
+            left = Inches(0.5)  # Center the table with some margin
+            top = Inches(1)  # Starting from the top of the slide
+
+            table = slide.shapes.add_table(rows, cols, left, top, table_width, table_height).table
 
             # Set the header row
             table.cell(0, 0).text = "Centre #"
@@ -189,16 +196,23 @@ if input_address:
                 table.cell(i + 1, 3).text = str(row["Transaction Milestone Status"])
                 table.cell(i + 1, 4).text = f"{row['Distance (miles)']:.2f}"
 
-            # Save the PowerPoint presentation
+            # Adjust font size for table text
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.text_frame.paragraphs:
+                        for run in paragraph.runs:
+                            run.font.size = Pt(8)
+
+            # Save PowerPoint file
             pptx_file = "closest_centres_presentation.pptx"
             prs.save(pptx_file)
 
+            # Offer PowerPoint file for download
             st.download_button(
-                label="Download PowerPoint",
+                label="Download PowerPoint Presentation",
                 data=open(pptx_file, "rb").read(),
                 file_name=pptx_file,
                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
             )
-
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"An error occurred: {e}")
