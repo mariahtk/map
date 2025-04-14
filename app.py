@@ -160,7 +160,7 @@ if input_address:
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
             title.text = "Closest Centres Map"
-            slide.shapes.placeholders[1].text = "Insert screenshot of the map here from the Streamlit app."
+            slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4), "Insert map screenshot here.")
 
             # Add slide with table of closest centres
             slide = prs.slides.add_slide(prs.slide_layouts[5])
