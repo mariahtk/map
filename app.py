@@ -5,12 +5,63 @@ import streamlit as st
 import folium
 from streamlit_folium import st_folium
 import folium.plugins as plugins
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+import time
+from pptx import Presentation
+from pptx.util import Inches
+import os
 
 # Streamlit setup
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 st.title("📍 Find 8 Closest Centres")
 
 input_address = st.text_input("Enter an address:")
+
+def capture_map_screenshot(m, map_filename="map.html"):
+    # Save the folium map to an HTML file
+    m.save(map_filename)
+
+    # Use selenium to take a screenshot of the saved HTML
+    options = webdriver.ChromeOptions()
+    options.headless = True
+    options.add_argument("--window-size=1280x1024")
+
+    # Set up selenium webdriver
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    driver.get(f"file://{os.path.abspath(map_filename)}")
+    time.sleep(3)  # Allow the map to render
+    screenshot_filename = "map_screenshot.png"
+    driver.save_screenshot(screenshot_filename)
+    driver.quit()
+
+    return screenshot_filename
+
+def create_powerpoint(data, screenshot_filename="map_screenshot.png", pptx_filename="Closest_Centres_Presentation.pptx"):
+    # Create PowerPoint Presentation
+    prs = Presentation()
+
+    # Slide 1: Map Screenshot
+    slide_1 = prs.slides.add_slide(prs.slide_layouts[5])  # 5 is a blank layout
+    slide_1.shapes.add_picture(screenshot_filename, Inches(0), Inches(0), width=Inches(10), height=Inches(7.5))
+
+    # Slide 2: Distance Data
+    slide_2 = prs.slides.add_slide(prs.slide_layouts[1])  # 1 is the title and content layout
+    slide_2.shapes.title.text = "Closest Centres Distance Data"
+
+    # Prepare data to add in the second slide
+    distance_data = "Your Address: " + input_address + "\n\nClosest Centres (Distances in miles):\n"
+    for _, row in data.iterrows():
+        distance_data += f"Centre #{row['Centre Number']} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+    
+    # Add data to slide
+    slide_2.shapes.placeholders[1].text = distance_data
+
+    # Save the PowerPoint presentation
+    prs.save(pptx_filename)
+
+    return pptx_filename
 
 if input_address:
     try:
@@ -137,9 +188,19 @@ if input_address:
             # Display the map with the lines and markers
             st_folium(m, width=950, height=650)
 
-            # Display the distances as text below the map
-            st.subheader("Distances from Your Address to the Closest Centres:")
-            st.text(distance_text)
+            # Capture the screenshot
+            screenshot_filename = capture_map_screenshot(m)
+
+            # Create the PowerPoint and allow for download
+            pptx_filename = create_powerpoint(closest, screenshot_filename)
+
+            # Provide download link for the PowerPoint
+            st.download_button(
+                label="Download PowerPoint Presentation",
+                data=open(pptx_filename, "rb").read(),
+                file_name=pptx_filename,
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            )
 
     except Exception as e:
         st.error(f"Error: {e}")
