@@ -7,5 +7,4 @@ python-pptx==0.6.21
 numpy==1.26.4
 pandas==2.2.1
 altair==4.2.2
-selenium==4.7.2  # Added for using the WebDriver to capture screenshots
-webdriver-manager==3.8.0  # Added to manage web drivers for screenshots
+playwright==1.42.0
