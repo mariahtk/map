@@ -4,7 +4,6 @@ from geopy.geocoders import Nominatim
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
-import folium.plugins as plugins
 
 # Streamlit setup
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
@@ -53,45 +52,43 @@ if input_address:
                 icon=folium.Icon(color="green")
             ).add_to(m)
 
-            # Prepare text output
-            distance_text = f"Your Address: {input_address} - Coordinates: {input_coords[0]}, {input_coords[1]}\n"
-            distance_text += "\nClosest Centres (Distances in miles):\n"
-
-            # Used to stagger floating boxes to avoid overlap
+            # For staggering the labels vertically
             stagger_offsets = [-0.002, 0.002, -0.0015, 0.0015, -0.001, 0.001, -0.0005, 0.0005]
 
+            # Add markers and floating label boxes
             for i, (_, row) in enumerate(closest.iterrows()):
                 dest_coords = (row["Latitude"], row["Longitude"])
 
-                # Draw line to centre
+                # Draw line
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
 
-                # Add standard blue marker
+                # Marker at centre
                 folium.Marker(
                     location=dest_coords,
                     popup=f"Centre #{row['Centre Number']}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {row['Distance (miles)']:.2f} miles",
                     icon=folium.Icon(color="blue")
                 ).add_to(m)
 
-                # Add floating white box with black text (clean design)
-                label_text = f"{row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
-                offset_lat = stagger_offsets[i % len(stagger_offsets)]  # stagger vertically
+                # Floating label box that appears automatically
+                label_text = f"#{row['Centre Number']} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
+                offset_lat = stagger_offsets[i % len(stagger_offsets)]
+
                 folium.Marker(
                     location=(row["Latitude"] + offset_lat, row["Longitude"]),
                     icon=folium.DivIcon(
-                        icon_size=(300, 40),
+                        icon_size=(250, 40),
                         icon_anchor=(0, 0),
                         html=f"""
                             <div style="
                                 background-color: white;
                                 color: black;
                                 padding: 6px 10px;
-                                border: 1px solid #333;
+                                border: 1px solid black;
                                 border-radius: 6px;
                                 font-size: 13px;
                                 font-family: Arial, sans-serif;
-                                box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
                                 white-space: nowrap;
+                                box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
                             ">
                                 {label_text}
                             </div>
@@ -99,16 +96,8 @@ if input_address:
                     )
                 ).add_to(m)
 
-                # Add to list text
-                distance_text += f"{label_text}\n"
-
-            # Display the map
-            st_folium(m, width=900, height=600)
-
-            # Display distances as text
-            st.subheader("Distances from Your Address to the Closest Centres:")
-            st.text(distance_text)
+            # Show the map
+            st_folium(m, width=950, height=650)
 
     except Exception as e:
         st.error(f"Error: {e}")
-
