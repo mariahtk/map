@@ -15,7 +15,7 @@ st.set_page_config(page_title="Closest Centres Map", layout="wide")
 st.title("📍 Find 8 Closest Centres")
 
 # Your API key
-api_key = "d469d27da60d449f9511bdddc58c6cba"
+api_key = "edd4cb8a639240daa178b4c6321a60e6"
 
 input_address = st.text_input("Enter an address:")
 
