@@ -69,12 +69,12 @@ if input_address:
                 # Add marker for the closest centre
                 folium.Marker(
                     location=dest_coords,
-                    popup=f"Centre #{row['Centre Number']}<br>Address: {row['Addresses']}<br>Distance: {row['Distance (miles)']:.2f} miles",
+                    popup=f"Centre #{row['Centre Number']}<br>Address: {row['Addresses']}<br>Type: {row['Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {row['Distance (miles)']:.2f} miles",
                     icon=folium.Icon(color="blue")
                 ).add_to(m)
 
                 # Add distance to text output
-                distance_text += f"Centre #{row['Centre Number']} - {row['Addresses']} - {row['Distance (miles)']:.2f} miles\n"
+                distance_text += f"Centre #{row['Centre Number']} - {row['Addresses']} - Type: {row['Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
             # Display the map with the lines and markers
             st_folium(m, width=800, height=600)
@@ -85,4 +85,3 @@ if input_address:
 
     except Exception as e:
         st.error(f"Error: {e}")
-
