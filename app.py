@@ -14,6 +14,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
+import time
 
 # Streamlit setup
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
@@ -152,6 +153,20 @@ if input_address:
             st.subheader("Distances from Your Address to the Closest Centres:")
             st.text(distance_text)
 
+            # Use Selenium to open the HTML map and take a screenshot
+            options = Options()
+            options.headless = True
+            driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+            driver.get(f"file://{folium_map_path}")
+
+            # Wait for the map to load properly
+            time.sleep(3)  # Allow time for the map to load
+
+            # Take a screenshot of the map and save it
+            screenshot_path = "closest_centres_map_screenshot.png"
+            driver.save_screenshot(screenshot_path)
+            driver.quit()
+
             # Save PowerPoint presentation
             prs = Presentation()
 
@@ -162,15 +177,11 @@ if input_address:
             title.text = "Closest Centres Presentation"
             subtitle.text = f"Closest Centres to: {input_address}"
 
-            # Add map image slide
+            # Add map screenshot slide
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
             title.text = "Closest Centres Map"
-            img = Image.open(folium_map_path)
-            img_stream = BytesIO()
-            img.save(img_stream, format='PNG')
-            img_stream.seek(0)
-            slide.shapes.add_picture(img_stream, Inches(0), Inches(1), width=Inches(9), height=Inches(5))
+            slide.shapes.add_picture(screenshot_path, Inches(0), Inches(1), width=Inches(9), height=Inches(5))
 
             # Add distance data slide
             slide = prs.slides.add_slide(prs.slide_layouts[1])
