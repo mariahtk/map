@@ -132,21 +132,25 @@ if input_address:
                     icon=folium.DivIcon(
                         icon_size=(250, 40),
                         icon_anchor=(0, 0),
-                        html=f"""
-                            <div style="
-                                background-color: white;
-                                color: black;
-                                padding: 6px 10px;
-                                border: 1px solid black;
-                                border-radius: 6px;
-                                font-size: 13px;
-                                font-family: Arial, sans-serif;
-                                white-space: nowrap;
-                                box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
-                            ">
-                                {label_text}
-                            </div>
-                        """
+                       html=f"""
+                           <div style="
+        background-color: white;
+        color: black;
+        padding: 6px 10px;
+        border: 1px solid black;
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: Arial, sans-serif;
+        max-width: 240px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+    " title="{label_text}">
+        {label_text}
+    </div>
+"""
+
                     )
                 ).add_to(m)
 
