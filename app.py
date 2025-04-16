@@ -132,7 +132,7 @@ if input_address:
                     icon=folium.DivIcon(
                         icon_size=(250, 40),
                         icon_anchor=(0, 0),
- html=f"""
+html=f"""
     <div style="
         background-color: white;
         color: black;
@@ -142,10 +142,6 @@ if input_address:
         font-size: 13px;
         font-family: Arial, sans-serif;
         display: inline-block;
-        max-width: 300px;
-        white-space: nowrap;  /* Prevents wrapping */
-        overflow: hidden;  /* Hides any overflow text */
-        text-overflow: ellipsis;  /* Adds ellipsis if text overflows */
         box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
     ">
         {label_text}
