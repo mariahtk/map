@@ -110,43 +110,47 @@ if input_address:
                 # Add distance to text output
                 distance_text += f"Centre #{row['Centre Number']} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
-                # Floating label box that appears automatically
-                label_text = f"#{row['Centre Number']} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
-                offset_lat = stagger_offsets[i % len(stagger_offsets)]
+              # Floating label box that appears automatically
+label_text = f"#{row['Centre Number']} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
+offset_lat = stagger_offsets[i % len(stagger_offsets)]
 
-                # Adjust label placement if too close to the edges of the map
-                label_lat = row["Latitude"] + offset_lat
-                label_lon = row["Longitude"]
-                if label_lat > lat_max:
-                    label_lat = lat_max - 0.0005  # Ensure it's within bounds
-                if label_lat < lat_min:
-                    label_lat = lat_min + 0.0005  # Ensure it's within bounds
-                if label_lon > lng_max:
-                    label_lon = lng_max - 0.0005  # Ensure it's within bounds
-                if label_lon < lng_min:
-                    label_lon = lng_min + 0.0005  # Ensure it's within bounds
+# Adjust label placement if too close to the edges of the map
+label_lat = row["Latitude"] + offset_lat
+label_lon = row["Longitude"]
+if label_lat > lat_max:
+    label_lat = lat_max - 0.0005  # Ensure it's within bounds
+if label_lat < lat_min:
+    label_lat = lat_min + 0.0005  # Ensure it's within bounds
+if label_lon > lng_max:
+    label_lon = lng_max - 0.0005  # Ensure it's within bounds
+if label_lon < lng_min:
+    label_lon = lng_min + 0.0005  # Ensure it's within bounds
 
-                # Add the adjusted label with proper offset
-                folium.Marker(
-                    location=(label_lat, label_lon),
-                    icon=folium.DivIcon(
-                        icon_size=(250, 40),
-                        icon_anchor=(0, 0),
-html=f"""
-    <div style="
-        background-color: white;
-        color: black;
-        padding: 6px 10px;
-        border: 1px solid black;
-        border-radius: 6px;
-        font-size: 13px;
-        font-family: Arial, sans-serif;
-        display: inline-block;
-        box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
-    ">
-        {label_text}
-    </div>
-"""
+# Add the adjusted label with proper offset
+folium.Marker(
+    location=(label_lat, label_lon),
+    icon=folium.DivIcon(
+        icon_size=(250, 40),
+        icon_anchor=(0, 0),
+        html=f"""
+            <div style="
+                background-color: white;
+                color: black;
+                padding: 6px 10px;
+                border: 1px solid black;
+                border-radius: 6px;
+                font-size: 13px;
+                font-family: Arial, sans-serif;
+                display: inline-block;
+                max-width: 250px;  /* Limit max width to 250px */
+                white-space: nowrap;  /* Ensure the text stays in one line */
+                overflow: hidden;     /* Hide overflow text */
+                text-overflow: ellipsis; /* Add ellipsis if text overflows */
+                box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+            ">
+                {label_text}
+            </div>
+        """
                     )
                 ).add_to(m)
 
