@@ -14,7 +14,7 @@ import streamlit as st
 # --- LOGIN SYSTEM ---
 def login():
     st.image("IWG Logo.jpg", width=150)
-    st.title("IWG Internal Map Login")
+    st.title(Internal Map Login")
 
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
