@@ -9,6 +9,10 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 import requests
 import urllib.parse
+from pptx import Presentation
+from pptx.util import Inches
+from io import BytesIO
+import streamlit as st
 
 # --- LOGIN SYSTEM ---
 def login():
