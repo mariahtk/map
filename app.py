@@ -206,42 +206,52 @@ if input_address:
             st.text(distance_text)
 
             # Save PowerPoint presentation
-            prs = Presentation()
+           prs = Presentation()
+
+            # Title Slide
             slide = prs.slides.add_slide(prs.slide_layouts[0])
             title = slide.shapes.title
             subtitle = slide.placeholders[1]
-            title.text = "8 Closest Centres"
-            subtitle.text = f"Address: {input_address}"
+            title.text = "Closest Centres Presentation"
+            subtitle.text = f"Closest Centres to: {input_address}"
 
-            # Add map image
+            # Add slide with placeholder for the map image
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
-            title.text = "Map of Closest Centres"
-            img_path = "closest_centres_map.png"  # Ensure to generate an image of the map
-            slide.shapes.add_picture(img_path, Inches(1), Inches(1), width=Inches(8))
+            title.text = "Closest Centres Map"
+            # Add the placeholder text in the slide
+            slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
 
-            # Add a table with the closest centres
+            # Add slide with table of closest centres
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
-            title.text = "Closest Centres Details"
+            title.text = "Distances to Closest Centres"
+            table = slide.shapes.add_table(rows=len(closest) + 1, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(9), height=Inches(4.5))
+            table.table.cell(0, 0).text = "Centre #"
+            table.table.cell(0, 1).text = "Address"
+            table.table.cell(0, 2).text = "Type of Centre"
+            table.table.cell(0, 3).text = "Transaction Milestone"
+            table.table.cell(0, 4).text = "Distance (miles)"
 
-            # Create table
-            rows, cols = closest.shape
-            table = slide.shapes.add_table(rows + 1, cols, Inches(1), Inches(1.5), Inches(8), Inches(5)).table
+            for i, row in enumerate(closest.iterrows()):
+                table.table.cell(i + 1, 0).text = str(int(row[1]['Centre Number']))
+                table.table.cell(i + 1, 1).text = str(row[1]['Addresses'])
+                table.table.cell(i + 1, 2).text = str(row[1]['Format - Type of Centre'])
+                table.table.cell(i + 1, 3).text = str(row[1]['Transaction Milestone Status'])
+                table.table.cell(i + 1, 4).text = f"{row[1]['Distance (miles)']:.2f}"
 
-            # Set header
-            for col_num, column_name in enumerate(closest.columns):
-                table.cell(0, col_num).text = column_name
+            # Save the presentation
+            presentation_file = BytesIO()
+            prs.save(presentation_file)
+            presentation_file.seek(0)
 
-            # Fill table with closest centres data
-            for row_num, (index, row) in enumerate(closest.iterrows()):
-                for col_num, value in enumerate(row):
-                    table.cell(row_num + 1, col_num).text = str(value)
-
-            # Save the PowerPoint file
-            pptx_filename = f"closest_centres_{input_address.replace(' ', '_')}.pptx"
-            prs.save(pptx_filename)
-            st.download_button("Download PowerPoint", pptx_filename)
+            # Provide a download link for the PowerPoint presentation
+            st.download_button(
+                label="Download PowerPoint Presentation",
+                data=presentation_file,
+                file_name="closest_centres_presentation.pptx",
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            )
 
     except Exception as e:
-        st.error(f"Unexpected error: {str(e)}")
+        st.error(f"❌ Error occurred: {e}")
