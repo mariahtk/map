@@ -111,7 +111,7 @@ if input_address:
                 distance_text += f"Centre #{row['Centre Number']} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
                 # Floating label box that appears automatically
-                label_text = f"#{row['Centre Number']} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
+                label_text = f"#{row['Centre Number']} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)}"
                 offset_lat = stagger_offsets[i % len(stagger_offsets)]
 
                 # Adjust label placement if too close to the edges of the map
@@ -130,7 +130,7 @@ if input_address:
                 folium.Marker(
                     location=(label_lat, label_lon),
                     icon=folium.DivIcon(
-                        icon_size=(250, 40),
+                        icon_size=(150, 40),  # Adjust size to accommodate text
                         icon_anchor=(0, 0),
                         html=f"""
                             <div style="
@@ -142,9 +142,7 @@ if input_address:
                                 font-size: 13px;
                                 font-family: Arial, sans-serif;
                                 display: inline-block;
-                                max-width: 250px;  /* Limit max width to 250px */
-                                white-space: nowrap;  /* Ensure the text stays in one line */
-                                overflow: hidden;     /* Hide overflow text */
+                                white-space: nowrap;  /* Ensure text stays in one line */
                                 text-overflow: ellipsis; /* Add ellipsis if text overflows */
                                 box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
                             ">
