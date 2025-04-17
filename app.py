@@ -48,20 +48,26 @@ input_address = st.text_input("Enter an address:")
 
 if input_address:
     try:
+        # URL encode the input address to handle special characters and spaces
         encoded_address = urllib.parse.quote(input_address)
+
+        # Use OpenCage API to get location data
         url = f"https://api.opencagedata.com/geocode/v1/json?q={encoded_address}&key={api_key}"
         response = requests.get(url)
         data = response.json()
 
+        # Check the status code and results
         if response.status_code != 200:
             st.error(f"❌ API Error: {response.status_code}. Try again.")
         elif not data.get('results'):
             st.error("❌ Address not found. Try again.")
         else:
+            # Geocode the input address
             location = data['results'][0]
             input_coords = (location['geometry']['lat'], location['geometry']['lng'])
 
-            file_path = "Database IC.xlsx"
+            # Load and process data
+            file_path = "Database IC.xlsx"  # Ensure you have this file in your repo or use a URL
             sheets = ["Comps", "Active Centre", "Centre Opened"]
             all_data = []
 
@@ -73,125 +79,6 @@ if input_address:
 
                 data = pd.concat(all_data)
                 data = data.dropna(subset=["Latitude", "Longitude"])
-
-                data["Distance (miles)"] = data.apply(
-                    lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1
-                )
-
-                closest = data.nsmallest(8, "Distance (miles)")
-
-            lats = [input_coords[0]] + closest["Latitude"].tolist()
-            lngs = [input_coords[1]] + closest["Longitude"].tolist()
-            lat_min, lat_max = min(lats), max(lats)
-            lng_min, lng_max = min(lngs), max(lngs)
-
-            lat_diff = lat_max - lat_min
-            lng_diff = lng_max - lng_min
-            max_diff = max(lat_diff, lng_diff)
-
-            zoom_level = 14 - (max_diff * 3)
-            zoom_level = max(zoom_level, 14)
-
-            m = folium.Map(location=input_coords, zoom_start=int(zoom_level))
-
-            folium.Marker(
-                location=input_coords,
-                popup=f"Your Address: {input_address}",
-                icon=folium.Icon(color="green")
-            ).add_to(m)
-
-            distance_text = f"Your Address: {input_address} - Coordinates: {input_coords[0]}, {input_coords[1]}\n"
-            distance_text += "\nClosest Centres (Distances in miles):\n"
-
-            stagger_offsets = [-0.002, 0.002, -0.0015, 0.0015, -0.001, 0.001, -0.0005, 0.0005]
-
-            color_map = {
-                "Regus": "blue",
-                "HQ": "darkblue",
-                "Signature": "red",
-                "Spaces": "black",
-                "Non-Standard Brand": "orange",
-                "": "yellow",
-                None: "yellow"
-            }
-
-            for i, (index, row) in enumerate(closest.iterrows()):
-                dest_coords = (row["Latitude"], row["Longitude"])
-                centre_type = str(row.get("Format - Type of Centre", "")).strip()
-                marker_color = color_map.get(centre_type, "gray")
-
-                folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
-
-                folium.Marker(
-                    location=dest_coords,
-                    popup=f"Centre #{int(row['Centre Number'])}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {row['Distance (miles)']:.2f} miles",
-                    icon=folium.Icon(color=marker_color)
-                ).add_to(m)
-
-                distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
-
-                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
-                offset_lat = stagger_offsets[i % len(stagger_offsets)]
-
-                label_lat = row["Latitude"] + offset_lat
-                label_lon = row["Longitude"]
-                if label_lat > lat_max:
-                    label_lat = lat_max - 0.0005
-                if label_lat < lat_min:
-                    label_lat = lat_min + 0.0005
-                if label_lon > lng_max:
-                    label_lon = lng_max - 0.0005
-                if label_lon < lng_min:
-                    label_lon = lng_min + 0.0005
-
-                folium.Marker(
-                    location=(label_lat, label_lon),
-                    icon=folium.DivIcon(
-                        icon_size=(150, 40),
-                        icon_anchor=(0, 0),
-                        html=f"""
-                            <div style="
-                                background-color: white;
-                                color: black;
-                                padding: 6px 10px;
-                                border: 1px solid black;
-                                border-radius: 6px;
-                                font-size: 13px;
-                                font-family: Arial, sans-serif;
-                                display: inline-block;
-                                white-space: nowrap;
-                                text-overflow: ellipsis;
-                                box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
-                            ">
-                                {label_text}
-                            </div>
-                        """
-                    )
-                ).add_to(m)
-
-            # Add a legend to the map
-            legend_html = '''
-            <div style="position: fixed; 
-                        bottom: 50px; left: 50px; width: 220px; height: 200px; 
-                        border:2px solid grey; z-index:9999; font-size:14px;
-                        background-color:white; padding: 10px;">
-                <b>Legend</b><br>
-                <i style="color:blue">●</i> Regus<br>
-                <i style="color:darkblue">●</i> HQ<br>
-                <i style="color:red">●</i> Signature<br>
-                <i style="color:black">●</i> Spaces<br>
-                <i style="color:orange">●</i> Non-Standard Brand<br>
-                <i style="color:yellow">●</i> Blank
-            </div>
-            '''
-            m.get_root().html.add_child(folium.Element(legend_html))
-
-            folium_map_path = "closest_centres_map.html"
-            m.save(folium_map_path)
-            st_folium(m, width=950, height=650)
-
-            st.subheader("Distances from Your Address to the Closest Centres:")
-            st.text(distance_text)
 
                 # Calculate distances
                 data["Distance (miles)"] = data.apply(
@@ -344,3 +231,4 @@ if input_address:
 
     except Exception as e:
         st.error(f"❌ Error: {str(e)}")
+
