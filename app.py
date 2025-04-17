@@ -66,7 +66,7 @@ if input_address:
             input_coords = (location['geometry']['lat'], location['geometry']['lng'])
 
             # Load and process data
-            file_path = "Database IC.xlsx"  # Ensure you have this file in your repo or use a URL
+            file_path = "Database IC.xlsx"
             sheets = ["Comps", "Active Centre", "Centre Opened"]
             all_data = []
 
@@ -87,39 +87,31 @@ if input_address:
                 # Find 8 closest
                 closest = data.nsmallest(8, "Distance (miles)")
 
-            # Calculate the bounding box to fit all markers and determine dynamic zoom level
+            # Calculate bounding box and zoom
             lats = [input_coords[0]] + closest["Latitude"].tolist()
             lngs = [input_coords[1]] + closest["Longitude"].tolist()
             lat_min, lat_max = min(lats), max(lats)
             lng_min, lng_max = min(lngs), max(lngs)
-
-            # Dynamic zoom based on bounding box
             lat_diff = lat_max - lat_min
             lng_diff = lng_max - lng_min
             max_diff = max(lat_diff, lng_diff)
+            zoom_level = 14 - (max_diff * 3)
+            zoom_level = max(zoom_level, 14)
 
-            # Adjust zoom level for tighter view on the markers
-            zoom_level = 14 - (max_diff * 3)  # Increase zoom level for a closer view
-            zoom_level = max(zoom_level, 14)  # Minimum zoom level
-
-            # Create map centered on the input address
+            # Create map
             m = folium.Map(location=input_coords, zoom_start=int(zoom_level))
 
-            # Add marker for input address
             folium.Marker(
                 location=input_coords,
                 popup=f"Your Address: {input_address}",
                 icon=folium.Icon(color="green")
             ).add_to(m)
 
-            # Prepare text data to display the distances below the map
             distance_text = f"Your Address: {input_address} - Coordinates: {input_coords[0]}, {input_coords[1]}\n"
             distance_text += "\nClosest Centres (Distances in miles):\n"
 
-            # For staggering the labels vertically
             stagger_offsets = [-0.002, 0.002, -0.0015, 0.0015, -0.001, 0.001, -0.0005, 0.0005]
 
-            # Marker color mapping based on "Format - Type of Centre"
             def get_marker_color(format_type):
                 if format_type == "Regus":
                     return "blue"
@@ -133,49 +125,40 @@ if input_address:
                     return "gold"
                 elif pd.isna(format_type) or format_type == "":
                     return "red"
-                return "gray"  # Default color for unknown types
+                return "gray"
 
-            # Draw lines and add markers for the closest centres
             for i, (index, row) in enumerate(closest.iterrows()):
                 dest_coords = (row["Latitude"], row["Longitude"])
-
-                # Draw a line from input address to the closest centre
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
 
-                # Get the appropriate color based on the centre type
                 marker_color = get_marker_color(row["Format - Type of Centre"])
 
-                # Add marker for the closest centre with dynamic color
                 folium.Marker(
                     location=dest_coords,
                     popup=f"Centre #{int(row['Centre Number'])}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {row['Distance (miles)']:.2f} miles",
                     icon=folium.Icon(color=marker_color)
                 ).add_to(m)
 
-                # Add distance to text output
                 distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
-                # Floating label box that appears automatically
                 label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
                 offset_lat = stagger_offsets[i % len(stagger_offsets)]
 
-                # Adjust label placement if too close to the edges of the map
                 label_lat = row["Latitude"] + offset_lat
                 label_lon = row["Longitude"]
                 if label_lat > lat_max:
-                    label_lat = lat_max - 0.0005  # Ensure it's within bounds
+                    label_lat = lat_max - 0.0005
                 if label_lat < lat_min:
-                    label_lat = lat_min + 0.0005  # Ensure it's within bounds
+                    label_lat = lat_min + 0.0005
                 if label_lon > lng_max:
-                    label_lon = lng_max - 0.0005  # Ensure it's within bounds
+                    label_lon = lng_max - 0.0005
                 if label_lon < lng_min:
-                    label_lon = lng_min + 0.0005  # Ensure it's within bounds
+                    label_lon = lng_min + 0.0005
 
-                # Add the adjusted label with proper offset
                 folium.Marker(
                     location=(label_lat, label_lon),
                     icon=folium.DivIcon(
-                        icon_size=(150, 40),  # Adjust size to accommodate text
+                        icon_size=(150, 40),
                         icon_anchor=(0, 0),
                         html=f"""
                             <div style="
@@ -187,8 +170,8 @@ if input_address:
                                 font-size: 13px;
                                 font-family: Arial, sans-serif;
                                 display: inline-block;
-                                white-space: nowrap;  /* Ensure text stays in one line */
-                                text-overflow: ellipsis; /* Add ellipsis if text overflows */
+                                white-space: nowrap;
+                                text-overflow: ellipsis;
                                 box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
                             ">
                                 {label_text}
@@ -197,82 +180,68 @@ if input_address:
                     )
                 ).add_to(m)
 
-            # Display the map with the lines and markers
             folium_map_path = "closest_centres_map.html"
             m.save(folium_map_path)
-            st_folium(m, width=950, height=650)
 
-            # Display the distances as text below the map
+            # Wrap map and legend in columns
+            col1, col2 = st.columns([4, 1])
+
+            with col1:
+                st_folium(m, width=950, height=650)
+
+            with col2:
+                st.markdown("""
+                    <div style="background-color: white; padding: 10px; border: 2px solid grey; border-radius: 10px; width: 100%; margin-top: 20px;">
+                        <b>Centre Type Legend</b><br>
+                        <i style="background-color: blue; padding: 5px;">&#9724;</i> Regus<br>
+                        <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
+                        <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
+                        <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
+                        <i style="background-color: red; padding: 5px;">&#9724;</i> Mature<br>
+                        <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
+                    </div>
+                """, unsafe_allow_html=True)
+
             st.subheader("Distances from Your Address to the Closest Centres:")
             st.text(distance_text)
 
-# Wrap map and legend in columns to place legend on the right
-col1, col2 = st.columns([4, 1])  # Adjust width ratio as needed
-
-with col1:
-    st_folium(m, width=950, height=650)
-
-with col2:
-    st.markdown("""
-        <div style="background-color: white; padding: 10px; border: 2px solid grey; border-radius: 10px; width: 100%; margin-top: 20px;">
-            <b>Centre Type Legend</b><br>
-            <i style="background-color: blue; padding: 5px;">&#9724;</i> Regus<br>
-            <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
-            <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
-            <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
-            <i style="background-color: red; padding: 5px;">&#9724;</i> Mature<br>
-            <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
-        </div>
-    """, unsafe_allow_html=True)
-
-
             # Save PowerPoint presentation
             prs = Presentation()
-
-            # Title Slide
             slide = prs.slides.add_slide(prs.slide_layouts[0])
             title = slide.shapes.title
             subtitle = slide.placeholders[1]
-            title.text = "Closest Centres Presentation"
-            subtitle.text = f"Closest Centres to: {input_address}"
+            title.text = "8 Closest Centres"
+            subtitle.text = f"Address: {input_address}"
 
-            # Add slide with placeholder for the map image
+            # Add map image
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
-            title.text = "Closest Centres Map"
-            # Add the placeholder text in the slide
-            slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
+            title.text = "Map of Closest Centres"
+            img_path = "closest_centres_map.png"  # Ensure to generate an image of the map
+            slide.shapes.add_picture(img_path, Inches(1), Inches(1), width=Inches(8))
 
-            # Add slide with table of closest centres
+            # Add a table with the closest centres
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
-            title.text = "Distances to Closest Centres"
-            table = slide.shapes.add_table(rows=len(closest) + 1, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(9), height=Inches(4.5))
-            table.table.cell(0, 0).text = "Centre #"
-            table.table.cell(0, 1).text = "Address"
-            table.table.cell(0, 2).text = "Type of Centre"
-            table.table.cell(0, 3).text = "Transaction Milestone"
-            table.table.cell(0, 4).text = "Distance (miles)"
+            title.text = "Closest Centres Details"
 
-            for i, row in enumerate(closest.iterrows()):
-                table.table.cell(i + 1, 0).text = str(int(row[1]['Centre Number']))
-                table.table.cell(i + 1, 1).text = str(row[1]['Addresses'])
-                table.table.cell(i + 1, 2).text = str(row[1]['Format - Type of Centre'])
-                table.table.cell(i + 1, 3).text = str(row[1]['Transaction Milestone Status'])
-                table.table.cell(i + 1, 4).text = f"{row[1]['Distance (miles)']:.2f}"
+            # Create table
+            rows, cols = closest.shape
+            table = slide.shapes.add_table(rows + 1, cols, Inches(1), Inches(1.5), Inches(8), Inches(5)).table
 
-            # Save the presentation
-            presentation_file = BytesIO()
-            prs.save(presentation_file)
-            presentation_file.seek(0)
+            # Set header
+            for col_num, column_name in enumerate(closest.columns):
+                table.cell(0, col_num).text = column_name
 
-            # Provide a download link for the PowerPoint presentation
-            st.download_button(
-                label="Download PowerPoint Presentation",
-                data=presentation_file,
-                file_name="closest_centres_presentation.pptx",
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            )
+            # Fill table with closest centres data
+            for row_num, (index, row) in enumerate(closest.iterrows()):
+                for col_num, value in enumerate(row):
+                    table.cell(row_num + 1, col_num).text = str(value)
+
+            # Save the PowerPoint file
+            pptx_filename = f"closest_centres_{input_address.replace(' ', '_')}.pptx"
+            prs.save(pptx_filename)
+            st.download_button("Download PowerPoint", pptx_filename)
 
     except Exception as e:
-        st.error(f"❌ Error occurred: {e}")
+        st.error(f"Unexpected error: {str(e)}")
