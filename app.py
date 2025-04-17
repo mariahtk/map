@@ -103,15 +103,15 @@ if input_address:
                 # Add marker for the closest centre
                 folium.Marker(
                     location=dest_coords,
-                    popup=f"Centre #{(int(row['Centre Number'])}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {row['Distance (miles)']:.2f} miles",
+                    popup=f"Centre #{int(row['Centre Number'])}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {row['Distance (miles)']:.2f} miles",
                     icon=folium.Icon(color="blue")
                 ).add_to(m)
 
                 # Add distance to text output
-                distance_text += f"Centre #{(int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+                distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
                 # Floating label box that appears automatically
-                label_text = f"#{row['Centre Number']} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
+                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
                 offset_lat = stagger_offsets[i % len(stagger_offsets)]
 
                 # Adjust label placement if too close to the edges of the map
@@ -190,7 +190,7 @@ if input_address:
             table.table.cell(0, 4).text = "Distance (miles)"
 
             for i, row in enumerate(closest.iterrows()):
-                table.table.cell(i + 1, 0).text = str(row[1]["Centre Number"])
+                table.table.cell(i + 1, 0).text = str(int(row[1]['Centre Number']))
                 table.table.cell(i + 1, 1).text = str(row[1]["Addresses"])
                 table.table.cell(i + 1, 2).text = str(row[1]["Format - Type of Centre"])
                 table.table.cell(i + 1, 3).text = str(row[1]["Transaction Milestone Status"])
