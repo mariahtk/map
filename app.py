@@ -9,8 +9,6 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 import requests
 import urllib.parse
-from PIL import Image  # Import Pillow for image handling
-import os
 
 # Streamlit setup
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
@@ -154,18 +152,9 @@ if input_address:
                     )
                 ).add_to(m)
 
-            # Save the Folium map to an image file using Selenium or an external tool
+            # Display the map with the lines and markers
             folium_map_path = "closest_centres_map.html"
             m.save(folium_map_path)
-
-            # Convert the HTML map to an image (using external tool, for now, a placeholder is used)
-            img = Image.open(folium_map_path)  # Placeholder for actual method to capture the map image
-
-            # Save the map image
-            img_path = "closest_centres_map.png"
-            img.save(img_path)
-
-            # Display the map with the lines and markers
             st_folium(m, width=950, height=650)
 
             # Display the distances as text below the map
@@ -182,11 +171,12 @@ if input_address:
             title.text = "Closest Centres Presentation"
             subtitle.text = f"Closest Centres to: {input_address}"
 
-            # Add slide with the map image
+            # Add slide with placeholder for the map image
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
             title.text = "Closest Centres Map"
-            slide.shapes.add_picture(img_path, Inches(1), Inches(1.5), Inches(8), Inches(4.5))
+            # Add the placeholder text in the slide
+            slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
 
             # Add slide with table of closest centres
             slide = prs.slides.add_slide(prs.slide_layouts[5])
