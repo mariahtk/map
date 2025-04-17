@@ -234,43 +234,23 @@ if input_address:
             title.text = "Closest Centres Presentation"
             subtitle.text = f"Closest Centres to: {input_address}"
 
-            # Add slide with placeholder for the map image
+            # Add slide with placeholder for the map image (manually export from Folium map or capture screenshot)
             slide = prs.slides.add_slide(prs.slide_layouts[5])
-            title = slide.shapes.title
-            title.text = "Closest Centres Map"
-            # Add the placeholder text in the slide
-            slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
+            slide.shapes.title.text = "Map of Closest Centres"
+            img_stream = BytesIO()
+            m.save(img_stream)  # Save map to image stream
+            img_stream.seek(0)
+            slide.shapes.add_picture(img_stream, Inches(0.5), Inches(1.5), width=Inches(9))
 
-            # Add slide with table of closest centres
-            slide = prs.slides.add_slide(prs.slide_layouts[5])
-            title = slide.shapes.title
-            title.text = "Distances to Closest Centres"
-            table = slide.shapes.add_table(rows=len(closest) + 1, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(9), height=Inches(4.5))
-            table.table.cell(0, 0).text = "Centre #"
-            table.table.cell(0, 1).text = "Address"
-            table.table.cell(0, 2).text = "Type of Centre"
-            table.table.cell(0, 3).text = "Transaction Milestone"
-            table.table.cell(0, 4).text = "Distance (miles)"
-
-            for i, row in enumerate(closest.iterrows()):
-                table.table.cell(i + 1, 0).text = str(int(row[1]['Centre Number']))
-                table.table.cell(i + 1, 1).text = str(row[1]['Addresses'])
-                table.table.cell(i + 1, 2).text = str(row[1]['Format - Type of Centre'])
-                table.table.cell(i + 1, 3).text = str(row[1]['Transaction Milestone Status'])
-                table.table.cell(i + 1, 4).text = f"{row[1]['Distance (miles)']:.2f}"
-
-            # Save the presentation
-            presentation_file = BytesIO()
-            prs.save(presentation_file)
-            presentation_file.seek(0)
-
-            # Provide a download link for the PowerPoint presentation
+            # Save presentation
+            pptx_file = "Closest_Centres_Presentation.pptx"
+            prs.save(pptx_file)
             st.download_button(
                 label="Download PowerPoint Presentation",
-                data=presentation_file,
-                file_name="closest_centres_presentation.pptx",
+                data=pptx_file,
+                file_name=pptx_file,
                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
             )
 
     except Exception as e:
-        st.error(f"❌ Error occurred: {e}")
+        st.error(f"An error occurred: {e}")
