@@ -206,18 +206,25 @@ if input_address:
             st.subheader("Distances from Your Address to the Closest Centres:")
             st.text(distance_text)
 
-            # Display the legend below the map
-            st.markdown("""
-                <div style="background-color: white; padding: 10px; border: 2px solid grey; border-radius: 10px; width: 250px; margin-top: 20px;">
-                    <b>Centre Type Legend</b><br>
-                    <i style="background-color: blue; padding: 5px;">&#9724;</i> Regus<br>
-                    <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
-                    <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
-                    <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
-                    <i style="background-color: red; padding: 5px;">&#9724;</i> Mature<br>
-                    <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
-                </div>
-            """, unsafe_allow_html=True)
+# Wrap map and legend in columns to place legend on the right
+col1, col2 = st.columns([4, 1])  # Adjust width ratio as needed
+
+with col1:
+    st_folium(m, width=950, height=650)
+
+with col2:
+    st.markdown("""
+        <div style="background-color: white; padding: 10px; border: 2px solid grey; border-radius: 10px; width: 100%; margin-top: 20px;">
+            <b>Centre Type Legend</b><br>
+            <i style="background-color: blue; padding: 5px;">&#9724;</i> Regus<br>
+            <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
+            <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
+            <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
+            <i style="background-color: red; padding: 5px;">&#9724;</i> Mature<br>
+            <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
+        </div>
+    """, unsafe_allow_html=True)
+
 
             # Save PowerPoint presentation
             prs = Presentation()
