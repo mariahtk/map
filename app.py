@@ -77,6 +77,8 @@ if input_address:
                     all_data.append(df)
 
                 data = pd.concat(all_data)
+
+                # Filter out rows with NaN in Latitude or Longitude columns
                 data = data.dropna(subset=["Latitude", "Longitude"])
 
                 # Calculate distances
