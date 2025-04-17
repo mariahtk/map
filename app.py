@@ -126,13 +126,13 @@ if input_address:
                 elif format_type == "HQ":
                     return "darkblue"
                 elif format_type == "Signature":
-                    return "red"
+                    return "purple"
                 elif format_type == "Spaces":
                     return "black"
                 elif format_type == "Non-Standard Brand":
                     return "gold"
                 elif pd.isna(format_type) or format_type == "":
-                    return "yellow"
+                    return "red"
                 return "gray"  # Default color for unknown types
 
             # Draw lines and add markers for the closest centres
@@ -212,7 +212,7 @@ if input_address:
                     <b>Centre Type Legend</b><br>
                     <i style="background-color: blue; padding: 5px;">&#9724;</i> Regus<br>
                     <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
-                    <i style="background-color: red; padding: 5px;">&#9724;</i> Signature<br>
+                    <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
                     <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
                     <i style="background-color: yellow; padding: 5px;">&#9724;</i> Blank<br>
                     <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
