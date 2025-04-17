@@ -120,6 +120,39 @@ if input_address:
             # For staggering the labels vertically
             stagger_offsets = [-0.002, 0.002, -0.0015, 0.0015, -0.001, 0.001, -0.0005, 0.0005]
 
+            # Marker color mapping based on "Format - Type of Centre"
+            def get_marker_color(format_type):
+                if format_type == "Regus":
+                    return "blue"
+                elif format_type == "HQ":
+                    return "darkblue"
+                elif format_type == "Signature":
+                    return "red"
+                elif format_type == "Spaces":
+                    return "black"
+                elif format_type == "Non-Standard Brand":
+                    return "gold"
+                elif pd.isna(format_type) or format_type == "":
+                    return "yellow"
+                return "gray"  # Default color for unknown types
+
+            # Add legend to the map
+            legend_html = """
+                <div style="position: fixed; 
+                            bottom: 10px; left: 10px; width: 200px; 
+                            background-color: white; border:2px solid grey; 
+                            padding: 10px; z-index:9999;">
+                    <b>Centre Type Legend</b><br>
+                    <i style="background-color: blue; padding: 5px;">&#9724;</i> Regus<br>
+                    <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
+                    <i style="background-color: red; padding: 5px;">&#9724;</i> Signature<br>
+                    <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
+                    <i style="background-color: yellow; padding: 5px;">&#9724;</i> Blank<br>
+                    <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
+                </div>
+            """
+            m.get_root().html.add_child(folium.Element(legend_html))
+
             # Draw lines and add markers for the closest centres
             for i, (index, row) in enumerate(closest.iterrows()):
                 dest_coords = (row["Latitude"], row["Longitude"])
@@ -127,11 +160,14 @@ if input_address:
                 # Draw a line from input address to the closest centre
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
 
-                # Add marker for the closest centre
+                # Get the appropriate color based on the centre type
+                marker_color = get_marker_color(row["Format - Type of Centre"])
+
+                # Add marker for the closest centre with dynamic color
                 folium.Marker(
                     location=dest_coords,
                     popup=f"Centre #{int(row['Centre Number'])}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {row['Distance (miles)']:.2f} miles",
-                    icon=folium.Icon(color="blue")
+                    icon=folium.Icon(color=marker_color)
                 ).add_to(m)
 
                 # Add distance to text output
@@ -218,17 +254,23 @@ if input_address:
 
             for i, row in enumerate(closest.iterrows()):
                 table.table.cell(i + 1, 0).text = str(int(row[1]['Centre Number']))
-                table.table.cell(i + 1, 1).text = str(row[1]["Addresses"])
-                table.table.cell(i + 1, 2).text = str(row[1]["Format - Type of Centre"])
-                table.table.cell(i + 1, 3).text = str(row[1]["Transaction Milestone Status"])
+                table.table.cell(i + 1, 1).text = str(row[1]['Addresses'])
+                table.table.cell(i + 1, 2).text = str(row[1]['Format - Type of Centre'])
+                table.table.cell(i + 1, 3).text = str(row[1]['Transaction Milestone Status'])
                 table.table.cell(i + 1, 4).text = f"{row[1]['Distance (miles)']:.2f}"
 
-            # Save the PowerPoint presentation to a file
+            # Save the presentation
             presentation_file = BytesIO()
             prs.save(presentation_file)
             presentation_file.seek(0)
-            st.download_button("Download Presentation", presentation_file, "closest_centres_presentation.pptx")
+
+            # Provide a download link for the PowerPoint presentation
+            st.download_button(
+                label="Download PowerPoint Presentation",
+                data=presentation_file,
+                file_name="closest_centres_presentation.pptx",
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            )
 
     except Exception as e:
-        st.error(f"❌ Error: {str(e)}")
-
+        st.error(f"❌ Error occurred: {e}")
