@@ -9,6 +9,33 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 import requests
 import urllib.parse
+import streamlit as st
+
+# --- LOGIN SYSTEM ---
+def login():
+    st.image("IWG Logo.jpg", width=150)
+    st.title("IWG Internal Login")
+
+    email = st.text_input("Email")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+        if password == "IWG123" and email.endswith("@iwgplc.com"):
+            st.session_state["authenticated"] = True
+            st.session_state["user_email"] = email
+            st.success("Login successful!")
+            st.experimental_rerun()
+        else:
+            st.error("Invalid email or password.")
+
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+
+if not st.session_state["authenticated"]:
+    login()
+    st.stop()
+
+# --- REST OF THE APP ---
 
 # Streamlit setup
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
