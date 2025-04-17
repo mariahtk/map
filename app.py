@@ -136,22 +136,23 @@ if input_address:
                     return "yellow"
                 return "gray"  # Default color for unknown types
 
-            # Add legend to the map
-            legend_html = """
-                <div style="position: fixed; 
-                            bottom: 10px; left: 10px; width: 200px; 
-                            background-color: white; border:2px solid grey; 
-                            padding: 10px; z-index:9999;">
-                    <b>Centre Type Legend</b><br>
-                    <i style="background-color: blue; padding: 5px;">&#9724;</i> Regus<br>
-                    <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
-                    <i style="background-color: red; padding: 5px;">&#9724;</i> Signature<br>
-                    <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
-                    <i style="background-color: yellow; padding: 5px;">&#9724;</i> Blank<br>
-                    <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
-                </div>
-            """
-            m.get_root().html.add_child(folium.Element(legend_html))
+# Add legend to the map
+legend_html = """
+    <div style="position: fixed; 
+                top: 10px; right: 10px; width: 200px; 
+                background-color: white; border:2px solid grey; 
+                padding: 10px; z-index:9999;">
+        <b>Centre Type Legend</b><br>
+        <i style="background-color: blue; padding: 5px;">&#9724;</i> Regus<br>
+        <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
+        <i style="background-color: red; padding: 5px;">&#9724;</i> Signature<br>
+        <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
+        <i style="background-color: yellow; padding: 5px;">&#9724;</i> Blank<br>
+        <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
+    </div>
+"""
+m.get_root().html.add_child(folium.Element(legend_html))
+
 
             # Draw lines and add markers for the closest centres
             for i, (index, row) in enumerate(closest.iterrows()):
