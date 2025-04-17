@@ -9,6 +9,8 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 import requests
 import urllib.parse
+from PIL import Image  # Import Pillow for image handling
+import os
 
 # Streamlit setup
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
@@ -103,15 +105,15 @@ if input_address:
                 # Add marker for the closest centre
                 folium.Marker(
                     location=dest_coords,
-                    popup=f"Centre #{int(row['Centre Number'])}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {row['Distance (miles)']:.2f} miles",
+                    popup=f"Centre #{row['Centre Number']}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {row['Distance (miles)']:.2f} miles",
                     icon=folium.Icon(color="blue")
                 ).add_to(m)
 
                 # Add distance to text output
-                distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+                distance_text += f"Centre #{row['Centre Number']} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
                 # Floating label box that appears automatically
-                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
+                label_text = f"#{row['Centre Number']} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
                 offset_lat = stagger_offsets[i % len(stagger_offsets)]
 
                 # Adjust label placement if too close to the edges of the map
@@ -152,9 +154,18 @@ if input_address:
                     )
                 ).add_to(m)
 
-            # Display the map with the lines and markers
+            # Save the Folium map to an image file using Selenium or an external tool
             folium_map_path = "closest_centres_map.html"
             m.save(folium_map_path)
+
+            # Convert the HTML map to an image (using external tool, for now, a placeholder is used)
+            img = Image.open(folium_map_path)  # Placeholder for actual method to capture the map image
+
+            # Save the map image
+            img_path = "closest_centres_map.png"
+            img.save(img_path)
+
+            # Display the map with the lines and markers
             st_folium(m, width=950, height=650)
 
             # Display the distances as text below the map
@@ -171,12 +182,11 @@ if input_address:
             title.text = "Closest Centres Presentation"
             subtitle.text = f"Closest Centres to: {input_address}"
 
-            # Add slide with placeholder for the map image
+            # Add slide with the map image
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
             title.text = "Closest Centres Map"
-            # Add the placeholder text in the slide
-            slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
+            slide.shapes.add_picture(img_path, Inches(1), Inches(1.5), Inches(8), Inches(4.5))
 
             # Add slide with table of closest centres
             slide = prs.slides.add_slide(prs.slide_layouts[5])
@@ -190,7 +200,7 @@ if input_address:
             table.table.cell(0, 4).text = "Distance (miles)"
 
             for i, row in enumerate(closest.iterrows()):
-                table.table.cell(i + 1, 0).text = str(int(row[1]['Centre Number']))
+                table.table.cell(i + 1, 0).text = str(row[1]["Centre Number"])
                 table.table.cell(i + 1, 1).text = str(row[1]["Addresses"])
                 table.table.cell(i + 1, 2).text = str(row[1]["Format - Type of Centre"])
                 table.table.cell(i + 1, 3).text = str(row[1]["Transaction Milestone Status"])
