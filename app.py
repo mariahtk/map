@@ -10,7 +10,6 @@ from pptx.util import Inches, Pt
 import requests
 import urllib.parse
 
-
 # --- LOGIN SYSTEM ---
 def login():
     st.image("IWG Logo.jpg", width=150)
@@ -206,6 +205,43 @@ if input_address:
             st.subheader("Distances from Your Address to the Closest Centres:")
             st.text(distance_text)
 
+            # Save PowerPoint presentation
+            prs = Presentation()
+            slide = prs.slides.add_slide(prs.slide_layouts[0])
+            title = slide.shapes.title
+            subtitle = slide.placeholders[1]
+            title.text = "8 Closest Centres"
+            subtitle.text = f"Address: {input_address}"
 
-except Exception as e:
-    st.error(f"❌ Error occurred: {e}")
+            # Add map image
+            slide = prs.slides.add_slide(prs.slide_layouts[5])
+            title = slide.shapes.title
+            title.text = "Map of Closest Centres"
+            img_path = "closest_centres_map.png"  # Ensure to generate an image of the map
+            slide.shapes.add_picture(img_path, Inches(1), Inches(1), width=Inches(8))
+
+            # Add a table with the closest centres
+            slide = prs.slides.add_slide(prs.slide_layouts[5])
+            title = slide.shapes.title
+            title.text = "Closest Centres Details"
+
+            # Create table
+            rows, cols = closest.shape
+            table = slide.shapes.add_table(rows + 1, cols, Inches(1), Inches(1.5), Inches(8), Inches(5)).table
+
+            # Set header
+            for col_num, column_name in enumerate(closest.columns):
+                table.cell(0, col_num).text = column_name
+
+            # Fill table with closest centres data
+            for row_num, (index, row) in enumerate(closest.iterrows()):
+                for col_num, value in enumerate(row):
+                    table.cell(row_num + 1, col_num).text = str(value)
+
+            # Save the PowerPoint file
+            pptx_filename = f"closest_centres_{input_address.replace(' ', '_')}.pptx"
+            prs.save(pptx_filename)
+            st.download_button("Download PowerPoint", pptx_filename)
+
+    except Exception as e:
+        st.error(f"Unexpected error: {str(e)}")
