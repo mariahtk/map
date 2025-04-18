@@ -235,8 +235,8 @@ if input_address:
             width = Inches(9)   # Full width, with some margin on the sides
             height = Inches(3.0)  # Further reduced height to ensure the entire table fits
 
-            # Add and configure the table
-            table_shape = slide.shapes.add_table(rows=len(closest)+1, cols=5, left=left, top=top, width=width, height=height)
+            # Add and configure the table (use +1 for the header row)
+            table_shape = slide.shapes.add_table(rows=1, cols=4, left=left, top=top, width=width, height=height)
             table = table_shape.table
 
             # Add header row
@@ -245,12 +245,21 @@ if input_address:
             table.cell(0, 2).text = "Transaction Milestone"
             table.cell(0, 3).text = "Distance (miles)"
 
-            # Add data rows with NaN handling
+            # Add data rows with NaN handling and avoid empty rows
+            row_idx = 1  # Start from row 1 (after the header)
             for i, (index, row) in enumerate(closest.iterrows()):
-                table.cell(i+1, 0).text = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
-                table.cell(i+1, 1).text = row['Addresses'] if pd.notna(row['Addresses']) else "N/A"
-                table.cell(i+1, 2).text = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
-                table.cell(i+1, 3).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
+            centre_number = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
+            address = row['Addresses'] if pd.notna(row['Addresses']) else "N/A"
+            milestone = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
+            distance = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
+    
+            # Only add row if it contains valid data (i.e., not all 'N/A')
+            if centre_number != "N/A" or address != "N/A" or milestone != "N/A" or distance != "N/A":
+            table.cell(row_idx, 0).text = centre_number
+            table.cell(row_idx, 1).text = address
+            table.cell(row_idx, 2).text = milestone
+            table.cell(row_idx, 3).text = distance
+            row_idx += 1
 
             # Save PowerPoint file
             pptx_path = "closest_centres_presentation.pptx"
