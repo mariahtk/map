@@ -228,7 +228,16 @@ if input_address:
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
             title.text = "Distances to Closest Centres"
-            table = slide.shapes.add_table(rows=len(closest)+1, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(8), height=Inches(5)).table
+
+            # Define table dimensions to fit within slide margins
+            left = Inches(0.3)
+            top = Inches(1.2)
+            width = Inches(9.4)
+            height = Inches(5.8)
+
+            # Add and configure the table
+            table_shape = slide.shapes.add_table(rows=len(closest)+1, cols=5, left=left, top=top, width=width, height=height)
+            table = table_shape.table
 
             # Add header row
             table.cell(0, 0).text = "Centre #"
