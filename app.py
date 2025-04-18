@@ -228,7 +228,7 @@ if input_address:
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
             title.text = "Distances to Closest Centres"
-            table = slide.shapes.add_table(rows=len(closest)+1, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(8), height=Inches(5)).table
+            table = slide.shapes.add_table(rows=len(closest)+1, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(8), height=Inches(4)).table
 
             # Add header row
             table.cell(0, 0).text = "Centre #"
@@ -245,10 +245,11 @@ if input_address:
                 table.cell(i+1, 3).text = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
                 table.cell(i+1, 4).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
 
-            # Save PowerPoint file
-            pptx_path = "closest_centres_presentation.pptx"
-            prs.save(pptx_path)
-            st.download_button("Download PowerPoint Presentation", data=open(pptx_path, "rb"), file_name=pptx_path, mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+            # Save the presentation file
+            pptx_file = "closest_centres_presentation.pptx"
+            prs.save(pptx_file)
 
+            st.download_button("Download PowerPoint", pptx_file)
+            
     except Exception as e:
         st.error(f"❌ An error occurred: {e}")
