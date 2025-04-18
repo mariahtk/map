@@ -229,11 +229,11 @@ if input_address:
             title = slide.shapes.title
             title.text = "Distances to Closest Centres"
 
-            # Define table dimensions to fit within slide margins
-            left = Inches(0.3)
-            top = Inches(1.2)
-            width = Inches(9.4)
-            height = Inches(5.8)
+            # Define table dimensions and position to fit within slide margins below the title
+            left = Inches(0.5)  # Keep the left margin the same
+            top = Inches(1.8)   # Start below the title with a bit of space
+            width = Inches(9)   # Keep the width close to the maximum available (leaving a small margin on the sides)
+            height = Inches(4.5)  # Reduced height to ensure it fits comfortably within the available space
 
             # Add and configure the table
             table_shape = slide.shapes.add_table(rows=len(closest)+1, cols=5, left=left, top=top, width=width, height=height)
