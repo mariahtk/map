@@ -224,49 +224,44 @@ if input_address:
             # Add the placeholder text in the slide
             slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
 
-# Add slide with table of closest centres
-slide = prs.slides.add_slide(prs.slide_layouts[5])
-title = slide.shapes.title
-title.text = "Distances to Closest Centres"
+            # Add slide with table of closest centres
+            slide = prs.slides.add_slide(prs.slide_layouts[5])
+            title = slide.shapes.title
+            title.text = "Distances to Closest Centres"
 
-# Define table dimensions and position to fit within slide's white space beneath the title
-left = Inches(0.5)  # 0.5 inch left margin
-top = Inches(1.0)   # Start just below the title, with some padding (increased space from title)
-width = Inches(9)   # Full width, with some margin on the sides
-height = Inches(3.0)  # Further reduced height to ensure the entire table fits
+            # Define table dimensions and position to fit within slide's white space beneath the title
+            left = Inches(0.5)  # 0.5 inch left margin
+            top = Inches(1.0)   # Start just below the title, with some padding (increased space from title)
+            width = Inches(9)   # Full width, with some margin on the sides
+            height = Inches(3.0)  # Further reduced height to ensure the entire table fits
 
-# Add and configure the table (use +1 for the header row)
-table_shape = slide.shapes.add_table(rows=1, cols=4, left=left, top=top, width=width, height=height)
-table = table_shape.table
+            # Add and configure the table (use +1 for the header row)
+            table_shape = slide.shapes.add_table(rows=1, cols=4, left=left, top=top, width=width, height=height)
+            table = table_shape.table
 
-# Add header row
-table.cell(0, 0).text = "Centre #"
-table.cell(0, 1).text = "Address"
-table.cell(0, 2).text = "Transaction Milestone"
-table.cell(0, 3).text = "Distance (miles)"
+            # Add header row
+            table.cell(0, 0).text = "Centre #"
+            table.cell(0, 1).text = "Address"
+            table.cell(0, 2).text = "Transaction Milestone"
+            table.cell(0, 3).text = "Distance (miles)"
 
-# Add data rows with NaN handling and avoid empty rows
-row_idx = 1  # Start from row 1 (after the header)
-for i, (index, row) in enumerate(closest.iterrows()):
-    # Get values from the row (ensure proper indentation here)
-    centre_number = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
-    address = row['Addresses'] if pd.notna(row['Addresses']) else "N/A"
-    milestone = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
-    distance = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
+            # Add data rows with NaN handling and avoid empty rows
+            row_idx = 1  # Start from row 1 (after the header)
+            for i, (index, row) in enumerate(closest.iterrows()):
+                table.add_row()
+                table.cell(row_idx, 0).text = str(int(row["Centre Number"]))
+                table.cell(row_idx, 1).text = row["Addresses"]
+                table.cell(row_idx, 2).text = str(row["Transaction Milestone Status"])
+                table.cell(row_idx, 3).text = f"{row['Distance (miles)']:.2f} miles"
+                row_idx += 1
+
+            # Save PowerPoint presentation
+            pptx_file = "closest_centres_presentation.pptx"
+            prs.save(pptx_file)
+
+            st.success(f"PowerPoint presentation saved as {pptx_file}.")
+            st.download_button("Download PowerPoint", pptx_file)
     
-    # Only add row if it contains valid data (i.e., not all 'N/A')
-    if centre_number != "N/A" or address != "N/A" or milestone != "N/A" or distance != "N/A":
-        table.cell(row_idx, 0).text = centre_number
-        table.cell(row_idx, 1).text = address
-        table.cell(row_idx, 2).text = milestone
-        table.cell(row_idx, 3).text = distance
-        row_idx += 1
-
-
-            # Save PowerPoint file
-            pptx_path = "closest_centres_presentation.pptx"
-            prs.save(pptx_path)
-            st.download_button("Download PowerPoint Presentation", data=open(pptx_path, "rb"), file_name=pptx_path, mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
-
     except Exception as e:
-        st.error(f"❌ An error occurred: {e}")
+        st.error(f"An error occurred: {str(e)}")
+
