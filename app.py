@@ -143,7 +143,7 @@ if input_address:
 
                 distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
-                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
+                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)}"
                 offset_lat = stagger_offsets[i % len(stagger_offsets)]
 
                 label_lat = row["Latitude"] + offset_lat
@@ -192,7 +192,7 @@ if input_address:
                 st_folium(m, width=950, height=650)
 
             with col2:
-                st.markdown("""
+                st.markdown(""" 
                     <div style="background-color: white; padding: 10px; border: 2px solid grey; border-radius: 10px; width: 100%; margin-top: 20px;">
                         <b>Centre Type Legend</b><br>
                         <i style="background-color: blue; padding: 5px;">&#9724;</i> Regus<br>
@@ -245,11 +245,12 @@ if input_address:
                 table.cell(i+1, 3).text = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
                 table.cell(i+1, 4).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
 
-            # Save the presentation file
-            pptx_file = "closest_centres_presentation.pptx"
-            prs.save(pptx_file)
+            # Save the presentation
+            pptx_path = "Closest_Centres_Presentation.pptx"
+            prs.save(pptx_path)
 
-            st.download_button("Download PowerPoint", pptx_file)
-            
+            # Provide a download link for the PowerPoint file
+            with open(pptx_path, "rb") as f:
+                st.download_button("Download Presentation", data=f, file_name=pptx_path, mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
     except Exception as e:
-        st.error(f"❌ An error occurred: {e}")
+        st.error(f"An error occurred: {e}")
