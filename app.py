@@ -231,9 +231,9 @@ if input_address:
 
             # Define table dimensions and position to fit within slide's white space beneath the title
             left = Inches(0.5)  # 0.5 inch left margin
-            top = Inches(1.7)   # Start just below the title, with some padding
+            top = Inches(1.0)   # Start just below the title, with some padding (increased space from title)
             width = Inches(9)   # Full width, with some margin on the sides
-            height = Inches(0.05)  # Adjusted height so the table fits within the slide's white space
+            height = Inches(3.0)  # Further reduced height to ensure the entire table fits
 
             # Add and configure the table
             table_shape = slide.shapes.add_table(rows=len(closest)+1, cols=5, left=left, top=top, width=width, height=height)
@@ -242,17 +242,15 @@ if input_address:
             # Add header row
             table.cell(0, 0).text = "Centre #"
             table.cell(0, 1).text = "Address"
-            table.cell(0, 2).text = "Format - Type of Centre"
-            table.cell(0, 3).text = "Transaction Milestone"
-            table.cell(0, 4).text = "Distance (miles)"
+            table.cell(0, 2).text = "Transaction Milestone"
+            table.cell(0, 3).text = "Distance (miles)"
 
             # Add data rows with NaN handling
             for i, (index, row) in enumerate(closest.iterrows()):
                 table.cell(i+1, 0).text = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
                 table.cell(i+1, 1).text = row['Addresses'] if pd.notna(row['Addresses']) else "N/A"
-                table.cell(i+1, 2).text = row['Format - Type of Centre'] if pd.notna(row['Format - Type of Centre']) else "N/A"
-                table.cell(i+1, 3).text = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
-                table.cell(i+1, 4).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
+                table.cell(i+1, 2).text = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
+                table.cell(i+1, 3).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
 
             # Save PowerPoint file
             pptx_path = "closest_centres_presentation.pptx"
