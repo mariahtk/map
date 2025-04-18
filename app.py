@@ -245,16 +245,6 @@ if input_address:
             table.cell(0, 2).text = "Transaction Milestone"
             table.cell(0, 3).text = "Distance (miles)"
 
-            # Add data rows with NaN handling and avoid empty rows
-            row_idx = 1  # Start from row 1 (after the header)
-            for i, (index, row) in enumerate(closest.iterrows()):
-                table.add_row()
-                table.cell(row_idx, 0).text = str(int(row["Centre Number"]))
-                table.cell(row_idx, 1).text = row["Addresses"]
-                table.cell(row_idx, 2).text = str(row["Transaction Milestone Status"])
-                table.cell(row_idx, 3).text = f"{row['Distance (miles)']:.2f} miles"
-                row_idx += 1
-
             # Save PowerPoint presentation
             pptx_file = "closest_centres_presentation.pptx"
             prs.save(pptx_file)
