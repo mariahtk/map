@@ -233,7 +233,7 @@ if input_address:
             left = Inches(0.5)  # 0.5 inch left margin
             top = Inches(1.7)   # Start just below the title, with some padding
             width = Inches(9)   # Full width, with some margin on the sides
-            height = Inches(2)  # Adjusted height so the table fits within the slide's white space
+            height = Inches(0.5)  # Adjusted height so the table fits within the slide's white space
 
             # Add and configure the table
             table_shape = slide.shapes.add_table(rows=len(closest)+1, cols=5, left=left, top=top, width=width, height=height)
