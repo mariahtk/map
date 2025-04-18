@@ -248,6 +248,7 @@ if input_address:
             # Add data rows with NaN handling and avoid empty rows
             row_idx = 1  # Start from row 1 (after the header)
             for i, (index, row) in enumerate(closest.iterrows()):
+            # Get values from the row
             centre_number = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
             address = row['Addresses'] if pd.notna(row['Addresses']) else "N/A"
             milestone = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
