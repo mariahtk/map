@@ -245,25 +245,21 @@ if input_address:
             table.cell(0, 0).text = "Centre #"
             table.cell(0, 1).text = "Address"
             table.cell(0, 2).text = "Format"
-            table.cell(0, 3).text = "Milestone"
+            table.cell(0, 3).text = "Transaction Milestone"
             table.cell(0, 4).text = "Distance (miles)"
-            for i, row in enumerate(closest.head(4).itertuples()):
-                table.cell(i + 1, 0).text = str(row[0])  # Centre #
-                table.cell(i + 1, 1).text = row[3]  # Address
-                table.cell(i + 1, 2).text = row[4]  # Format
-                table.cell(i + 1, 3).text = row[5]  # Transaction Milestone
-                table.cell(i + 1, 4).text = f"{row[6]:.2f}"  # Distance (miles)
+            for i, (index, row) in enumerate(closest.iterrows()):
+                table.cell(i + 1, 0).text = str(int(row["Centre Number"]))
+                table.cell(i + 1, 1).text = str(row["Addresses"])
+                table.cell(i + 1, 2).text = str(row["Format - Type of Centre"])
+                table.cell(i + 1, 3).text = str(row["Transaction Milestone Status"])
+                table.cell(i + 1, 4).text = f"{row['Distance (miles)']:.2f}"
 
-            # Save PowerPoint presentation
-            pptx_file_path = "Closest_Centres_Presentation.pptx"
-            prs.save(pptx_file_path)
+            # Save the presentation
+            output_path = "Closest_Centres_Presentation.pptx"
+            prs.save(output_path)
+            st.success(f"Presentation saved successfully as {output_path}")
 
-            # Check if the PowerPoint file path is valid
-            if isinstance(pptx_file_path, str) and os.path.exists(pptx_file_path):
-                # Provide a download link for the presentation
-                st.download_button("Download PowerPoint Presentation", pptx_file_path)
-            else:
-                st.error("❌ Unable to generate the PowerPoint file. Please try again.")
+            st.download_button("Download Presentation", output_path, file_name="closest_centres_presentation.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
 
     except Exception as e:
-        st.error(f"❌ Error: {e}")
+        st.error(f"An error occurred: {e}")
