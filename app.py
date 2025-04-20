@@ -6,10 +6,11 @@ from streamlit_folium import st_folium
 import folium.plugins as plugins
 from io import BytesIO
 from pptx import Presentation
-from pptx.util import Inches, Pt
+from pptx.util import Inches
 import requests
 import urllib.parse
-import os
+from PIL import Image
+import pdfkit
 
 # --- LOGIN SYSTEM ---
 def login():
@@ -62,16 +63,8 @@ if input_address:
         elif not data.get('results'):
             st.error("❌ Address not found. Try again.")
         else:
-            # Geocode the input address safely
-            results = data.get('results', [])
-            if not results:
-                st.error("No results found for this address.")
-                st.stop()
-            location = results[0] if results else None
-            if not location:
-                st.error("Error: No location data found.")
-                st.stop()
-            
+            # Geocode the input address
+            location = data['results'][0]
             input_coords = (location['geometry']['lat'], location['geometry']['lng'])
 
             # Load and process data
@@ -92,18 +85,11 @@ if input_address:
 
                 # Calculate distances
                 data["Distance (miles)"] = data.apply(
-                    lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles if pd.notna(row["Latitude"]) and pd.notna(row["Longitude"]) else float('nan'),
-                    axis=1
+                    lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1
                 )
-
-                # Remove rows with NaN in Distance (miles)
-                data = data.dropna(subset=["Distance (miles)"])
 
                 # Find 8 closest
                 closest = data.nsmallest(8, "Distance (miles)")
-                if closest.empty:
-                    st.error("No centres found within the range.")
-                    st.stop()
 
             # Calculate bounding box and zoom
             lats = [input_coords[0]] + closest["Latitude"].tolist()
@@ -159,105 +145,63 @@ if input_address:
 
                 distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
-                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
-                offset_lat = stagger_offsets[i % len(stagger_offsets)]
-
-                label_lat = row["Latitude"] + offset_lat
-                label_lon = row["Longitude"]
-                if label_lat > lat_max:
-                    label_lat = lat_max - 0.0005
-                if label_lat < lat_min:
-                    label_lat = lat_min + 0.0005
-                if label_lon > lng_max:
-                    label_lon = lng_max - 0.0005
-                if label_lon < lng_min:
-                    label_lon = lng_min + 0.0005
-
-                folium.Marker(
-                    location=(label_lat, label_lon),
-                    icon=folium.DivIcon(
-                        icon_size=(150, 40),
-                        icon_anchor=(0, 0),
-                        html=f"""
-                            <div style="
-                                background-color: white;
-                                color: black;
-                                padding: 6px 10px;
-                                border: 1px solid black;
-                                border-radius: 6px;
-                                font-size: 13px;
-                                font-family: Arial, sans-serif;
-                                display: inline-block;
-                                white-space: nowrap;
-                                text-overflow: ellipsis;
-                                box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
-                            ">{label_text}</div>
-                        """
-                    )
-                ).add_to(m)
-
+            # Save the map to HTML
             folium_map_path = "closest_centres_map.html"
             m.save(folium_map_path)
 
-            # Wrap map and legend in columns
-            col1, col2 = st.columns([4, 1])
-
-            with col1:
-                st_folium(m, width=950, height=650)
-
-            with col2:
-                st.markdown("""<div style="background-color: white; padding: 10px; border: 2px solid grey; border-radius: 10px; width: 100%; margin-top: 20px;">
-                    <b>Centre Type Legend</b><br>
-                    <i style="background-color: blue; padding: 5px;">&#9724;</i> Regus<br>
-                    <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
-                    <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
-                    <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
-                    <i style="background-color: red; padding: 5px;">&#9724;</i> Mature<br>
-                    <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
-                    </div>
-                """, unsafe_allow_html=True)
-
-            st.subheader("Distances from Your Address to the Closest Centres:")
-            st.text(distance_text)
-
-            # Upload map image
-            uploaded_map_image = st.file_uploader("Upload map image", type=["png", "jpg", "jpeg"])
+            # Convert the HTML map to an image using pdfkit and save to BytesIO
+            pdf_output = pdfkit.from_file(folium_map_path, False)
+            image = Image.open(BytesIO(pdf_output))
 
             # Save PowerPoint presentation in memory
+            pptx_stream = BytesIO()
             prs = Presentation()
 
             # Title Slide
             slide = prs.slides.add_slide(prs.slide_layouts[0])
             title = slide.shapes.title
             subtitle = slide.placeholders[1]
-            title.text = "Closest Centres"
-            subtitle.text = f"Closest centres to {input_address}"
+            title.text = "Closest Centres Presentation"
+            subtitle.text = f"Closest Centres to: {input_address}"
 
-            # Centres table slide
+            # Add slide with placeholder for the map image
             slide = prs.slides.add_slide(prs.slide_layouts[5])
-            table = slide.shapes.add_table(rows=len(closest) + 1, cols=5, left=Inches(0.5), top=Inches(1), width=Inches(9), height=Inches(6)).table
+            title = slide.shapes.title
+            title.text = "Closest Centres Map"
+            # Save map image to the slide
+            img_stream = BytesIO()
+            image.save(img_stream, format="PNG")
+            img_stream.seek(0)
+            slide.shapes.add_picture(img_stream, Inches(0.5), Inches(1.5), width=Inches(8.5))
 
-            table.cell(0, 0).text = "Centre Number"
+            # Add slide with table of closest centres
+            slide = prs.slides.add_slide(prs.slide_layouts[5])
+            title = slide.shapes.title
+            title.text = "Distances to Closest Centres"
+            table = slide.shapes.add_table(rows=len(closest)+1, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(8), height=Inches(5)).table
+
+            # Add header row
+            table.cell(0, 0).text = "Centre #"
             table.cell(0, 1).text = "Address"
-            table.cell(0, 2).text = "Centre Format"
+            table.cell(0, 2).text = "Format - Type of Centre"
             table.cell(0, 3).text = "Transaction Milestone"
             table.cell(0, 4).text = "Distance (miles)"
+
+            # Add data rows with NaN handling
             for i, (index, row) in enumerate(closest.iterrows()):
-                table.cell(i + 1, 0).text = str(int(row["Centre Number"]))
-                table.cell(i + 1, 1).text = str(row["Addresses"])
-                table.cell(i + 1, 2).text = str(row["Format - Type of Centre"])
-                table.cell(i + 1, 3).text = str(row["Transaction Milestone Status"])
-                table.cell(i + 1, 4).text = f"{row['Distance (miles)']:.2f}"
+                table.cell(i+1, 0).text = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
+                table.cell(i+1, 1).text = row['Addresses'] if pd.notna(row['Addresses']) else "N/A"
+                table.cell(i+1, 2).text = row['Format - Type of Centre'] if pd.notna(row['Format - Type of Centre']) else "N/A"
+                table.cell(i+1, 3).text = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
+                table.cell(i+1, 4).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
 
-            # Save the presentation to memory
-            pptx_stream = BytesIO()
+            # Save the PowerPoint presentation to the memory stream
             prs.save(pptx_stream)
-            pptx_stream.seek(0)
 
-            # Provide the download button
+            # Allow the user to download the PowerPoint file
             st.download_button(
-                label="Download Closest Centres PowerPoint",
-                data=pptx_stream,
+                "Download PowerPoint Presentation",
+                data=pptx_stream.getvalue(),
                 file_name="closest_centres_presentation.pptx",
                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
             )
