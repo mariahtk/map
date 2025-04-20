@@ -88,7 +88,8 @@ if input_address:
 
                 # Calculate distances
                 data["Distance (miles)"] = data.apply(
-                    lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1
+                    lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles if pd.notna(row["Latitude"]) and pd.notna(row["Longitude"]) else float('nan'),
+                    axis=1
                 )
 
                 # Remove rows with NaN in Distance (miles)
@@ -242,36 +243,30 @@ if input_address:
                 slide = prs.slides.add_slide(prs.slide_layouts[5])
                 title = slide.shapes.title
                 title.text = slide_title
-                table = slide.shapes.add_table(rows=len(centres) + 1, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(9), height=Inches(5)).table
+                table = slide.shapes.add_table(rows=len(centres) + 1, cols=5, left=Inches(0.5), top=Inches(1.5),
+                                                width=Inches(9), height=Inches(0.8)).table
 
-                # Add headers
-                table.cell(0, 0).text = "Centre #"
+                # Add header row
+                table.cell(0, 0).text = "Centre No."
                 table.cell(0, 1).text = "Address"
-                table.cell(0, 2).text = "Distance (miles)"
-                table.cell(0, 3).text = "Format"
-                table.cell(0, 4).text = "Milestone Status"
+                table.cell(0, 2).text = "Format"
+                table.cell(0, 3).text = "Transaction Milestone"
+                table.cell(0, 4).text = "Distance (miles)"
 
-                # Add centre data
-                for i, (index, row) in enumerate(centres.iterrows()):
-                    table.cell(i + 1, 0).text = str(int(row['Centre Number']))
-                    table.cell(i + 1, 1).text = row['Addresses']
-                    table.cell(i + 1, 2).text = f"{row['Distance (miles)']:.2f}"
-                    table.cell(i + 1, 3).text = row['Format - Type of Centre']
-                    table.cell(i + 1, 4).text = row['Transaction Milestone Status']
+                # Add centre data rows
+                for i, centre in enumerate(centres):
+                    table.cell(i + 1, 0).text = str(int(centre['Centre Number']))
+                    table.cell(i + 1, 1).text = centre['Addresses']
+                    table.cell(i + 1, 2).text = centre['Format - Type of Centre']
+                    table.cell(i + 1, 3).text = centre['Transaction Milestone Status']
+                    table.cell(i + 1, 4).text = f"{centre['Distance (miles)']:.2f}"
 
-            add_table_slide(prs, closest.head(4), "Closest Centres - Top 4")
+            add_table_slide(prs, closest.head(4), "First 4 Closest Centres")
 
-            # Save the presentation
-            pptx_filename = "closest_centres_presentation.pptx"
+            # Save the PowerPoint file
+            pptx_filename = "Closest_Centres_Presentation.pptx"
             prs.save(pptx_filename)
 
-            # Provide download link for the PowerPoint file
-            st.download_button(
-                label="Download PowerPoint",
-                data=open(pptx_filename, "rb").read(),
-                file_name=pptx_filename,
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            )
-
+            st.download_button("Download PowerPoint Presentation", pptx_filename, file_name=pptx_filename)
     except Exception as e:
-        st.error(f"❌ Error: {str(e)}")
+        st.error(f"❌ Error: {str(e)}. Please try again.")
