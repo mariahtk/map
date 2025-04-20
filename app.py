@@ -144,7 +144,7 @@ if input_address:
 
                 distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
-                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
+                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)}"
                 offset_lat = stagger_offsets[i % len(stagger_offsets)]
 
                 label_lat = row["Latitude"] + offset_lat
@@ -230,7 +230,7 @@ if input_address:
             else:
                 slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Map Not Available"
 
-            # Add table slide
+            # Add table slide with first 4 centres
             def add_table_slide(prs, centres, slide_title):
                 slide = prs.slides.add_slide(prs.slide_layouts[5])
                 title = slide.shapes.title
@@ -246,26 +246,18 @@ if input_address:
 
                 # Add rows
                 for i, centre in enumerate(centres):
-                    table.cell(i + 1, 0).text = str(centre['Centre Number'])
-                    table.cell(i + 1, 1).text = str(centre['Addresses'])
-                    table.cell(i + 1, 2).text = str(centre['Format - Type of Centre'])
-                    table.cell(i + 1, 3).text = str(centre['Transaction Milestone Status'])
+                    table.cell(i + 1, 0).text = str(centre["Centre Number"])
+                    table.cell(i + 1, 1).text = centre["Addresses"]
+                    table.cell(i + 1, 2).text = centre["Format - Type of Centre"]
+                    table.cell(i + 1, 3).text = centre["Transaction Milestone Status"]
                     table.cell(i + 1, 4).text = f"{centre['Distance (miles)']:.2f}"
 
-            add_table_slide(prs, closest.to_dict(orient="records"), "Closest Centres Table")
+            add_table_slide(prs, closest.head(4).to_dict(orient="records"), "Closest Centres (Top 4)")
 
             # Save presentation
-            presentation_path = "closest_centres_presentation.pptx"
-            prs.save(presentation_path)
-
-            # Allow downloading the presentation
-            with open(presentation_path, "rb") as file:
-                st.download_button(
-                    label="Download PowerPoint",
-                    data=file,
-                    file_name=presentation_path,
-                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                )
+            presentation_file_path = "closest_centres_presentation.pptx"
+            prs.save(presentation_file_path)
+            st.success(f"Presentation saved as {presentation_file_path}.")
 
     except Exception as e:
-        st.error(f"❌ Error: {e}")
+        st.error(f"Error processing the address: {e}")
