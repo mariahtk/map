@@ -67,7 +67,11 @@ if input_address:
             if not results:
                 st.error("No results found for this address.")
                 st.stop()
-            location = results[0]
+            location = results[0] if results else None
+            if not location:
+                st.error("Error: No location data found.")
+                st.stop()
+            
             input_coords = (location['geometry']['lat'], location['geometry']['lng'])
 
             # Load and process data
@@ -97,6 +101,9 @@ if input_address:
 
                 # Find 8 closest
                 closest = data.nsmallest(8, "Distance (miles)")
+                if closest.empty:
+                    st.error("No centres found within the range.")
+                    st.stop()
 
             # Calculate bounding box and zoom
             lats = [input_coords[0]] + closest["Latitude"].tolist()
@@ -223,28 +230,16 @@ if input_address:
             slide = prs.slides.add_slide(prs.slide_layouts[0])
             title = slide.shapes.title
             subtitle = slide.placeholders[1]
-            title.text = "Closest Centres Presentation"
-            subtitle.text = f"Closest Centres to: {input_address}"
+            title.text = "Closest Centres"
+            subtitle.text = f"Closest centres to {input_address}"
 
-            # Add slide with placeholder for the map image or the uploaded image
+            # Centres table slide
             slide = prs.slides.add_slide(prs.slide_layouts[5])
-            title = slide.shapes.title
-            title.text = "Closest Centres Map"
-            if uploaded_map_image:
-                image_stream = BytesIO(uploaded_map_image.read())
-                slide.shapes.add_picture(image_stream, Inches(1), Inches(1.5), Inches(8), Inches(4))
-            else:
-                slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Map Not Available"
+            table = slide.shapes.add_table(rows=len(closest) + 1, cols=5, left=Inches(0.5), top=Inches(1), width=Inches(9), height=Inches(6)).table
 
-            # Add table slide with first 4 centres
-            slide = prs.slides.add_slide(prs.slide_layouts[5])
-            title = slide.shapes.title
-            title.text = "Closest Centres Table"
-            rows = min(5, len(closest))
-            table = slide.shapes.add_table(rows, 5, Inches(0.5), Inches(1.5), Inches(9), Inches(6)).table
-            table.cell(0, 0).text = "Centre #"
+            table.cell(0, 0).text = "Centre Number"
             table.cell(0, 1).text = "Address"
-            table.cell(0, 2).text = "Format"
+            table.cell(0, 2).text = "Centre Format"
             table.cell(0, 3).text = "Transaction Milestone"
             table.cell(0, 4).text = "Distance (miles)"
             for i, (index, row) in enumerate(closest.iterrows()):
