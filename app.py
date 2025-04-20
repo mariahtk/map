@@ -9,6 +9,7 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 import requests
 import urllib.parse
+import os
 
 # --- LOGIN SYSTEM ---
 def login():
@@ -234,33 +235,34 @@ if input_address:
                 slide = prs.slides.add_slide(prs.slide_layouts[5])
                 title = slide.shapes.title
                 title.text = slide_title
-                table = slide.shapes.add_table(rows=len(centres) + 1, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(8), height=Inches(5)).table
+                table = slide.shapes.add_table(rows=len(centres) + 1, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(9), height=Inches(5)).table
 
-                # Add header row
-                table.cell(0, 0).text = "Centre #"
-                table.cell(0, 1).text = "Address"
+                # Add headers
+                table.cell(0, 0).text = "Centre Number"
+                table.cell(0, 1).text = "Addresses"
                 table.cell(0, 2).text = "Format - Type of Centre"
-                table.cell(0, 3).text = "Transaction Milestone"
+                table.cell(0, 3).text = "Transaction Milestone Status"
                 table.cell(0, 4).text = "Distance (miles)"
 
-                # Add centre rows
-                for i, (index, row) in enumerate(centres.iterrows()):
-                    table.cell(i + 1, 0).text = str(int(row['Centre Number']))
-                    table.cell(i + 1, 1).text = row['Addresses']
-                    table.cell(i + 1, 2).text = row['Format - Type of Centre']
-                    table.cell(i + 1, 3).text = row['Transaction Milestone Status']
-                    table.cell(i + 1, 4).text = f"{row['Distance (miles)']:.2f}"
+                # Add data rows
+                for i, centre in enumerate(centres):
+                    table.cell(i + 1, 0).text = str(int(centre["Centre Number"]))
+                    table.cell(i + 1, 1).text = centre["Addresses"]
+                    table.cell(i + 1, 2).text = centre["Format - Type of Centre"]
+                    table.cell(i + 1, 3).text = centre["Transaction Milestone Status"]
+                    table.cell(i + 1, 4).text = f"{centre['Distance (miles)']:.2f}"
 
-            # Add slides with closest centres (4 centres per slide)
-            add_table_slide(prs, closest.iloc[:4], "Closest Centres - 1-4")
-            add_table_slide(prs, closest.iloc[4:], "Closest Centres - 5-8")
+            # Divide data into chunks of 4 centres per slide and add to presentation
+            chunks = [closest[i:i + 4] for i in range(0, len(closest), 4)]
+            for i, chunk in enumerate(chunks):
+                add_table_slide(prs, chunk.to_dict(orient="records"), f"Closest Centres (Part {i + 1})")
 
-            # Save the presentation
+            # Save presentation
             pptx_path = "closest_centres_presentation.pptx"
             prs.save(pptx_path)
 
-            # Provide download link
-            st.download_button("Download PowerPoint", pptx_path, "closest_centres_presentation.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation")
-
-    except Exception as e:
-        st.error(f"❌ An error occurred: {e}")
+            # Add download button
+            with open(pptx_path, "rb") as f:
+                st.download_button(label="Download PowerPoint Presentation", data=f, file_name="closest_centres_presentation.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+        except Exception as e:
+            st.error(f"An error occurred: {e}")
