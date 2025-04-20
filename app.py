@@ -223,7 +223,7 @@ if input_address:
             # Upload map image
             uploaded_map_image = st.file_uploader("Upload map image", type=["png", "jpg", "jpeg"])
 
-            # Save PowerPoint presentation
+            # Save PowerPoint presentation in memory
             prs = Presentation()
 
             # Title Slide
@@ -249,12 +249,18 @@ if input_address:
                 table.cell(i + 1, 3).text = str(row["Transaction Milestone Status"])
                 table.cell(i + 1, 4).text = f"{row['Distance (miles)']:.2f}"
 
-            # Save the presentation
-            output_path = "Closest_Centres_Presentation.pptx"
-            prs.save(output_path)
-            st.success(f"Presentation saved successfully as {output_path}")
+            # Save the presentation to memory
+            pptx_stream = BytesIO()
+            prs.save(pptx_stream)
+            pptx_stream.seek(0)
 
-            st.download_button("Download Presentation", output_path, file_name="closest_centres_presentation.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+            # Provide the download button
+            st.download_button(
+                label="Download Closest Centres PowerPoint",
+                data=pptx_stream,
+                file_name="closest_centres_presentation.pptx",
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            )
 
     except Exception as e:
-        st.error(f"An error occurred: {e}")
+        st.error(f"❌ An error occurred: {e}")
