@@ -62,8 +62,12 @@ if input_address:
         elif not data.get('results'):
             st.error("❌ Address not found. Try again.")
         else:
-            # Geocode the input address
-            location = data['results'][0]
+            # Geocode the input address safely
+            results = data.get('results', [])
+            if not results:
+                st.error("No results found for this address.")
+                st.stop()
+            location = results[0]
             input_coords = (location['geometry']['lat'], location['geometry']['lng'])
 
             # Load and process data
@@ -240,25 +244,25 @@ if input_address:
                 # Add headers
                 table.cell(0, 0).text = "Centre #"
                 table.cell(0, 1).text = "Address"
-                table.cell(0, 2).text = "Format"
-                table.cell(0, 3).text = "Milestone"
-                table.cell(0, 4).text = "Distance (miles)"
+                table.cell(0, 2).text = "Distance (miles)"
+                table.cell(0, 3).text = "Format"
+                table.cell(0, 4).text = "Transaction Milestone"
 
-                # Add centre data
-                for i, centre in enumerate(centres):
-                    table.cell(i + 1, 0).text = str(int(centre['Centre Number']))
-                    table.cell(i + 1, 1).text = str(centre['Addresses'])
-                    table.cell(i + 1, 2).text = str(centre['Format - Type of Centre'])
-                    table.cell(i + 1, 3).text = str(centre['Transaction Milestone Status'])
-                    table.cell(i + 1, 4).text = f"{centre['Distance (miles)']:.2f}"
+                # Add data
+                for i, row in enumerate(centres.iterrows(), 1):
+                    index, row_data = row
+                    table.cell(i, 0).text = str(int(row_data["Centre Number"]))
+                    table.cell(i, 1).text = row_data["Addresses"]
+                    table.cell(i, 2).text = f"{row_data['Distance (miles)']:.2f}"
+                    table.cell(i, 3).text = row_data["Format - Type of Centre"]
+                    table.cell(i, 4).text = row_data["Transaction Milestone Status"]
 
-            add_table_slide(prs, closest.head(4), "Closest Centres (Top 4)")
+            add_table_slide(prs, closest.head(4), "First 4 Closest Centres")
+            add_table_slide(prs, closest.tail(4), "Last 4 Closest Centres")
 
-            # Save PowerPoint to a file
-            pptx_output_path = "closest_centres_presentation.pptx"
-            prs.save(pptx_output_path)
-
-            # Allow download
-            st.download_button("Download PowerPoint", pptx_output_path, file_name="closest_centres_presentation.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+            # Save to file
+            pptx_file = "closest_centres_presentation.pptx"
+            prs.save(pptx_file)
+            st.success(f"PowerPoint presentation saved as {pptx_file}.")
     except Exception as e:
-        st.error(f"❌ Error: {e}")
+        st.error(f"Error: {str(e)}")
