@@ -185,27 +185,15 @@ if input_address:
             folium_map_path = "closest_centres_map.html"
             m.save(folium_map_path)
 
-            # Wrap map and legend in columns
-            col1, col2 = st.columns([4, 1])
+            # Upload map image
+            uploaded_map_image = st.file_uploader("Upload Map Image", type=["png", "jpg", "jpeg"])
 
-            with col1:
-                st_folium(m, width=950, height=650)
+            if uploaded_map_image is not None:
+                map_image = Image.open(uploaded_map_image)
 
-            with col2:
-                st.markdown("""
-                    <div style="background-color: white; padding: 10px; border: 2px solid grey; border-radius: 10px; width: 100%; margin-top: 20px;">
-                        <b>Centre Type Legend</b><br>
-                        <i style="background-color: blue; padding: 5px;">&#9724;</i> Regus<br>
-                        <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
-                        <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
-                        <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
-                        <i style="background-color: red; padding: 5px;">&#9724;</i> Mature<br>
-                        <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
-                    </div>
-                """, unsafe_allow_html=True)
-
-            st.subheader("Distances from Your Address to the Closest Centres:")
-            st.text(distance_text)
+                # Save image temporarily
+                map_image_path = "uploaded_map_image.png"
+                map_image.save(map_image_path)
 
             # Save PowerPoint presentation
             prs = Presentation()
@@ -217,12 +205,14 @@ if input_address:
             title.text = "Closest Centres Presentation"
             subtitle.text = f"Closest Centres to: {input_address}"
 
-            # Add slide with placeholder for the map image
+            # Add slide with uploaded map image
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
             title.text = "Closest Centres Map"
-            # Add the placeholder text in the slide
-            slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
+
+            if uploaded_map_image is not None:
+                # Insert uploaded image into the slide
+                slide.shapes.add_picture(map_image_path, Inches(1), Inches(1.5), Inches(8), Inches(4))
 
             # Add slide with table of closest centres
             slide = prs.slides.add_slide(prs.slide_layouts[5])
@@ -245,11 +235,11 @@ if input_address:
                 table.cell(i+1, 3).text = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
                 table.cell(i+1, 4).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
 
-            # Save PowerPoint file
-            pptx_path = "closest_centres_presentation.pptx"
-            prs.save(pptx_path)
-            st.download_button("Download PowerPoint Presentation", data=open(pptx_path, "rb"), file_name=pptx_path, mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+            # Save the PowerPoint presentation
+            output_pptx_path = "closest_centres_presentation.pptx"
+            prs.save(output_pptx_path)
+
+            st.success(f"📊 PowerPoint presentation saved: {output_pptx_path}")
 
     except Exception as e:
-        st.error(f"❌ An error occurred: {e}")
-
+        st.error(f"❌ Error: {e}")
