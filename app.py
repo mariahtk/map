@@ -185,15 +185,29 @@ if input_address:
             folium_map_path = "closest_centres_map.html"
             m.save(folium_map_path)
 
+            # Wrap map and legend in columns
+            col1, col2 = st.columns([4, 1])
+
+            with col1:
+                st_folium(m, width=950, height=650)
+
+            with col2:
+                st.markdown("""<div style="background-color: white; padding: 10px; border: 2px solid grey; border-radius: 10px; width: 100%; margin-top: 20px;">
+                    <b>Centre Type Legend</b><br>
+                    <i style="background-color: blue; padding: 5px;">&#9724;</i> Regus<br>
+                    <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
+                    <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
+                    <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
+                    <i style="background-color: red; padding: 5px;">&#9724;</i> Mature<br>
+                    <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
+                    </div>
+                """, unsafe_allow_html=True)
+
+            st.subheader("Distances from Your Address to the Closest Centres:")
+            st.text(distance_text)
+
             # Upload map image
-            uploaded_map_image = st.file_uploader("Upload Map Image", type=["png", "jpg", "jpeg"])
-
-            if uploaded_map_image is not None:
-                map_image = Image.open(uploaded_map_image)
-
-                # Save image temporarily
-                map_image_path = "uploaded_map_image.png"
-                map_image.save(map_image_path)
+            uploaded_map_image = st.file_uploader("Upload map image", type=["png", "jpg", "jpeg"])
 
             # Save PowerPoint presentation
             prs = Presentation()
@@ -205,20 +219,21 @@ if input_address:
             title.text = "Closest Centres Presentation"
             subtitle.text = f"Closest Centres to: {input_address}"
 
-            # Add slide with uploaded map image
+            # Add slide with placeholder for the map image or the uploaded image
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
             title.text = "Closest Centres Map"
-
-            if uploaded_map_image is not None:
-                # Insert uploaded image into the slide
-                slide.shapes.add_picture(map_image_path, Inches(1), Inches(1.5), Inches(8), Inches(4))
+            if uploaded_map_image:
+                image_stream = BytesIO(uploaded_map_image.read())
+                slide.shapes.add_picture(image_stream, Inches(1), Inches(1.5), Inches(8), Inches(4))
+            else:
+                slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
 
             # Add slide with table of closest centres
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
             title.text = "Distances to Closest Centres"
-            table = slide.shapes.add_table(rows=len(closest)+1, cols=5, left=Inches(0), top=Inches(1.5), width=Inches(10), height=Inches(0.0001)).table
+            table = slide.shapes.add_table(rows=len(closest)+1, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(8), height=Inches(5)).table
 
             # Add header row
             table.cell(0, 0).text = "Centre #"
@@ -229,17 +244,18 @@ if input_address:
 
             # Add data rows with NaN handling
             for i, (index, row) in enumerate(closest.iterrows()):
-                table.cell(i+1, 0).text = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
-                table.cell(i+1, 1).text = row['Addresses'] if pd.notna(row['Addresses']) else "N/A"
-                table.cell(i+1, 2).text = row['Format - Type of Centre'] if pd.notna(row['Format - Type of Centre']) else "N/A"
-                table.cell(i+1, 3).text = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
-                table.cell(i+1, 4).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
+                table.cell(i+1, 0).text = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else ""
+                table.cell(i+1, 1).text = str(row['Addresses']) if pd.notna(row['Addresses']) else ""
+                table.cell(i+1, 2).text = str(row['Format - Type of Centre']) if pd.notna(row['Format - Type of Centre']) else ""
+                table.cell(i+1, 3).text = str(row['Transaction Milestone Status']) if pd.notna(row['Transaction Milestone Status']) else ""
+                table.cell(i+1, 4).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else ""
 
-            # Save the PowerPoint presentation
-            output_pptx_path = "closest_centres_presentation.pptx"
-            prs.save(output_pptx_path)
+            # Save PowerPoint to file
+            pptx_path = "closest_centres_presentation.pptx"
+            prs.save(pptx_path)
 
-            st.success(f"📊 PowerPoint presentation saved: {output_pptx_path}")
-
+            st.success(f"PowerPoint file generated: {pptx_path}")
+            st.download_button("Download PowerPoint", pptx_path)
+            
     except Exception as e:
-        st.error(f"❌ Error: {e}")
+        st.error(f"An error occurred: {e}")
