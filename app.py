@@ -91,6 +91,9 @@ if input_address:
                     lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1
                 )
 
+                # Remove rows with NaN in Distance (miles)
+                data = data.dropna(subset=["Distance (miles)"])
+
                 # Find 8 closest
                 closest = data.nsmallest(8, "Distance (miles)")
 
@@ -246,23 +249,29 @@ if input_address:
                 table.cell(0, 1).text = "Address"
                 table.cell(0, 2).text = "Distance (miles)"
                 table.cell(0, 3).text = "Format"
-                table.cell(0, 4).text = "Transaction Milestone"
+                table.cell(0, 4).text = "Milestone Status"
 
-                # Add data
-                for i, row in enumerate(centres.iterrows(), 1):
-                    index, row_data = row
-                    table.cell(i, 0).text = str(int(row_data["Centre Number"]))
-                    table.cell(i, 1).text = row_data["Addresses"]
-                    table.cell(i, 2).text = f"{row_data['Distance (miles)']:.2f}"
-                    table.cell(i, 3).text = row_data["Format - Type of Centre"]
-                    table.cell(i, 4).text = row_data["Transaction Milestone Status"]
+                # Add centre data
+                for i, (index, row) in enumerate(centres.iterrows()):
+                    table.cell(i + 1, 0).text = str(int(row['Centre Number']))
+                    table.cell(i + 1, 1).text = row['Addresses']
+                    table.cell(i + 1, 2).text = f"{row['Distance (miles)']:.2f}"
+                    table.cell(i + 1, 3).text = row['Format - Type of Centre']
+                    table.cell(i + 1, 4).text = row['Transaction Milestone Status']
 
-            add_table_slide(prs, closest.head(4), "First 4 Closest Centres")
-            add_table_slide(prs, closest.tail(4), "Last 4 Closest Centres")
+            add_table_slide(prs, closest.head(4), "Closest Centres - Top 4")
 
-            # Save to file
-            pptx_file = "closest_centres_presentation.pptx"
-            prs.save(pptx_file)
-            st.success(f"PowerPoint presentation saved as {pptx_file}.")
+            # Save the presentation
+            pptx_filename = "closest_centres_presentation.pptx"
+            prs.save(pptx_filename)
+
+            # Provide download link for the PowerPoint file
+            st.download_button(
+                label="Download PowerPoint",
+                data=open(pptx_filename, "rb").read(),
+                file_name=pptx_filename,
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            )
+
     except Exception as e:
-        st.error(f"Error: {str(e)}")
+        st.error(f"❌ Error: {str(e)}")
