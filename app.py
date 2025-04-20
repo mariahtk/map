@@ -229,39 +229,38 @@ if input_address:
             else:
                 slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
 
-            # Add slide with table of closest centres
-            slide = prs.slides.add_slide(prs.slide_layouts[5])
-            title = slide.shapes.title
-            title.text = "Distances to Closest Centres"
-            table = slide.shapes.add_table(rows=len(closest)+1, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(8), height=Inches(5)).table
+            # Function to add table slides with 4 centres per slide
+            def add_table_slide(prs, centres, slide_title):
+                slide = prs.slides.add_slide(prs.slide_layouts[5])
+                title = slide.shapes.title
+                title.text = slide_title
+                table = slide.shapes.add_table(rows=len(centres) + 1, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(8), height=Inches(5)).table
 
-            # Add header row
-            table.cell(0, 0).text = "Centre #"
-            table.cell(0, 1).text = "Address"
-            table.cell(0, 2).text = "Format - Type of Centre"
-            table.cell(0, 3).text = "Transaction Milestone"
-            table.cell(0, 4).text = "Distance (miles)"
+                # Add header row
+                table.cell(0, 0).text = "Centre #"
+                table.cell(0, 1).text = "Address"
+                table.cell(0, 2).text = "Format - Type of Centre"
+                table.cell(0, 3).text = "Transaction Milestone"
+                table.cell(0, 4).text = "Distance (miles)"
 
-            # Add data rows with NaN handling
-            for i, (index, row) in enumerate(closest.iterrows()):
-                table.cell(i+1, 0).text = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else ""
-                table.cell(i+1, 1).text = str(row['Addresses']) if pd.notna(row['Addresses']) else ""
-                table.cell(i+1, 2).text = str(row['Format - Type of Centre']) if pd.notna(row['Format - Type of Centre']) else ""
-                table.cell(i+1, 3).text = str(row['Transaction Milestone Status']) if pd.notna(row['Transaction Milestone Status']) else ""
-                table.cell(i+1, 4).text = f"{row['Distance (miles)']:.2f}"
+                # Add centre rows
+                for i, (index, row) in enumerate(centres.iterrows()):
+                    table.cell(i + 1, 0).text = str(int(row['Centre Number']))
+                    table.cell(i + 1, 1).text = row['Addresses']
+                    table.cell(i + 1, 2).text = row['Format - Type of Centre']
+                    table.cell(i + 1, 3).text = row['Transaction Milestone Status']
+                    table.cell(i + 1, 4).text = f"{row['Distance (miles)']:.2f}"
 
-            # Save PowerPoint file
-            pptx_file_path = "Closest_Centres_Presentation.pptx"
-            prs.save(pptx_file_path)
+            # Add slides with closest centres (4 centres per slide)
+            add_table_slide(prs, closest.iloc[:4], "Closest Centres - 1-4")
+            add_table_slide(prs, closest.iloc[4:], "Closest Centres - 5-8")
 
-            # Provide link to download the PowerPoint
-            st.download_button(
-                label="Download PowerPoint",
-                data=open(pptx_file_path, "rb").read(),
-                file_name=pptx_file_path,
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            )
+            # Save the presentation
+            pptx_path = "closest_centres_presentation.pptx"
+            prs.save(pptx_path)
+
+            # Provide download link
+            st.download_button("Download PowerPoint", pptx_path, "closest_centres_presentation.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation")
 
     except Exception as e:
-        st.error(f"An error occurred: {str(e)}")
-
+        st.error(f"❌ An error occurred: {e}")
