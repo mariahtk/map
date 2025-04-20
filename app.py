@@ -182,87 +182,83 @@ if input_address:
                     )
                 ).add_to(m)
 
-            # Display map in Streamlit
-            folium_map = st_folium(m, width=700, height=500)
+            folium_map_path = "closest_centres_map.html"
+            m.save(folium_map_path)
 
-            # Upload map image file
-            map_image = st.file_uploader("Upload a Map Image", type=["jpg", "jpeg", "png"])
+            # Wrap map and legend in columns
+            col1, col2 = st.columns([4, 1])
 
-            if map_image:
-                map_image_path = "uploaded_map_image.png"
-                with open(map_image_path, "wb") as f:
-                    f.write(map_image.getbuffer())
+            with col1:
+                st_folium(m, width=950, height=650)
 
-                # Save PowerPoint presentation
-                prs = Presentation()
+            with col2:
+                st.markdown("""
+                    <div style="background-color: white; padding: 10px; border: 2px solid grey; border-radius: 10px; width: 100%; margin-top: 20px;">
+                        <b>Centre Type Legend</b><br>
+                        <i style="background-color: blue; padding: 5px;">&#9724;</i> Regus<br>
+                        <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
+                        <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
+                        <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
+                        <i style="background-color: red; padding: 5px;">&#9724;</i> Mature<br>
+                        <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
+                    </div>
+                """, unsafe_allow_html=True)
 
-                # Title Slide
-                slide = prs.slides.add_slide(prs.slide_layouts[0])
-                title = slide.shapes.title
-                subtitle = slide.placeholders[1]
-                title.text = "Closest Centres Presentation"
-                subtitle.text = f"Closest Centres to: {input_address}"
+            st.subheader("Distances from Your Address to the Closest Centres:")
+            st.text(distance_text)
 
-                # Add slide with placeholder for the map image
+            # ------------------ Upload and Save PowerPoint -------------------
+            uploaded_map = st.file_uploader("Upload a screenshot or image of the map for PowerPoint", type=["png", "jpg", "jpeg"])
+
+            prs = Presentation()
+
+            # Title Slide
+            slide = prs.slides.add_slide(prs.slide_layouts[0])
+            title = slide.shapes.title
+            subtitle = slide.placeholders[1]
+            title.text = "Closest Centres Presentation"
+            subtitle.text = f"Closest Centres to: {input_address}"
+
+            # Map Slide
+            slide = prs.slides.add_slide(prs.slide_layouts[5])
+            title = slide.shapes.title
+            title.text = "Closest Centres Map"
+
+            if uploaded_map:
+                img_stream = BytesIO(uploaded_map.read())
+                slide.shapes.add_picture(img_stream, Inches(1), Inches(1.5), width=Inches(8), height=Inches(4.5))
+            else:
+                slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert map screenshot here."
+
+            # Helper function for table slides
+            def add_table_slide(prs, title_text, centres_chunk):
                 slide = prs.slides.add_slide(prs.slide_layouts[5])
-                title = slide.shapes.title
-                title.text = "Closest Centres Map"
-                slide.shapes.add_picture(map_image_path, Inches(1), Inches(1.5), Inches(8), Inches(4))
+                slide.shapes.title.text = title_text
+                table = slide.shapes.add_table(
+                    rows=len(centres_chunk)+1, cols=5,
+                    left=Inches(0.5), top=Inches(1.5),
+                    width=Inches(8), height=Inches(5)
+                ).table
 
-                # Add slide with table of closest centres (First 4 Centres)
-                slide = prs.slides.add_slide(prs.slide_layouts[5])
-                title = slide.shapes.title
-                title.text = "Distances to Closest Centres - Part 1"
-                table = slide.shapes.add_table(rows=5, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(8), height=Inches(5)).table
+                headers = ["Centre #", "Address", "Format - Type of Centre", "Transaction Milestone", "Distance (miles)"]
+                for col, header in enumerate(headers):
+                    table.cell(0, col).text = header
 
-                # Add header row
-                table.cell(0, 0).text = "Centre #"
-                table.cell(0, 1).text = "Address"
-                table.cell(0, 2).text = "Format - Type of Centre"
-                table.cell(0, 3).text = "Transaction Milestone"
-                table.cell(0, 4).text = "Distance (miles)"
+                for i, (_, row) in enumerate(centres_chunk.iterrows(), start=1):
+                    table.cell(i, 0).text = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
+                    table.cell(i, 1).text = row['Addresses'] if pd.notna(row['Addresses']) else "N/A"
+                    table.cell(i, 2).text = row['Format - Type of Centre'] if pd.notna(row['Format - Type of Centre']) else "N/A"
+                    table.cell(i, 3).text = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
+                    table.cell(i, 4).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
 
-                # Add data rows for first 4 centres
-                for i, (index, row) in enumerate(closest.head(4).iterrows()):
-                    table.cell(i+1, 0).text = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
-                    table.cell(i+1, 1).text = row['Addresses'] if pd.notna(row['Addresses']) else "N/A"
-                    table.cell(i+1, 2).text = row['Format - Type of Centre'] if pd.notna(row['Format - Type of Centre']) else "N/A"
-                    table.cell(i+1, 3).text = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
-                    table.cell(i+1, 4).text = f"{row['Distance (miles)']:.2f}"
+            # Split table across two slides
+            add_table_slide(prs, "Distances to Closest Centres (1–4)", closest.iloc[:4])
+            add_table_slide(prs, "Distances to Closest Centres (5–8)", closest.iloc[4:])
 
-                # Add slide with table of closest centres (Next 4 Centres)
-                slide = prs.slides.add_slide(prs.slide_layouts[5])
-                title = slide.shapes.title
-                title.text = "Distances to Closest Centres - Part 2"
-                table = slide.shapes.add_table(rows=5, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(8), height=Inches(5)).table
-
-                # Add header row
-                table.cell(0, 0).text = "Centre #"
-                table.cell(0, 1).text = "Address"
-                table.cell(0, 2).text = "Format - Type of Centre"
-                table.cell(0, 3).text = "Transaction Milestone"
-                table.cell(0, 4).text = "Distance (miles)"
-
-                # Add data rows for next 4 centres
-                for i, (index, row) in enumerate(closest.tail(4).iterrows()):
-                    table.cell(i+1, 0).text = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
-                    table.cell(i+1, 1).text = row['Addresses'] if pd.notna(row['Addresses']) else "N/A"
-                    table.cell(i+1, 2).text = row['Format - Type of Centre'] if pd.notna(row['Format - Type of Centre']) else "N/A"
-                    table.cell(i+1, 3).text = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
-                    table.cell(i+1, 4).text = f"{row['Distance (miles)']:.2f}"
-
-                # Save the PowerPoint presentation
-                pptx_filename = "Closest_Centres_Presentation.pptx"
-                prs.save(pptx_filename)
-
-                # Provide download link for the PowerPoint file
-                st.download_button(
-                    label="Download PowerPoint Presentation",
-                    data=open(pptx_filename, "rb").read(),
-                    file_name=pptx_filename,
-                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                )
+            # Save PowerPoint
+            pptx_path = "closest_centres_presentation.pptx"
+            prs.save(pptx_path)
+            st.download_button("Download PowerPoint Presentation", data=open(pptx_path, "rb"), file_name=pptx_path, mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
 
     except Exception as e:
-        st.error(f"Error: {e}")
-
+        st.error(f"❌ An error occurred: {e}")
