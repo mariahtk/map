@@ -182,8 +182,8 @@ if input_address:
                     )
                 ).add_to(m)
 
-            folium_map_path = "closest_centres_map.html"
-            m.save(folium_map_path)
+            # Display map in Streamlit
+            folium_map = st_folium(m, width=700, height=500)
 
             # Upload map image file
             map_image = st.file_uploader("Upload a Map Image", type=["jpg", "jpeg", "png"])
@@ -228,9 +228,9 @@ if input_address:
                     table.cell(i+1, 1).text = row['Addresses'] if pd.notna(row['Addresses']) else "N/A"
                     table.cell(i+1, 2).text = row['Format - Type of Centre'] if pd.notna(row['Format - Type of Centre']) else "N/A"
                     table.cell(i+1, 3).text = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
-                    table.cell(i+1, 4).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
+                    table.cell(i+1, 4).text = f"{row['Distance (miles)']:.2f}"
 
-                # Add slide with table of closest centres (Last 4 Centres)
+                # Add slide with table of closest centres (Next 4 Centres)
                 slide = prs.slides.add_slide(prs.slide_layouts[5])
                 title = slide.shapes.title
                 title.text = "Distances to Closest Centres - Part 2"
@@ -243,16 +243,26 @@ if input_address:
                 table.cell(0, 3).text = "Transaction Milestone"
                 table.cell(0, 4).text = "Distance (miles)"
 
-                # Add data rows for last 4 centres
+                # Add data rows for next 4 centres
                 for i, (index, row) in enumerate(closest.tail(4).iterrows()):
                     table.cell(i+1, 0).text = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
                     table.cell(i+1, 1).text = row['Addresses'] if pd.notna(row['Addresses']) else "N/A"
                     table.cell(i+1, 2).text = row['Format - Type of Centre'] if pd.notna(row['Format - Type of Centre']) else "N/A"
                     table.cell(i+1, 3).text = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
-                    table.cell(i+1, 4).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
+                    table.cell(i+1, 4).text = f"{row['Distance (miles)']:.2f}"
 
-                prs.save("Closest_Centres_Presentation.pptx")
-                st.success("PowerPoint presentation created successfully.")
-                st.download_button("Download PowerPoint Presentation", "Closest_Centres_Presentation.pptx")
+                # Save the PowerPoint presentation
+                pptx_filename = "Closest_Centres_Presentation.pptx"
+                prs.save(pptx_filename)
+
+                # Provide download link for the PowerPoint file
+                st.download_button(
+                    label="Download PowerPoint Presentation",
+                    data=open(pptx_filename, "rb").read(),
+                    file_name=pptx_filename,
+                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                )
+
     except Exception as e:
-        st.error(f"An error occurred: {e}")
+        st.error(f"Error: {e}")
+
