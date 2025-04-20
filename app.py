@@ -6,11 +6,9 @@ from streamlit_folium import st_folium
 import folium.plugins as plugins
 from io import BytesIO
 from pptx import Presentation
-from pptx.util import Inches
+from pptx.util import Inches, Pt
 import requests
 import urllib.parse
-from PIL import Image
-import pdfkit
 
 # --- LOGIN SYSTEM ---
 def login():
@@ -145,16 +143,71 @@ if input_address:
 
                 distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
-            # Save the map to HTML
+                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
+                offset_lat = stagger_offsets[i % len(stagger_offsets)]
+
+                label_lat = row["Latitude"] + offset_lat
+                label_lon = row["Longitude"]
+                if label_lat > lat_max:
+                    label_lat = lat_max - 0.0005
+                if label_lat < lat_min:
+                    label_lat = lat_min + 0.0005
+                if label_lon > lng_max:
+                    label_lon = lng_max - 0.0005
+                if label_lon < lng_min:
+                    label_lon = lng_min + 0.0005
+
+                folium.Marker(
+                    location=(label_lat, label_lon),
+                    icon=folium.DivIcon(
+                        icon_size=(150, 40),
+                        icon_anchor=(0, 0),
+                        html=f"""
+                            <div style="
+                                background-color: white;
+                                color: black;
+                                padding: 6px 10px;
+                                border: 1px solid black;
+                                border-radius: 6px;
+                                font-size: 13px;
+                                font-family: Arial, sans-serif;
+                                display: inline-block;
+                                white-space: nowrap;
+                                text-overflow: ellipsis;
+                                box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+                            ">
+                                {label_text}
+                            </div>
+                        """
+                    )
+                ).add_to(m)
+
             folium_map_path = "closest_centres_map.html"
             m.save(folium_map_path)
 
-            # Convert the HTML map to an image using pdfkit and save to BytesIO
-            pdf_output = pdfkit.from_file(folium_map_path, False)
-            image = Image.open(BytesIO(pdf_output))
+            # Wrap map and legend in columns
+            col1, col2 = st.columns([4, 1])
 
-            # Save PowerPoint presentation in memory
-            pptx_stream = BytesIO()
+            with col1:
+                st_folium(m, width=950, height=650)
+
+            with col2:
+                st.markdown("""
+                    <div style="background-color: white; padding: 10px; border: 2px solid grey; border-radius: 10px; width: 100%; margin-top: 20px;">
+                        <b>Centre Type Legend</b><br>
+                        <i style="background-color: blue; padding: 5px;">&#9724;</i> Regus<br>
+                        <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
+                        <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
+                        <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
+                        <i style="background-color: red; padding: 5px;">&#9724;</i> Mature<br>
+                        <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
+                    </div>
+                """, unsafe_allow_html=True)
+
+            st.subheader("Distances from Your Address to the Closest Centres:")
+            st.text(distance_text)
+
+            # Save PowerPoint presentation
             prs = Presentation()
 
             # Title Slide
@@ -168,11 +221,8 @@ if input_address:
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
             title.text = "Closest Centres Map"
-            # Save map image to the slide
-            img_stream = BytesIO()
-            image.save(img_stream, format="PNG")
-            img_stream.seek(0)
-            slide.shapes.add_picture(img_stream, Inches(0.5), Inches(1.5), width=Inches(8.5))
+            # Add the placeholder text in the slide
+            slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
 
             # Add slide with table of closest centres
             slide = prs.slides.add_slide(prs.slide_layouts[5])
@@ -195,16 +245,11 @@ if input_address:
                 table.cell(i+1, 3).text = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
                 table.cell(i+1, 4).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
 
-            # Save the PowerPoint presentation to the memory stream
-            prs.save(pptx_stream)
-
-            # Allow the user to download the PowerPoint file
-            st.download_button(
-                "Download PowerPoint Presentation",
-                data=pptx_stream.getvalue(),
-                file_name="closest_centres_presentation.pptx",
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            )
+            # Save PowerPoint file
+            pptx_path = "closest_centres_presentation.pptx"
+            prs.save(pptx_path)
+            st.download_button("Download PowerPoint Presentation", data=open(pptx_path, "rb"), file_name=pptx_path, mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
 
     except Exception as e:
         st.error(f"❌ An error occurred: {e}")
+
