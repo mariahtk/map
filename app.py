@@ -144,7 +144,7 @@ if input_address:
 
                 distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
-                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)}"
+                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
                 offset_lat = stagger_offsets[i % len(stagger_offsets)]
 
                 label_lat = row["Latitude"] + offset_lat
@@ -238,26 +238,27 @@ if input_address:
                 table = slide.shapes.add_table(rows=len(centres) + 1, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(9), height=Inches(5)).table
 
                 # Add headers
-                table.cell(0, 0).text = "Centre Number"
-                table.cell(0, 1).text = "Addresses"
-                table.cell(0, 2).text = "Format - Type of Centre"
-                table.cell(0, 3).text = "Transaction Milestone Status"
+                table.cell(0, 0).text = "Centre #"
+                table.cell(0, 1).text = "Address"
+                table.cell(0, 2).text = "Format"
+                table.cell(0, 3).text = "Milestone"
                 table.cell(0, 4).text = "Distance (miles)"
 
-                # Add rows
+                # Add centre data
                 for i, centre in enumerate(centres):
-                    table.cell(i + 1, 0).text = str(centre["Centre Number"])
-                    table.cell(i + 1, 1).text = centre["Addresses"]
-                    table.cell(i + 1, 2).text = centre["Format - Type of Centre"]
-                    table.cell(i + 1, 3).text = centre["Transaction Milestone Status"]
+                    table.cell(i + 1, 0).text = str(int(centre['Centre Number']))
+                    table.cell(i + 1, 1).text = str(centre['Addresses'])
+                    table.cell(i + 1, 2).text = str(centre['Format - Type of Centre'])
+                    table.cell(i + 1, 3).text = str(centre['Transaction Milestone Status'])
                     table.cell(i + 1, 4).text = f"{centre['Distance (miles)']:.2f}"
 
-            add_table_slide(prs, closest.head(4).to_dict(orient="records"), "Closest Centres (Top 4)")
+            add_table_slide(prs, closest.head(4), "Closest Centres (Top 4)")
 
-            # Save presentation
-            presentation_file_path = "closest_centres_presentation.pptx"
-            prs.save(presentation_file_path)
-            st.success(f"Presentation saved as {presentation_file_path}.")
+            # Save PowerPoint to a file
+            pptx_output_path = "closest_centres_presentation.pptx"
+            prs.save(pptx_output_path)
 
+            # Allow download
+            st.download_button("Download PowerPoint", pptx_output_path, file_name="closest_centres_presentation.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
     except Exception as e:
-        st.error(f"Error processing the address: {e}")
+        st.error(f"❌ Error: {e}")
