@@ -248,14 +248,20 @@ if input_address:
                 table.cell(i+1, 1).text = str(row['Addresses']) if pd.notna(row['Addresses']) else ""
                 table.cell(i+1, 2).text = str(row['Format - Type of Centre']) if pd.notna(row['Format - Type of Centre']) else ""
                 table.cell(i+1, 3).text = str(row['Transaction Milestone Status']) if pd.notna(row['Transaction Milestone Status']) else ""
-                table.cell(i+1, 4).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else ""
+                table.cell(i+1, 4).text = f"{row['Distance (miles)']:.2f}"
 
-            # Save PowerPoint to file
-            pptx_path = "closest_centres_presentation.pptx"
-            prs.save(pptx_path)
+            # Save PowerPoint file
+            pptx_file_path = "Closest_Centres_Presentation.pptx"
+            prs.save(pptx_file_path)
 
-            st.success(f"PowerPoint file generated: {pptx_path}")
-            st.download_button("Download PowerPoint", pptx_path)
-            
+            # Provide link to download the PowerPoint
+            st.download_button(
+                label="Download PowerPoint",
+                data=open(pptx_file_path, "rb").read(),
+                file_name=pptx_file_path,
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            )
+
     except Exception as e:
-        st.error(f"An error occurred: {e}")
+        st.error(f"An error occurred: {str(e)}")
+
