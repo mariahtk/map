@@ -228,9 +228,9 @@ if input_address:
                 image_stream = BytesIO(uploaded_map_image.read())
                 slide.shapes.add_picture(image_stream, Inches(1), Inches(1.5), Inches(8), Inches(4))
             else:
-                slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
+                slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Map Not Available"
 
-            # Function to add table slides with 4 centres per slide
+            # Add table slide
             def add_table_slide(prs, centres, slide_title):
                 slide = prs.slides.add_slide(prs.slide_layouts[5])
                 title = slide.shapes.title
@@ -264,5 +264,5 @@ if input_address:
             # Add download button
             with open(pptx_path, "rb") as f:
                 st.download_button(label="Download PowerPoint Presentation", data=f, file_name="closest_centres_presentation.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
-        except Exception as e:
-            st.error(f"An error occurred: {e}")
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
