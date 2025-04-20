@@ -244,25 +244,28 @@ if input_address:
                 table.cell(0, 3).text = "Transaction Milestone Status"
                 table.cell(0, 4).text = "Distance (miles)"
 
-                # Add data rows
+                # Add rows
                 for i, centre in enumerate(centres):
-                    table.cell(i + 1, 0).text = str(int(centre["Centre Number"]))
-                    table.cell(i + 1, 1).text = centre["Addresses"]
-                    table.cell(i + 1, 2).text = centre["Format - Type of Centre"]
-                    table.cell(i + 1, 3).text = centre["Transaction Milestone Status"]
+                    table.cell(i + 1, 0).text = str(centre['Centre Number'])
+                    table.cell(i + 1, 1).text = str(centre['Addresses'])
+                    table.cell(i + 1, 2).text = str(centre['Format - Type of Centre'])
+                    table.cell(i + 1, 3).text = str(centre['Transaction Milestone Status'])
                     table.cell(i + 1, 4).text = f"{centre['Distance (miles)']:.2f}"
 
-            # Divide data into chunks of 4 centres per slide and add to presentation
-            chunks = [closest[i:i + 4] for i in range(0, len(closest), 4)]
-            for i, chunk in enumerate(chunks):
-                add_table_slide(prs, chunk.to_dict(orient="records"), f"Closest Centres (Part {i + 1})")
+            add_table_slide(prs, closest.to_dict(orient="records"), "Closest Centres Table")
 
             # Save presentation
-            pptx_path = "closest_centres_presentation.pptx"
-            prs.save(pptx_path)
+            presentation_path = "closest_centres_presentation.pptx"
+            prs.save(presentation_path)
 
-            # Add download button
-            with open(pptx_path, "rb") as f:
-                st.download_button(label="Download PowerPoint Presentation", data=f, file_name="closest_centres_presentation.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+            # Allow downloading the presentation
+            with open(presentation_path, "rb") as file:
+                st.download_button(
+                    label="Download PowerPoint",
+                    data=file,
+                    file_name=presentation_path,
+                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                )
+
     except Exception as e:
-        st.error(f"An error occurred: {e}")
+        st.error(f"❌ Error: {e}")
