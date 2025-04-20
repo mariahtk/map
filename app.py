@@ -239,34 +239,28 @@ if input_address:
                 slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Map Not Available"
 
             # Add table slide with first 4 centres
-            def add_table_slide(prs, centres, slide_title):
-                slide = prs.slides.add_slide(prs.slide_layouts[5])
-                title = slide.shapes.title
-                title.text = slide_title
-                table = slide.shapes.add_table(rows=len(centres) + 1, cols=5, left=Inches(0.5), top=Inches(1.5),
-                                                width=Inches(9), height=Inches(0.8)).table
+            slide = prs.slides.add_slide(prs.slide_layouts[5])
+            title = slide.shapes.title
+            title.text = "Closest Centres Table"
+            rows = min(5, len(closest))
+            table = slide.shapes.add_table(rows, 5, Inches(0.5), Inches(1.5), Inches(9), Inches(6)).table
+            table.cell(0, 0).text = "Centre #"
+            table.cell(0, 1).text = "Address"
+            table.cell(0, 2).text = "Format"
+            table.cell(0, 3).text = "Milestone"
+            table.cell(0, 4).text = "Distance (miles)"
+            for i, (index, row) in enumerate(closest.iterrows()):
+                table.cell(i+1, 0).text = str(int(row['Centre Number']))
+                table.cell(i+1, 1).text = row['Addresses']
+                table.cell(i+1, 2).text = row['Format - Type of Centre']
+                table.cell(i+1, 3).text = row['Transaction Milestone Status']
+                table.cell(i+1, 4).text = f"{row['Distance (miles)']:.2f}"
 
-                # Add header row
-                table.cell(0, 0).text = "Centre No."
-                table.cell(0, 1).text = "Address"
-                table.cell(0, 2).text = "Format"
-                table.cell(0, 3).text = "Transaction Milestone"
-                table.cell(0, 4).text = "Distance (miles)"
+            # Save presentation
+            pptx_file_path = "Closest_Centres_Presentation.pptx"
+            prs.save(pptx_file_path)
 
-                # Add centre data rows
-                for i, centre in enumerate(centres):
-                    table.cell(i + 1, 0).text = str(int(centre['Centre Number']))
-                    table.cell(i + 1, 1).text = centre['Addresses']
-                    table.cell(i + 1, 2).text = centre['Format - Type of Centre']
-                    table.cell(i + 1, 3).text = centre['Transaction Milestone Status']
-                    table.cell(i + 1, 4).text = f"{centre['Distance (miles)']:.2f}"
-
-            add_table_slide(prs, closest.head(4), "First 4 Closest Centres")
-
-            # Save the PowerPoint file
-            pptx_filename = "Closest_Centres_Presentation.pptx"
-            prs.save(pptx_filename)
-
-            st.download_button("Download PowerPoint Presentation", pptx_filename, file_name=pptx_filename)
+            # Provide a download link for the presentation
+            st.download_button("Download PowerPoint Presentation", pptx_file_path)
     except Exception as e:
-        st.error(f"❌ Error: {str(e)}. Please try again.")
+        st.error(f"❌ An error occurred: {e}")
