@@ -47,25 +47,19 @@ input_address = st.text_input("Enter an address:")
 
 if input_address:
     try:
-        # URL encode the input address to handle special characters and spaces
         encoded_address = urllib.parse.quote(input_address)
-
-        # Use OpenCage API to get location data
         url = f"https://api.opencagedata.com/geocode/v1/json?q={encoded_address}&key={api_key}"
         response = requests.get(url)
         data = response.json()
 
-        # Check the status code and results
         if response.status_code != 200:
             st.error(f"❌ API Error: {response.status_code}. Try again.")
         elif not data.get('results'):
             st.error("❌ Address not found. Try again.")
         else:
-            # Geocode the input address
             location = data['results'][0]
             input_coords = (location['geometry']['lat'], location['geometry']['lng'])
 
-            # Load and process data
             file_path = "Database IC.xlsx"
             sheets = ["Comps", "Active Centre", "Centre Opened"]
             all_data = []
@@ -77,19 +71,14 @@ if input_address:
                     all_data.append(df)
 
                 data = pd.concat(all_data)
-
-                # Filter out rows with NaN in Latitude or Longitude columns
                 data = data.dropna(subset=["Latitude", "Longitude"])
 
-                # Calculate distances
                 data["Distance (miles)"] = data.apply(
                     lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1
                 )
 
-                # Find 8 closest
                 closest = data.nsmallest(8, "Distance (miles)")
 
-            # Calculate bounding box and zoom
             lats = [input_coords[0]] + closest["Latitude"].tolist()
             lngs = [input_coords[1]] + closest["Longitude"].tolist()
             lat_min, lat_max = min(lats), max(lats)
@@ -100,7 +89,6 @@ if input_address:
             zoom_level = 14 - (max_diff * 3)
             zoom_level = max(zoom_level, 14)
 
-            # Create map
             m = folium.Map(location=input_coords, zoom_start=int(zoom_level))
 
             folium.Marker(
@@ -111,8 +99,6 @@ if input_address:
 
             distance_text = f"Your Address: {input_address} - Coordinates: {input_coords[0]}, {input_coords[1]}\n"
             distance_text += "\nClosest Centres (Distances in miles):\n"
-
-            stagger_offsets = [-0.002, 0.002, -0.0015, 0.0015, -0.001, 0.001, -0.0005, 0.0005]
 
             def get_marker_color(format_type):
                 if format_type == "Regus":
@@ -129,6 +115,25 @@ if input_address:
                     return "red"
                 return "gray"
 
+            # -- Updated logic to avoid overlapping labels --
+            used_label_positions = set()
+
+            def find_non_overlapping_offset(base_lat, base_lon, used_positions, step=0.0003):
+                offset_pairs = [
+                    (step * i, step * j)
+                    for i in range(-3, 4)
+                    for j in range(-3, 4)
+                    if not (i == 0 and j == 0)
+                ]
+                for offset_lat, offset_lon in offset_pairs:
+                    new_lat = base_lat + offset_lat
+                    new_lon = base_lon + offset_lon
+                    key = (round(new_lat, 6), round(new_lon, 6))
+                    if key not in used_positions:
+                        used_positions.add(key)
+                        return new_lat, new_lon
+                return base_lat, base_lon
+
             for i, (index, row) in enumerate(closest.iterrows()):
                 dest_coords = (row["Latitude"], row["Longitude"])
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
@@ -144,18 +149,7 @@ if input_address:
                 distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
                 label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
-                offset_lat = stagger_offsets[i % len(stagger_offsets)]
-
-                label_lat = row["Latitude"] + offset_lat
-                label_lon = row["Longitude"]
-                if label_lat > lat_max:
-                    label_lat = lat_max - 0.0005
-                if label_lat < lat_min:
-                    label_lat = lat_min + 0.0005
-                if label_lon > lng_max:
-                    label_lon = lng_max - 0.0005
-                if label_lon < lng_min:
-                    label_lon = lng_min + 0.0005
+                label_lat, label_lon = find_non_overlapping_offset(row["Latitude"], row["Longitude"], used_label_positions)
 
                 folium.Marker(
                     location=(label_lat, label_lon),
@@ -185,7 +179,6 @@ if input_address:
             folium_map_path = "closest_centres_map.html"
             m.save(folium_map_path)
 
-            # Wrap map and legend in columns
             col1, col2 = st.columns([4, 1])
 
             with col1:
@@ -207,19 +200,16 @@ if input_address:
             st.subheader("Distances from Your Address to the Closest Centres:")
             st.text(distance_text)
 
-            # ------------------ Upload and Save PowerPoint -------------------
             uploaded_map = st.file_uploader("Upload a screenshot or image of the map for PowerPoint", type=["png", "jpg", "jpeg"])
 
             prs = Presentation()
 
-            # Title Slide
             slide = prs.slides.add_slide(prs.slide_layouts[0])
             title = slide.shapes.title
             subtitle = slide.placeholders[1]
             title.text = "Closest Centres Presentation"
             subtitle.text = f"Closest Centres to: {input_address}"
 
-            # Map Slide
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
             title.text = "Closest Centres Map"
@@ -230,7 +220,6 @@ if input_address:
             else:
                 slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert map screenshot here."
 
-            # Helper function for table slides
             def add_table_slide(prs, title_text, centres_chunk):
                 slide = prs.slides.add_slide(prs.slide_layouts[5])
                 slide.shapes.title.text = title_text
@@ -251,11 +240,9 @@ if input_address:
                     table.cell(i, 3).text = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
                     table.cell(i, 4).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
 
-            # Split table across two slides
             add_table_slide(prs, "Distances to Closest Centres (1–4)", closest.iloc[:4])
             add_table_slide(prs, "Distances to Closest Centres (5–8)", closest.iloc[4:])
 
-            # Save PowerPoint
             pptx_path = "closest_centres_presentation.pptx"
             prs.save(pptx_path)
             st.download_button("Download PowerPoint Presentation", data=open(pptx_path, "rb"), file_name=pptx_path, mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
