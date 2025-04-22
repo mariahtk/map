@@ -141,7 +141,7 @@ if input_address:
 
                 distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
-                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)}"
+                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
                 offset_lat = stagger_offsets[i % len(stagger_offsets)]
 
                 label_lat = row["Latitude"] + offset_lat
@@ -204,73 +204,38 @@ if input_address:
             st.subheader("Distances from Your Address to the Closest Centres:")
             st.text(distance_text)
 
-            # Prepare the two halves of the centres
-            first_half_centres = closest.head(4)
-            second_half_centres = closest.tail(4)
-
-            # Create a PowerPoint presentation
             prs = Presentation()
-
-            # Slide 1: Title Slide
             slide = prs.slides.add_slide(prs.slide_layouts[0])
             title = slide.shapes.title
             subtitle = slide.placeholders[1]
             title.text = "Closest Centres Presentation"
             subtitle.text = f"Closest Centres to: {input_address}"
 
-            # Slide 2: Map Slide
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
             title.text = "Closest Centres Map"
             slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
 
-            # Slide 3: Distances to Closest Centres (First 4 Centres)
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
-            title.text = "Distances to Closest Centres (1-4)"
-            table = slide.shapes.add_table(rows=len(first_half_centres) + 1, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(8), height=Inches(5)).table
+            title.text = "Distances to Closest Centres"
+            table = slide.shapes.add_table(rows=len(closest)+1, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(8), height=Inches(5)).table
 
-            # Add table headers
             table.cell(0, 0).text = "Centre #"
             table.cell(0, 1).text = "Address"
             table.cell(0, 2).text = "Format - Type of Centre"
             table.cell(0, 3).text = "Transaction Milestone"
             table.cell(0, 4).text = "Distance (miles)"
 
-            # Add first 4 rows of data
-            for i, (index, row) in enumerate(first_half_centres.iterrows()):
-                table.cell(i + 1, 0).text = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
-                table.cell(i + 1, 1).text = row['Addresses'] if pd.notna(row['Addresses']) else "N/A"
-                table.cell(i + 1, 2).text = row['Format - Type of Centre'] if pd.notna(row['Format - Type of Centre']) else "N/A"
-                table.cell(i + 1, 3).text = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
-                table.cell(i + 1, 4).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
+            for i, (index, row) in enumerate(closest.iterrows()):
+                table.cell(i+1, 0).text = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
+                table.cell(i+1, 1).text = row['Addresses'] if pd.notna(row['Addresses']) else "N/A"
+                table.cell(i+1, 2).text = row['Format - Type of Centre'] if pd.notna(row['Format - Type of Centre']) else "N/A"
+                table.cell(i+1, 3).text = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
+                table.cell(i+1, 4).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
 
-            # Slide 4: Distances to Closest Centres (Next 4 Centres)
-            slide = prs.slides.add_slide(prs.slide_layouts[5])
-            title = slide.shapes.title
-            title.text = "Distances to Closest Centres (5-8)"
-            table = slide.shapes.add_table(rows=len(second_half_centres) + 1, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(8), height=Inches(5)).table
-
-            # Add table headers again
-            table.cell(0, 0).text = "Centre #"
-            table.cell(0, 1).text = "Address"
-            table.cell(0, 2).text = "Format - Type of Centre"
-            table.cell(0, 3).text = "Transaction Milestone"
-            table.cell(0, 4).text = "Distance (miles)"
-
-            # Add next 4 rows of data
-            for i, (index, row) in enumerate(second_half_centres.iterrows()):
-                table.cell(i + 1, 0).text = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
-                table.cell(i + 1, 1).text = row['Addresses'] if pd.notna(row['Addresses']) else "N/A"
-                table.cell(i + 1, 2).text = row['Format - Type of Centre'] if pd.notna(row['Format - Type of Centre']) else "N/A"
-                table.cell(i + 1, 3).text = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
-                table.cell(i + 1, 4).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
-
-            # Save the PowerPoint file
             pptx_path = "closest_centres_presentation.pptx"
             prs.save(pptx_path)
-
-            # Provide download button
             st.download_button("Download PowerPoint Presentation", data=open(pptx_path, "rb"), file_name=pptx_path, mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
 
     except Exception as e:
