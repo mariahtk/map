@@ -114,7 +114,7 @@ if input_address:
 
             def get_marker_color(format_type):
                 if format_type == "Regus":
-                    return "blue"
+                    return "teal"  # Changed from blue to teal
                 elif format_type == "HQ":
                     return "darkblue"
                 elif format_type == "Signature":
@@ -192,7 +192,8 @@ if input_address:
                 st.markdown(""" 
                     <div style="background-color: white; padding: 10px; border: 2px solid grey; border-radius: 10px; width: 100%; margin-top: 20px;">
                         <b>Centre Type Legend</b><br>
-                        <i style="background-color: blue; padding: 5px;">&#9724;</i> Regus<br>
+                        <i style="background-color: lightgreen; padding: 5px;">&#9724;</i> Proposed Address<br> <!-- Moved Proposed Address to the top -->
+                        <i style="background-color: teal; padding: 5px;">&#9724;</i> Regus<br> <!-- Changed to teal -->
                         <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
                         <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
                         <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
