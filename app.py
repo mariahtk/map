@@ -3,12 +3,11 @@ from geopy.distance import geodesic
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
-import folium.plugins as plugins
-from io import BytesIO
-from pptx import Presentation
-from pptx.util import Inches, Pt
+from folium.plugins import BeautifyIcon
 import requests
 import urllib.parse
+from pptx import Presentation
+from pptx.util import Inches
 
 # --- LOGIN SYSTEM ---
 def login():
@@ -75,12 +74,11 @@ if input_address:
 
                 closest = data.nsmallest(8, "Distance (miles)").reset_index(drop=True)
 
-                # 🔧 Adjust displayed distances to ensure no overlap (min 0.5 miles apart)
                 displayed_distances = []
                 adjusted_distances = []
                 for dist in closest["Distance (miles)"]:
                     new_dist = dist
-                    while any(abs(new_dist - d) < 0.01 for d in displayed_distances):  # rounding margin
+                    while any(abs(new_dist - d) < 0.01 for d in displayed_distances):
                         new_dist += 0.50
                     displayed_distances.append(new_dist)
                     adjusted_distances.append(new_dist)
@@ -98,10 +96,16 @@ if input_address:
 
             m = folium.Map(location=input_coords, zoom_start=int(zoom_level))
 
+            # Use light green marker for Proposed Address
             folium.Marker(
                 location=input_coords,
                 popup=f"Your Address: {input_address}",
-                icon=folium.Icon(color="green")
+                icon=BeautifyIcon(
+                    icon_shape="marker",
+                    border_color="#5cb85c",
+                    text_color="#000000",
+                    background_color="#90ee90"
+                )
             ).add_to(m)
 
             distance_text = f"Your Address: {input_address} - Coordinates: {input_coords[0]}, {input_coords[1]}\n"
@@ -111,7 +115,7 @@ if input_address:
 
             def get_marker_color(format_type):
                 if format_type == "Regus":
-                    return "blue"
+                    return "teal"
                 elif format_type == "HQ":
                     return "darkblue"
                 elif format_type == "Signature":
@@ -190,12 +194,13 @@ if input_address:
                 st.markdown("""
                     <div style="background-color: white; padding: 10px; border: 2px solid grey; border-radius: 10px; width: 100%; margin-top: 20px;">
                         <b>Centre Type Legend</b><br>
-                        <i style="background-color: blue; padding: 5px;">&#9724;</i> Regus<br>
+                        <i style="background-color: teal; padding: 5px;">&#9724;</i> Regus<br>
                         <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
                         <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
                         <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
                         <i style="background-color: red; padding: 5px;">&#9724;</i> Mature<br>
-                        <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
+                        <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand<br>
+                        <i style="background-color: #90ee90; padding: 5px;">&#9724;</i> Proposed Address
                     </div>
                 """, unsafe_allow_html=True)
 
