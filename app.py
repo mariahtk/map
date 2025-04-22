@@ -81,17 +81,14 @@ if input_address:
 
                 for _, row in data_sorted.iterrows():
                     current_distance = row["Distance (miles)"]
-                    # Check if current distance is at least 0.50 miles apart from all previously selected centres
                     if all(abs(current_distance - d) >= 0.5 for d in seen_distances):
                         selected_centres.append(row)
                         seen_distances.append(current_distance)
-                    # Stop when 8 centres are selected
                     if len(selected_centres) == 8:
                         break
 
                 closest = pd.DataFrame(selected_centres)
 
-            # Prepare the map
             lats = [input_coords[0]] + closest["Latitude"].tolist()
             lngs = [input_coords[1]] + closest["Longitude"].tolist()
             lat_min, lat_max = min(lats), max(lats)
@@ -104,33 +101,35 @@ if input_address:
 
             m = folium.Map(location=input_coords, zoom_start=int(zoom_level))
 
-            # Mark the input address
             folium.Marker(
                 location=input_coords,
                 popup=f"Your Address: {input_address}",
                 icon=folium.Icon(color="green")
             ).add_to(m)
 
-            # Add other markers and lines
+            distance_text = f"Your Address: {input_address} - Coordinates: {input_coords[0]}, {input_coords[1]}\n"
+            distance_text += "\nClosest Centres (Distances in miles):\n"
+
+            stagger_offsets = [-0.002, 0.002, -0.0015, 0.0015, -0.001, 0.001, -0.0005, 0.0005]
+
+            def get_marker_color(format_type):
+                if format_type == "Regus":
+                    return "blue"
+                elif format_type == "HQ":
+                    return "darkblue"
+                elif format_type == "Signature":
+                    return "purple"
+                elif format_type == "Spaces":
+                    return "black"
+                elif format_type == "Non-Standard Brand":
+                    return "gold"
+                elif pd.isna(format_type) or format_type == "":
+                    return "red"
+                return "gray"
+
             for i, (index, row) in enumerate(closest.iterrows()):
                 dest_coords = (row["Latitude"], row["Longitude"])
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
-
-                # Marker colors based on format
-                def get_marker_color(format_type):
-                    if format_type == "Regus":
-                        return "blue"
-                    elif format_type == "HQ":
-                        return "darkblue"
-                    elif format_type == "Signature":
-                        return "purple"
-                    elif format_type == "Spaces":
-                        return "black"
-                    elif format_type == "Non-Standard Brand":
-                        return "gold"
-                    elif pd.isna(format_type) or format_type == "":
-                        return "red"
-                    return "gray"
 
                 marker_color = get_marker_color(row["Format - Type of Centre"])
 
@@ -140,7 +139,47 @@ if input_address:
                     icon=folium.Icon(color=marker_color)
                 ).add_to(m)
 
-            # Save map
+                distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+
+                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
+                offset_lat = stagger_offsets[i % len(stagger_offsets)]
+
+                label_lat = row["Latitude"] + offset_lat
+                label_lon = row["Longitude"]
+                if label_lat > lat_max:
+                    label_lat = lat_max - 0.0005
+                if label_lat < lat_min:
+                    label_lat = lat_min + 0.0005
+                if label_lon > lng_max:
+                    label_lon = lng_max - 0.0005
+                if label_lon < lng_min:
+                    label_lon = lng_min + 0.0005
+
+                folium.Marker(
+                    location=(label_lat, label_lon),
+                    icon=folium.DivIcon(
+                        icon_size=(150, 40),
+                        icon_anchor=(0, 0),
+                        html=f"""
+                            <div style="
+                                background-color: white;
+                                color: black;
+                                padding: 6px 10px;
+                                border: 1px solid black;
+                                border-radius: 6px;
+                                font-size: 13px;
+                                font-family: Arial, sans-serif;
+                                display: inline-block;
+                                white-space: nowrap;
+                                text-overflow: ellipsis;
+                                box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+                            ">
+                                {label_text}
+                            </div>
+                        """
+                    )
+                ).add_to(m)
+
             folium_map_path = "closest_centres_map.html"
             m.save(folium_map_path)
 
@@ -150,7 +189,7 @@ if input_address:
                 st_folium(m, width=950, height=650)
 
             with col2:
-                st.markdown("""
+                st.markdown(""" 
                     <div style="background-color: white; padding: 10px; border: 2px solid grey; border-radius: 10px; width: 100%; margin-top: 20px;">
                         <b>Centre Type Legend</b><br>
                         <i style="background-color: blue; padding: 5px;">&#9724;</i> Regus<br>
