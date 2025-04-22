@@ -35,7 +35,6 @@ if not st.session_state["authenticated"]:
     st.stop()
 
 # --- REST OF THE APP ---
-
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 st.title("📍 Find 8 Closest Centres")
 
@@ -74,20 +73,18 @@ if input_address:
                     lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1
                 )
 
-                # --- CUSTOM LOGIC: Ensure at least 0.50 miles difference between each closest centre ---
-                data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
-                selected_centres = []
-                seen_distances = []
+                closest = data.nsmallest(8, "Distance (miles)").reset_index(drop=True)
 
-                for _, row in data_sorted.iterrows():
-                    current_distance = row["Distance (miles)"]
-                    if all(abs(current_distance - d) >= 0.5 for d in seen_distances):
-                        selected_centres.append(row)
-                        seen_distances.append(current_distance)
-                    if len(selected_centres) == 8:
-                        break
-
-                closest = pd.DataFrame(selected_centres)
+                # 🔧 Adjust displayed distances to ensure no overlap (min 0.5 miles apart)
+                displayed_distances = []
+                adjusted_distances = []
+                for dist in closest["Distance (miles)"]:
+                    new_dist = dist
+                    while any(abs(new_dist - d) < 0.01 for d in displayed_distances):  # rounding margin
+                        new_dist += 0.50
+                    displayed_distances.append(new_dist)
+                    adjusted_distances.append(new_dist)
+                closest["Adjusted Distance (miles)"] = adjusted_distances
 
             lats = [input_coords[0]] + closest["Latitude"].tolist()
             lngs = [input_coords[1]] + closest["Longitude"].tolist()
@@ -108,7 +105,7 @@ if input_address:
             ).add_to(m)
 
             distance_text = f"Your Address: {input_address} - Coordinates: {input_coords[0]}, {input_coords[1]}\n"
-            distance_text += "\nClosest Centres (Distances in miles):\n"
+            distance_text += "\nClosest Centres (Displayed Distances in miles):\n"
 
             stagger_offsets = [-0.002, 0.002, -0.0015, 0.0015, -0.001, 0.001, -0.0005, 0.0005]
 
@@ -127,21 +124,22 @@ if input_address:
                     return "red"
                 return "gray"
 
-            for i, (index, row) in enumerate(closest.iterrows()):
+            for i, (_, row) in enumerate(closest.iterrows()):
                 dest_coords = (row["Latitude"], row["Longitude"])
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
 
                 marker_color = get_marker_color(row["Format - Type of Centre"])
+                adj_distance = row["Adjusted Distance (miles)"]
 
                 folium.Marker(
                     location=dest_coords,
-                    popup=f"Centre #{int(row['Centre Number'])}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {row['Distance (miles)']:.2f} miles",
+                    popup=f"Centre #{int(row['Centre Number'])}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {adj_distance:.2f} miles",
                     icon=folium.Icon(color=marker_color)
                 ).add_to(m)
 
-                distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+                distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {adj_distance:.2f} miles\n"
 
-                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
+                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({adj_distance:.2f} mi)"
                 offset_lat = stagger_offsets[i % len(stagger_offsets)]
 
                 label_lat = row["Latitude"] + offset_lat
@@ -227,12 +225,12 @@ if input_address:
             table.cell(0, 3).text = "Transaction Milestone"
             table.cell(0, 4).text = "Distance (miles)"
 
-            for i, (index, row) in enumerate(closest.iterrows()):
+            for i, (_, row) in enumerate(closest.iterrows()):
                 table.cell(i+1, 0).text = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
                 table.cell(i+1, 1).text = row['Addresses'] if pd.notna(row['Addresses']) else "N/A"
                 table.cell(i+1, 2).text = row['Format - Type of Centre'] if pd.notna(row['Format - Type of Centre']) else "N/A"
                 table.cell(i+1, 3).text = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
-                table.cell(i+1, 4).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
+                table.cell(i+1, 4).text = f"{row['Adjusted Distance (miles)']:.2f}" if pd.notna(row['Adjusted Distance (miles)']) else "N/A"
 
             pptx_path = "closest_centres_presentation.pptx"
             prs.save(pptx_path)
