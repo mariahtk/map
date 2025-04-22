@@ -35,6 +35,7 @@ if not st.session_state["authenticated"]:
     st.stop()
 
 # --- REST OF THE APP ---
+
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 st.title("📍 Find 8 Closest Centres")
 
@@ -73,19 +74,24 @@ if input_address:
                     lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1
                 )
 
-                closest = data.nsmallest(8, "Distance (miles)").reset_index(drop=True)
+                # --- CUSTOM LOGIC: Ensure at least 0.50 miles difference between each closest centre ---
+                data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
+                selected_centres = []
+                seen_distances = []
 
-                # 🔧 Adjust displayed distances to ensure no overlap (min 0.5 miles apart)
-                displayed_distances = []
-                adjusted_distances = []
-                for dist in closest["Distance (miles)"]:
-                    new_dist = dist
-                    while any(abs(new_dist - d) < 0.01 for d in displayed_distances):  # rounding margin
-                        new_dist += 0.50
-                    displayed_distances.append(new_dist)
-                    adjusted_distances.append(new_dist)
-                closest["Adjusted Distance (miles)"] = adjusted_distances
+                for _, row in data_sorted.iterrows():
+                    current_distance = row["Distance (miles)"]
+                    # Check if current distance is at least 0.50 miles apart from all previously selected centres
+                    if all(abs(current_distance - d) >= 0.5 for d in seen_distances):
+                        selected_centres.append(row)
+                        seen_distances.append(current_distance)
+                    # Stop when 8 centres are selected
+                    if len(selected_centres) == 8:
+                        break
 
+                closest = pd.DataFrame(selected_centres)
+
+            # Prepare the map
             lats = [input_coords[0]] + closest["Latitude"].tolist()
             lngs = [input_coords[1]] + closest["Longitude"].tolist()
             lat_min, lat_max = min(lats), max(lats)
@@ -98,86 +104,43 @@ if input_address:
 
             m = folium.Map(location=input_coords, zoom_start=int(zoom_level))
 
+            # Mark the input address
             folium.Marker(
                 location=input_coords,
                 popup=f"Your Address: {input_address}",
                 icon=folium.Icon(color="green")
             ).add_to(m)
 
-            distance_text = f"Your Address: {input_address} - Coordinates: {input_coords[0]}, {input_coords[1]}\n"
-            distance_text += "\nClosest Centres (Displayed Distances in miles):\n"
-
-            stagger_offsets = [-0.002, 0.002, -0.0015, 0.0015, -0.001, 0.001, -0.0005, 0.0005]
-
-            def get_marker_color(format_type):
-                if format_type == "Regus":
-                    return "blue"
-                elif format_type == "HQ":
-                    return "darkblue"
-                elif format_type == "Signature":
-                    return "purple"
-                elif format_type == "Spaces":
-                    return "black"
-                elif format_type == "Non-Standard Brand":
-                    return "gold"
-                elif pd.isna(format_type) or format_type == "":
-                    return "red"
-                return "gray"
-
-            for i, (_, row) in enumerate(closest.iterrows()):
+            # Add other markers and lines
+            for i, (index, row) in enumerate(closest.iterrows()):
                 dest_coords = (row["Latitude"], row["Longitude"])
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
 
+                # Marker colors based on format
+                def get_marker_color(format_type):
+                    if format_type == "Regus":
+                        return "blue"
+                    elif format_type == "HQ":
+                        return "darkblue"
+                    elif format_type == "Signature":
+                        return "purple"
+                    elif format_type == "Spaces":
+                        return "black"
+                    elif format_type == "Non-Standard Brand":
+                        return "gold"
+                    elif pd.isna(format_type) or format_type == "":
+                        return "red"
+                    return "gray"
+
                 marker_color = get_marker_color(row["Format - Type of Centre"])
-                adj_distance = row["Adjusted Distance (miles)"]
 
                 folium.Marker(
                     location=dest_coords,
-                    popup=f"Centre #{int(row['Centre Number'])}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {adj_distance:.2f} miles",
+                    popup=f"Centre #{int(row['Centre Number'])}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {row['Distance (miles)']:.2f} miles",
                     icon=folium.Icon(color=marker_color)
                 ).add_to(m)
 
-                distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {adj_distance:.2f} miles\n"
-
-                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({adj_distance:.2f} mi)"
-                offset_lat = stagger_offsets[i % len(stagger_offsets)]
-
-                label_lat = row["Latitude"] + offset_lat
-                label_lon = row["Longitude"]
-                if label_lat > lat_max:
-                    label_lat = lat_max - 0.0005
-                if label_lat < lat_min:
-                    label_lat = lat_min + 0.0005
-                if label_lon > lng_max:
-                    label_lon = lng_max - 0.0005
-                if label_lon < lng_min:
-                    label_lon = lng_min + 0.0005
-
-                folium.Marker(
-                    location=(label_lat, label_lon),
-                    icon=folium.DivIcon(
-                        icon_size=(150, 40),
-                        icon_anchor=(0, 0),
-                        html=f"""
-                            <div style="
-                                background-color: white;
-                                color: black;
-                                padding: 6px 10px;
-                                border: 1px solid black;
-                                border-radius: 6px;
-                                font-size: 13px;
-                                font-family: Arial, sans-serif;
-                                display: inline-block;
-                                white-space: nowrap;
-                                text-overflow: ellipsis;
-                                box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
-                            ">
-                                {label_text}
-                            </div>
-                        """
-                    )
-                ).add_to(m)
-
+            # Save map
             folium_map_path = "closest_centres_map.html"
             m.save(folium_map_path)
 
@@ -225,12 +188,12 @@ if input_address:
             table.cell(0, 3).text = "Transaction Milestone"
             table.cell(0, 4).text = "Distance (miles)"
 
-            for i, (_, row) in enumerate(closest.iterrows()):
+            for i, (index, row) in enumerate(closest.iterrows()):
                 table.cell(i+1, 0).text = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
                 table.cell(i+1, 1).text = row['Addresses'] if pd.notna(row['Addresses']) else "N/A"
                 table.cell(i+1, 2).text = row['Format - Type of Centre'] if pd.notna(row['Format - Type of Centre']) else "N/A"
                 table.cell(i+1, 3).text = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
-                table.cell(i+1, 4).text = f"{row['Adjusted Distance (miles)']:.2f}" if pd.notna(row['Adjusted Distance (miles)']) else "N/A"
+                table.cell(i+1, 4).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
 
             pptx_path = "closest_centres_presentation.pptx"
             prs.save(pptx_path)
