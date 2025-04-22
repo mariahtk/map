@@ -89,47 +89,22 @@ if input_address:
                 # Find 8 closest
                 closest = data.nsmallest(8, "Distance (miles)")
 
-            # Calculate bounding box and zoom
-            lats = [input_coords[0]] + closest["Latitude"].tolist()
-            lngs = [input_coords[1]] + closest["Longitude"].tolist()
-            lat_min, lat_max = min(lats), max(lats)
-            lng_min, lng_max = min(lngs), max(lngs)
-            lat_diff = lat_max - lat_min
-            lng_diff = lng_max - lng_min
-            max_diff = max(lat_diff, lng_diff)
-            zoom_level = 14 - (max_diff * 3)
-            zoom_level = max(zoom_level, 14)
-
-            # Create map
-            m = folium.Map(location=input_coords, zoom_start=int(zoom_level))
-
-            folium.Marker(
-                location=input_coords,
-                popup=f"Your Address: {input_address}",
-                icon=folium.Icon(color="green")
-            ).add_to(m)
-
-            distance_text = f"Your Address: {input_address} - Coordinates: {input_coords[0]}, {input_coords[1]}\n"
-            distance_text += "\nClosest Centres (Distances in miles):\n"
-
-            stagger_offsets = [-0.002, 0.002, -0.0015, 0.0015, -0.001, 0.001, -0.0005, 0.0005]
-
-            def get_marker_color(format_type):
-                if format_type == "Regus":
-                    return "blue"
-                elif format_type == "HQ":
-                    return "darkblue"
-                elif format_type == "Signature":
-                    return "purple"
-                elif format_type == "Spaces":
-                    return "black"
-                elif format_type == "Non-Standard Brand":
-                    return "gold"
-                elif pd.isna(format_type) or format_type == "":
-                    return "red"
-                return "gray"
+            # To ensure at least a 0.25-mile difference between distances
+            adjusted_distances = []
 
             for i, (index, row) in enumerate(closest.iterrows()):
+                # Check if the current distance is too close to the previous one
+                if i > 0:
+                    previous_distance = adjusted_distances[i - 1]
+                    current_distance = row["Distance (miles)"]
+                    
+                    # If the current distance is too close (less than 0.25 miles away from the previous distance), adjust it
+                    if current_distance - previous_distance < 0.25:
+                        row["Distance (miles)"] = previous_distance + 0.25  # Add a 0.25 mile offset
+                
+                # Add the adjusted (or original) distance to the list
+                adjusted_distances.append(row["Distance (miles)"])
+
                 dest_coords = (row["Latitude"], row["Longitude"])
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
 
@@ -192,7 +167,7 @@ if input_address:
                 st_folium(m, width=950, height=650)
 
             with col2:
-                st.markdown("""
+                st.markdown(""" 
                     <div style="background-color: white; padding: 10px; border: 2px solid grey; border-radius: 10px; width: 100%; margin-top: 20px;">
                         <b>Centre Type Legend</b><br>
                         <i style="background-color: blue; padding: 5px;">&#9724;</i> Regus<br>
@@ -252,4 +227,3 @@ if input_address:
 
     except Exception as e:
         st.error(f"❌ An error occurred: {e}")
-
