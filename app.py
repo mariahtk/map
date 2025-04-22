@@ -3,10 +3,9 @@ from geopy.distance import geodesic
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
-import folium.plugins as plugins
 from io import BytesIO
 from pptx import Presentation
-from pptx.util import Inches, Pt
+from pptx.util import Inches
 import requests
 import urllib.parse
 
@@ -34,13 +33,10 @@ if not st.session_state["authenticated"]:
     login()
     st.stop()
 
-# --- REST OF THE APP ---
-
-# Streamlit setup
+# --- APP START ---
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 st.title("📍 Find 8 Closest Centres")
 
-# Your API key
 api_key = "edd4cb8a639240daa178b4c6321a60e6"
 
 input_address = st.text_input("Enter an address:")
@@ -79,15 +75,13 @@ if input_address:
 
                 closest = data.nsmallest(8, "Distance (miles)")
 
+            # Map bounds
             lats = [input_coords[0]] + closest["Latitude"].tolist()
             lngs = [input_coords[1]] + closest["Longitude"].tolist()
             lat_min, lat_max = min(lats), max(lats)
             lng_min, lng_max = min(lngs), max(lngs)
-            lat_diff = lat_max - lat_min
-            lng_diff = lng_max - lng_min
-            max_diff = max(lat_diff, lng_diff)
-            zoom_level = 14 - (max_diff * 3)
-            zoom_level = max(zoom_level, 14)
+            max_diff = max(lat_max - lat_min, lng_max - lng_min)
+            zoom_level = max(14 - (max_diff * 3), 14)
 
             m = folium.Map(location=input_coords, zoom_start=int(zoom_level))
 
@@ -101,28 +95,25 @@ if input_address:
             distance_text += "\nClosest Centres (Distances in miles):\n"
 
             def get_marker_color(format_type):
-                if format_type == "Regus":
-                    return "blue"
-                elif format_type == "HQ":
-                    return "darkblue"
-                elif format_type == "Signature":
-                    return "purple"
-                elif format_type == "Spaces":
-                    return "black"
-                elif format_type == "Non-Standard Brand":
-                    return "gold"
-                elif pd.isna(format_type) or format_type == "":
-                    return "red"
-                return "gray"
+                colors = {
+                    "Regus": "blue",
+                    "HQ": "darkblue",
+                    "Signature": "purple",
+                    "Spaces": "black",
+                    "Non-Standard Brand": "gold",
+                    "": "red"
+                }
+                return colors.get(format_type, "gray")
 
-            # -- Updated logic to avoid overlapping labels --
+            # Smart label and distance placement
             used_label_positions = set()
+            used_distances = set()
 
             def find_non_overlapping_offset(base_lat, base_lon, used_positions, step=0.0003):
                 offset_pairs = [
                     (step * i, step * j)
-                    for i in range(-3, 4)
-                    for j in range(-3, 4)
+                    for i in range(-5, 6)
+                    for j in range(-5, 6)
                     if not (i == 0 and j == 0)
                 ]
                 for offset_lat, offset_lon in offset_pairs:
@@ -136,19 +127,27 @@ if input_address:
 
             for i, (index, row) in enumerate(closest.iterrows()):
                 dest_coords = (row["Latitude"], row["Longitude"])
+                distance_miles = round(row['Distance (miles)'], 2)
+
+                while distance_miles in used_distances:
+                    distance_miles = round(distance_miles + 0.001, 3)
+                used_distances.add(distance_miles)
+
+                # Line from input to centre
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
 
                 marker_color = get_marker_color(row["Format - Type of Centre"])
 
+                # Marker
                 folium.Marker(
                     location=dest_coords,
-                    popup=f"Centre #{int(row['Centre Number'])}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {row['Distance (miles)']:.2f} miles",
+                    popup=f"Centre #{int(row['Centre Number'])}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {distance_miles:.3f} miles",
                     icon=folium.Icon(color=marker_color)
                 ).add_to(m)
 
-                distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+                distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {distance_miles:.3f} miles\n"
 
-                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
+                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({distance_miles:.3f} mi)"
                 label_lat, label_lon = find_non_overlapping_offset(row["Latitude"], row["Longitude"], used_label_positions)
 
                 folium.Marker(
@@ -165,7 +164,6 @@ if input_address:
                                 border-radius: 6px;
                                 font-size: 13px;
                                 font-family: Arial, sans-serif;
-                                display: inline-block;
                                 white-space: nowrap;
                                 text-overflow: ellipsis;
                                 box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
@@ -176,9 +174,8 @@ if input_address:
                     )
                 ).add_to(m)
 
-            folium_map_path = "closest_centres_map.html"
-            m.save(folium_map_path)
-
+            # Save map and display
+            m.save("closest_centres_map.html")
             col1, col2 = st.columns([4, 1])
 
             with col1:
@@ -200,20 +197,18 @@ if input_address:
             st.subheader("Distances from Your Address to the Closest Centres:")
             st.text(distance_text)
 
+            # PowerPoint section
             uploaded_map = st.file_uploader("Upload a screenshot or image of the map for PowerPoint", type=["png", "jpg", "jpeg"])
-
             prs = Presentation()
 
+            # Title slide
             slide = prs.slides.add_slide(prs.slide_layouts[0])
-            title = slide.shapes.title
-            subtitle = slide.placeholders[1]
-            title.text = "Closest Centres Presentation"
-            subtitle.text = f"Closest Centres to: {input_address}"
+            slide.shapes.title.text = "Closest Centres Presentation"
+            slide.placeholders[1].text = f"Closest Centres to: {input_address}"
 
+            # Map slide
             slide = prs.slides.add_slide(prs.slide_layouts[5])
-            title = slide.shapes.title
-            title.text = "Closest Centres Map"
-
+            slide.shapes.title.text = "Closest Centres Map"
             if uploaded_map:
                 img_stream = BytesIO(uploaded_map.read())
                 slide.shapes.add_picture(img_stream, Inches(1), Inches(1.5), width=Inches(8), height=Inches(4.5))
