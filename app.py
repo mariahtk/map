@@ -86,23 +86,8 @@ if input_address:
                     lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1
                 )
 
-                # Find 8 closest and ensure no duplicates in the distance column
+                # Find 8 closest
                 closest = data.nsmallest(8, "Distance (miles)")
-
-                # Step 1: Ensure unique distances by adding a small offset if there are duplicates
-                distances = closest["Distance (miles)"].tolist()
-                unique_distances = []
-                for dist in distances:
-                    # If this distance is already in the list, increment it slightly
-                    while dist in unique_distances:
-                        dist += 0.01  # Add a small value to make it unique
-                    unique_distances.append(dist)
-
-                # Update the "Distance (miles)" column with unique values
-                closest["Distance (miles)"] = unique_distances
-
-                # Step 2: Remove any duplicate locations (latitude, longitude)
-                closest = closest.drop_duplicates(subset=["Latitude", "Longitude"])
 
             # Calculate bounding box and zoom
             lats = [input_coords[0]] + closest["Latitude"].tolist()
@@ -158,7 +143,7 @@ if input_address:
 
                 distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
-                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)}"
+                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
                 offset_lat = stagger_offsets[i % len(stagger_offsets)]
 
                 label_lat = row["Latitude"] + offset_lat
@@ -207,7 +192,7 @@ if input_address:
                 st_folium(m, width=950, height=650)
 
             with col2:
-                st.markdown(""" 
+                st.markdown("""
                     <div style="background-color: white; padding: 10px; border: 2px solid grey; border-radius: 10px; width: 100%; margin-top: 20px;">
                         <b>Centre Type Legend</b><br>
                         <i style="background-color: blue; padding: 5px;">&#9724;</i> Regus<br>
@@ -236,6 +221,7 @@ if input_address:
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             title = slide.shapes.title
             title.text = "Closest Centres Map"
+            # Add the placeholder text in the slide
             slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
 
             # Add slide with table of closest centres
@@ -266,3 +252,4 @@ if input_address:
 
     except Exception as e:
         st.error(f"❌ An error occurred: {e}")
+
