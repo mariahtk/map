@@ -197,7 +197,6 @@ if input_address:
                         <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
                         <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
                         <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
-                        <i style="background-color: red; padding: 5px;">&#9724;</i> Mature<br>
                         <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                     </div>
                 """, unsafe_allow_html=True)
