@@ -205,7 +205,7 @@ if input_address:
             st.text(distance_text)
 
             # --- IMAGE UPLOADER (Moved before download button) ---
-            st.subheader("Upload Screenshot for PowerPoint (Optional)")
+            st.subheader("Upload Map Screenshot for PowerPoint (Optional)")
             uploaded_image = st.file_uploader("Upload an image (e.g., screenshot of map)", type=["png", "jpg", "jpeg"])
 
             prs = Presentation()
