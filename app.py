@@ -204,7 +204,7 @@ if input_address:
             st.subheader("Distances from Your Address to the Closest Centres:")
             st.text(distance_text)
 
-            # --- IMAGE UPLOADER (Moved before download button) ---
+            # --- POWERPOINT GENERATION (UPDATED SECTION) ---
             st.subheader("Upload Map Screenshot for PowerPoint (Optional)")
             uploaded_image = st.file_uploader("Upload an image (e.g., screenshot of map)", type=["png", "jpg", "jpeg"])
 
@@ -224,23 +224,31 @@ if input_address:
             else:
                 slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
 
-            slide = prs.slides.add_slide(prs.slide_layouts[5])
-            title = slide.shapes.title
-            title.text = "Distances to Closest Centres"
-            table = slide.shapes.add_table(rows=len(closest)+1, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(8), height=Inches(5)).table
+            # --- SPLIT DATA FOR SLIDES ---
+            group1 = closest.iloc[:4]
+            group2 = closest.iloc[4:]
 
-            table.cell(0, 0).text = "Centre #"
-            table.cell(0, 1).text = "Address"
-            table.cell(0, 2).text = "Format - Type of Centre"
-            table.cell(0, 3).text = "Transaction Milestone"
-            table.cell(0, 4).text = "Distance (miles)"
+            def add_distance_slide(prs, title_text, data):
+                slide = prs.slides.add_slide(prs.slide_layouts[5])
+                title = slide.shapes.title
+                title.text = title_text
+                table = slide.shapes.add_table(rows=5, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(8), height=Inches(5)).table
 
-            for i, (index, row) in enumerate(closest.iterrows()):
-                table.cell(i+1, 0).text = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
-                table.cell(i+1, 1).text = row['Addresses'] if pd.notna(row['Addresses']) else "N/A"
-                table.cell(i+1, 2).text = row['Format - Type of Centre'] if pd.notna(row['Format - Type of Centre']) else "N/A"
-                table.cell(i+1, 3).text = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
-                table.cell(i+1, 4).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
+                table.cell(0, 0).text = "Centre #"
+                table.cell(0, 1).text = "Address"
+                table.cell(0, 2).text = "Format - Type of Centre"
+                table.cell(0, 3).text = "Transaction Milestone"
+                table.cell(0, 4).text = "Distance (miles)"
+
+                for i, (_, row) in enumerate(data.iterrows(), start=1):
+                    table.cell(i, 0).text = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
+                    table.cell(i, 1).text = row['Addresses'] if pd.notna(row['Addresses']) else "N/A"
+                    table.cell(i, 2).text = row['Format - Type of Centre'] if pd.notna(row['Format - Type of Centre']) else "N/A"
+                    table.cell(i, 3).text = row['Transaction Milestone Status'] if pd.notna(row['Transaction Milestone Status']) else "N/A"
+                    table.cell(i, 4).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
+
+            add_distance_slide(prs, "Distances to Closest Centres (1–4)", group1)
+            add_distance_slide(prs, "Distances to Closest Centres (5–8)", group2)
 
             pptx_path = "closest_centres_presentation.pptx"
             prs.save(pptx_path)
