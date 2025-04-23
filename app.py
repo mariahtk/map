@@ -7,6 +7,7 @@ import folium.plugins as plugins
 from io import BytesIO
 from pptx import Presentation
 from pptx.util import Inches, Pt
+from PIL import Image
 import requests
 import urllib.parse
 
@@ -42,6 +43,8 @@ st.title("📍 Find 8 Closest Centres")
 api_key = "edd4cb8a639240daa178b4c6321a60e6"
 
 input_address = st.text_input("Enter an address:")
+
+uploaded_image = st.file_uploader("Upload a screenshot of the map (PNG, JPG)", type=["png", "jpg", "jpeg"])
 
 if input_address:
     try:
@@ -89,6 +92,7 @@ if input_address:
 
                 closest = pd.DataFrame(selected_centres)
 
+            # Map rendering
             lats = [input_coords[0]] + closest["Latitude"].tolist()
             lngs = [input_coords[1]] + closest["Longitude"].tolist()
             lat_min, lat_max = min(lats), max(lats)
@@ -100,7 +104,6 @@ if input_address:
             zoom_level = max(zoom_level, 14)
 
             m = folium.Map(location=input_coords, zoom_start=int(zoom_level))
-
             folium.Marker(
                 location=input_coords,
                 popup=f"Your Address: {input_address}",
@@ -114,7 +117,7 @@ if input_address:
 
             def get_marker_color(format_type):
                 if format_type == "Regus":
-                    return "blue"  # Changed from blue to teal
+                    return "blue"
                 elif format_type == "HQ":
                     return "darkblue"
                 elif format_type == "Signature":
@@ -130,7 +133,6 @@ if input_address:
             for i, (index, row) in enumerate(closest.iterrows()):
                 dest_coords = (row["Latitude"], row["Longitude"])
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
-
                 marker_color = get_marker_color(row["Format - Type of Centre"])
 
                 folium.Marker(
@@ -143,17 +145,12 @@ if input_address:
 
                 label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
                 offset_lat = stagger_offsets[i % len(stagger_offsets)]
-
                 label_lat = row["Latitude"] + offset_lat
                 label_lon = row["Longitude"]
-                if label_lat > lat_max:
-                    label_lat = lat_max - 0.0005
-                if label_lat < lat_min:
-                    label_lat = lat_min + 0.0005
-                if label_lon > lng_max:
-                    label_lon = lng_max - 0.0005
-                if label_lon < lng_min:
-                    label_lon = lng_min + 0.0005
+                if label_lat > lat_max: label_lat = lat_max - 0.0005
+                if label_lat < lat_min: label_lat = lat_min + 0.0005
+                if label_lon > lng_max: label_lon = lng_max - 0.0005
+                if label_lon < lng_min: label_lon = lng_min + 0.0005
 
                 folium.Marker(
                     location=(label_lat, label_lon),
@@ -184,7 +181,6 @@ if input_address:
             m.save(folium_map_path)
 
             col1, col2 = st.columns([4, 1])
-
             with col1:
                 st_folium(m, width=950, height=650)
 
@@ -192,8 +188,8 @@ if input_address:
                 st.markdown(""" 
                     <div style="background-color: white; padding: 10px; border: 2px solid grey; border-radius: 10px; width: 100%; margin-top: 20px;">
                         <b>Centre Type Legend</b><br>
-                        <i style="background-color: lightgreen; padding: 5px;">&#9724;</i> Proposed Address<br> <!-- Moved Proposed Address to the top -->
-                        <i style="background-color: lightblue; padding: 5px;">&#9724;</i> Regus<br> <!-- Changed to teal -->
+                        <i style="background-color: lightgreen; padding: 5px;">&#9724;</i> Proposed Address<br>
+                        <i style="background-color: lightblue; padding: 5px;">&#9724;</i> Regus<br>
                         <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
                         <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
                         <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
@@ -204,30 +200,32 @@ if input_address:
             st.subheader("Distances from Your Address to the Closest Centres:")
             st.text(distance_text)
 
+            # PowerPoint Generation
             prs = Presentation()
             slide = prs.slides.add_slide(prs.slide_layouts[0])
-            title = slide.shapes.title
-            subtitle = slide.placeholders[1]
-            title.text = "Closest Centres Presentation"
-            subtitle.text = f"Closest Centres to: {input_address}"
+            slide.shapes.title.text = "Closest Centres Presentation"
+            slide.placeholders[1].text = f"Closest Centres to: {input_address}"
 
+            # Slide with screenshot
             slide = prs.slides.add_slide(prs.slide_layouts[5])
-            title = slide.shapes.title
-            title.text = "Closest Centres Map"
-            slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
+            slide.shapes.title.text = "Closest Centres Map"
+            if uploaded_image:
+                image_stream = BytesIO(uploaded_image.read())
+                slide.shapes.add_picture(image_stream, Inches(1), Inches(1.5), Inches(8), Inches(4.5))
+            else:
+                slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
 
+            # Slide with table
             slide = prs.slides.add_slide(prs.slide_layouts[5])
-            title = slide.shapes.title
-            title.text = "Distances to Closest Centres"
+            slide.shapes.title.text = "Distances to Closest Centres"
             table = slide.shapes.add_table(rows=len(closest)+1, cols=5, left=Inches(0.5), top=Inches(1.5), width=Inches(8), height=Inches(5)).table
-
             table.cell(0, 0).text = "Centre #"
             table.cell(0, 1).text = "Address"
             table.cell(0, 2).text = "Format - Type of Centre"
             table.cell(0, 3).text = "Transaction Milestone"
             table.cell(0, 4).text = "Distance (miles)"
 
-            for i, (index, row) in enumerate(closest.iterrows()):
+            for i, (_, row) in enumerate(closest.iterrows()):
                 table.cell(i+1, 0).text = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
                 table.cell(i+1, 1).text = row['Addresses'] if pd.notna(row['Addresses']) else "N/A"
                 table.cell(i+1, 2).text = row['Format - Type of Centre'] if pd.notna(row['Format - Type of Centre']) else "N/A"
