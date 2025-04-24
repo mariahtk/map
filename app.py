@@ -70,11 +70,11 @@ if input_address:
 
                 data = pd.concat(all_data)
                 data = data.dropna(subset=["Latitude", "Longitude"])
+                data = data.drop_duplicates(subset=["Centre Number"])  # Remove duplicate centre numbers
                 data["Distance (miles)"] = data.apply(
                     lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1
                 )
 
-                # --- CUSTOM LOGIC: Ensure at least 0.50 miles difference between each closest centre ---
                 data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
                 selected_centres = []
                 seen_distances = []
@@ -204,7 +204,7 @@ if input_address:
             st.subheader("Distances from Your Address to the Closest Centres:")
             st.text(distance_text)
 
-            # --- POWERPOINT GENERATION (UPDATED SECTION) ---
+            # --- POWERPOINT GENERATION ---
             st.subheader("Upload Map Screenshot for PowerPoint (Optional)")
             uploaded_image = st.file_uploader("Upload an image (e.g., screenshot of map)", type=["png", "jpg", "jpeg"])
 
@@ -224,7 +224,6 @@ if input_address:
             else:
                 slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
 
-            # --- SPLIT DATA FOR SLIDES ---
             group1 = closest.iloc[:4]
             group2 = closest.iloc[4:]
 
