@@ -37,7 +37,7 @@ if not st.session_state["authenticated"]:
 # --- REST OF THE APP ---
 
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
-st.title("📍 Find 8 Closest Centres")
+st.title("📍 Find 5 Closest Centres")
 
 api_key = "edd4cb8a639240daa178b4c6321a60e6"
 
@@ -84,7 +84,7 @@ if input_address:
                     if all(abs(current_distance - d) >= 0.05 for d in seen_distances):
                         selected_centres.append(row)
                         seen_distances.append(current_distance)
-                    if len(selected_centres) == 8:
+                    if len(selected_centres) == 5:
                         break
 
                 closest = pd.DataFrame(selected_centres)
