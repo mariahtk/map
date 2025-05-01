@@ -81,7 +81,7 @@ if input_address:
 
                 for _, row in data_sorted.iterrows():
                     current_distance = row["Distance (miles)"]
-                    if all(abs(current_distance - d) >= 0.01 for d in seen_distances):
+                    if all(abs(current_distance - d) >= 0.005 for d in seen_distances):
                         selected_centres.append(row)
                         seen_distances.append(current_distance)
                     if len(selected_centres) == 5:
