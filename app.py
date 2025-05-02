@@ -142,7 +142,7 @@ if input_address:
                 label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
                 
                 # Consistent label just below the marker
-                label_lat = row["Latitude"] - 0.000005
+                label_lat = row["Latitude"] - 0.0000001
                 label_lon = row["Longitude"]
 
                 folium.Marker(
