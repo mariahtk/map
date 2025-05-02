@@ -70,7 +70,7 @@ if input_address:
 
                 data = pd.concat(all_data)
                 data = data.dropna(subset=["Latitude", "Longitude"])
-                data = data.drop_duplicates(subset=["Centre Number"])  # Remove duplicate centre numbers
+                data = data.drop_duplicates(subset=["Centre Number"])
                 data["Distance (miles)"] = data.apply(
                     lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1
                 )
@@ -110,8 +110,6 @@ if input_address:
             distance_text = f"Your Address: {input_address} - Coordinates: {input_coords[0]}, {input_coords[1]}\n"
             distance_text += "\nClosest Centres (Distances in miles):\n"
 
-            stagger_offsets = [-0.002, 0.002, -0.0015, 0.0015, -0.001, 0.001, -0.0005, 0.0005]
-
             def get_marker_color(format_type):
                 if format_type == "Regus":
                     return "blue"
@@ -142,18 +140,10 @@ if input_address:
                 distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
                 label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
-                offset_lat = stagger_offsets[i % len(stagger_offsets)]
-
-                label_lat = row["Latitude"] + offset_lat
+                
+                # Consistent label just below the marker
+                label_lat = row["Latitude"] - 0.0004
                 label_lon = row["Longitude"]
-                if label_lat > lat_max:
-                    label_lat = lat_max - 0.0005
-                if label_lat < lat_min:
-                    label_lat = lat_min + 0.0005
-                if label_lon > lng_max:
-                    label_lon = lng_max - 0.0005
-                if label_lon < lng_min:
-                    label_lon = lng_min + 0.0005
 
                 folium.Marker(
                     location=(label_lat, label_lon),
