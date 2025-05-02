@@ -35,6 +35,7 @@ if not st.session_state["authenticated"]:
     st.stop()
 
 # --- REST OF THE APP ---
+
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 st.title("📍 Find 5 Closest Centres")
 
@@ -69,7 +70,7 @@ if input_address:
 
                 data = pd.concat(all_data)
                 data = data.dropna(subset=["Latitude", "Longitude"])
-                data = data.drop_duplicates(subset=["Centre Number"])
+                data = data.drop_duplicates(subset=["Centre Number"])  # Remove duplicate centre numbers
                 data["Distance (miles)"] = data.apply(
                     lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1
                 )
@@ -140,22 +141,25 @@ if input_address:
 
                 distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
-                # UPDATED LABEL BLOCK STARTS HERE
                 label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
                 offset_lat = stagger_offsets[i % len(stagger_offsets)]
-                offset_lon = stagger_offsets[(i + 3) % len(stagger_offsets)]
 
                 label_lat = row["Latitude"] + offset_lat
-                label_lon = row["Longitude"] + offset_lon
-
-                label_lat = max(min(label_lat, lat_max - 0.0005), lat_min + 0.0005)
-                label_lon = max(min(label_lon, lng_max - 0.0005), lng_min + 0.0005)
+                label_lon = row["Longitude"]
+                if label_lat > lat_max:
+                    label_lat = lat_max - 0.0005
+                if label_lat < lat_min:
+                    label_lat = lat_min + 0.0005
+                if label_lon > lng_max:
+                    label_lon = lng_max - 0.0005
+                if label_lon < lng_min:
+                    label_lon = lng_min + 0.0005
 
                 folium.Marker(
                     location=(label_lat, label_lon),
                     icon=folium.DivIcon(
                         icon_size=(150, 40),
-                        icon_anchor=(0, 20),
+                        icon_anchor=(0, 0),
                         html=f"""
                             <div style="
                                 background-color: white;
@@ -165,17 +169,16 @@ if input_address:
                                 border-radius: 6px;
                                 font-size: 13px;
                                 font-family: Arial, sans-serif;
+                                display: inline-block;
                                 white-space: nowrap;
+                                text-overflow: ellipsis;
                                 box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
-                                max-width: 200px;
-                                overflow: hidden;
                             ">
                                 {label_text}
                             </div>
                         """
                     )
                 ).add_to(m)
-                # UPDATED LABEL BLOCK ENDS HERE
 
             folium_map_path = "closest_centres_map.html"
             m.save(folium_map_path)
