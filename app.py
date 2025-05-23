@@ -76,14 +76,21 @@ if input_address:
                 )
 
                 data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
+
+                # --- NEW LOGIC TO ENSURE UNIQUE CENTRE NUMBERS ---
                 selected_centres = []
                 seen_distances = []
+                seen_centre_numbers = set()
 
                 for _, row in data_sorted.iterrows():
+                    centre_number = row["Centre Number"]
                     current_distance = row["Distance (miles)"]
-                    if all(abs(current_distance - d) >= 0.005 for d in seen_distances):
+
+                    if centre_number not in seen_centre_numbers and all(abs(current_distance - d) >= 0.005 for d in seen_distances):
                         selected_centres.append(row)
+                        seen_centre_numbers.add(centre_number)
                         seen_distances.append(current_distance)
+
                     if len(selected_centres) == 5:
                         break
 
@@ -140,8 +147,6 @@ if input_address:
                 distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
                 label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
-                
-                # Consistent label just below the marker
                 label_lat = row["Latitude"] - 0.0000001
                 label_lon = row["Longitude"]
 
