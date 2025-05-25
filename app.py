@@ -70,16 +70,26 @@ if input_address:
 
                 data = pd.concat(all_data)
                 data = data.dropna(subset=["Latitude", "Longitude"])
+                
+                # Drop exact duplicate rows first
+                data = data.drop_duplicates()
 
-                # Calculate distance from input address
+                # Calculate distances from input location
                 data["Distance (miles)"] = data.apply(
                     lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1
                 )
 
-                # Keep only the closest record for each Centre Number
-                closest = data.loc[data.groupby("Centre Number")["Distance (miles)"].idxmin()]
+                # Sort so grouping picks closest first
+                data = data.sort_values(by=["Centre Number", "Distance (miles)", "Addresses"])
 
-                # Sort by distance and take top 5 closest centres
+                # Keep only the single closest row per Centre Number
+                closest_idx = data.groupby("Centre Number")["Distance (miles)"].idxmin()
+                closest = data.loc[closest_idx]
+
+                # Optional: remove rows with missing addresses if you want
+                # closest = closest[closest["Addresses"].notna()]
+
+                # Sort by distance and pick top 5
                 closest = closest.sort_values("Distance (miles)").head(5).reset_index(drop=True)
 
             lats = [input_coords[0]] + closest["Latitude"].tolist()
