@@ -70,21 +70,25 @@ if input_address:
 
                 data = pd.concat(all_data)
 
-                # Drop rows with missing Latitude, Longitude or Centre Number
+                # Drop rows missing Latitude, Longitude, or Centre Number
                 data = data.dropna(subset=["Latitude", "Longitude", "Centre Number"])
 
-                # Calculate distances from input location
+                # Calculate distance
                 data["Distance (miles)"] = data.apply(
                     lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1
                 )
 
-                # Sort by Centre Number and Distance so closest entries come first
-                data = data.sort_values(by=["Centre Number", "Distance (miles)"])
+                # Create a flag for whether address is valid (not NaN and not empty string)
+                data["Has_Address"] = data["Addresses"].notna() & (data["Addresses"].str.strip() != "")
 
-                # Keep only the closest entry per Centre Number
+                # Sort so that for each Centre Number: rows with valid address come first, then by closest distance
+                data = data.sort_values(by=["Centre Number", "Has_Address"], ascending=[True, False])
+                data = data.sort_values(by=["Centre Number", "Has_Address", "Distance (miles)"], ascending=[True, False, True])
+
+                # Drop duplicates, keeping first which prioritizes valid address and closest distance
                 closest = data.drop_duplicates(subset=["Centre Number"], keep='first')
 
-                # Now pick the top 5 closest centres overall
+                # Pick top 5 closest centres overall
                 closest = closest.sort_values("Distance (miles)").head(5).reset_index(drop=True)
 
             lats = [input_coords[0]] + closest["Latitude"].tolist()
