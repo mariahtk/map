@@ -70,26 +70,17 @@ if input_address:
 
                 data = pd.concat(all_data)
                 data = data.dropna(subset=["Latitude", "Longitude"])
-                data = data.drop_duplicates(subset=["Centre Number"])
+
+                # Calculate distances first
                 data["Distance (miles)"] = data.apply(
                     lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1
                 )
 
-                # --- NEW LOGIC TO ENSURE UNIQUE CENTRE NUMBERS ---
-                data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
-                seen_centre_numbers = set()
-                selected_centres = []
+                # Sort by distance and drop duplicates to keep closest per Centre Number
+                data = data.sort_values("Distance (miles)")
+                data = data.drop_duplicates(subset=["Centre Number"], keep="first").reset_index(drop=True)
 
-                for _, row in data_sorted.iterrows():
-                    centre_number = row["Centre Number"]
-                    if centre_number not in seen_centre_numbers:
-                        selected_centres.append(row)
-                        seen_centre_numbers.add(centre_number)
-
-                    if len(selected_centres) == 5:
-                        break
-
-                closest = pd.DataFrame(selected_centres)
+                closest = data.head(5)
 
             lats = [input_coords[0]] + closest["Latitude"].tolist()
             lngs = [input_coords[1]] + closest["Longitude"].tolist()
@@ -170,7 +161,6 @@ if input_address:
                     )
                 ).add_to(m)
 
-            # Save map
             folium_map_path = "closest_centres_map.html"
             m.save(folium_map_path)
 
