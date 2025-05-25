@@ -48,14 +48,14 @@ if input_address:
         encoded_address = urllib.parse.quote(input_address)
         url = f"https://api.opencagedata.com/geocode/v1/json?q={encoded_address}&key={api_key}"
         response = requests.get(url)
-        data = response.json()
+        data_geo = response.json()
 
         if response.status_code != 200:
             st.error(f"❌ API Error: {response.status_code}. Try again.")
-        elif not data.get('results'):
+        elif not data_geo.get('results'):
             st.error("❌ Address not found. Try again.")
         else:
-            location = data['results'][0]
+            location = data_geo['results'][0]
             input_coords = (location['geometry']['lat'], location['geometry']['lng'])
 
             file_path = "Database IC.xlsx"
@@ -70,27 +70,38 @@ if input_address:
 
                 data = pd.concat(all_data)
 
-                # Drop rows missing Latitude, Longitude, or Centre Number
-                data = data.dropna(subset=["Latitude", "Longitude", "Centre Number"])
+                # Drop rows missing Latitude or Longitude as they can't be mapped
+                data = data.dropna(subset=["Latitude", "Longitude"])
 
-                # Calculate distance
+                # Calculate distance for all entries
                 data["Distance (miles)"] = data.apply(
                     lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1
                 )
 
-                # Create a flag for whether address is valid (not NaN and not empty string)
-                data["Has_Address"] = data["Addresses"].notna() & (data["Addresses"].str.strip() != "")
+                # Sort by Centre Number and Distance (closest first)
+                data_sorted = data.sort_values(by=["Centre Number", "Distance (miles)"], ascending=[True, True])
 
-                # Sort so that for each Centre Number: rows with valid address come first, then by closest distance
-                data = data.sort_values(by=["Centre Number", "Has_Address"], ascending=[True, False])
-                data = data.sort_values(by=["Centre Number", "Has_Address", "Distance (miles)"], ascending=[True, False, True])
+                # Function to select the best row per Centre Number:
+                def select_best_row(group):
+                    # Rows with valid Centre Name (not NaN or empty)
+                    valid_name_rows = group[group["Centre Name"].notna() & (group["Centre Name"].str.strip() != "")]
+                    if not valid_name_rows.empty:
+                        # Return closest with valid Centre Name
+                        return valid_name_rows.iloc[0]
+                    else:
+                        # Otherwise return closest regardless of Centre Name
+                        return group.iloc[0]
 
-                # Drop duplicates, keeping first which prioritizes valid address and closest distance
-                closest = data.drop_duplicates(subset=["Centre Number"], keep='first')
+                # Group by Centre Number and pick best row per above logic
+                closest = data_sorted.groupby("Centre Number").apply(select_best_row).reset_index(drop=True)
 
-                # Pick top 5 closest centres overall
-                closest = closest.sort_values("Distance (miles)").head(5).reset_index(drop=True)
+                # Finally sort the selected closest centres by distance overall
+                closest = closest.sort_values("Distance (miles)").reset_index(drop=True)
 
+                # Limit to 5 closest centres
+                closest = closest.head(5)
+
+            # Prepare map bounds and zoom
             lats = [input_coords[0]] + closest["Latitude"].tolist()
             lngs = [input_coords[1]] + closest["Longitude"].tolist()
             lat_min, lat_max = min(lats), max(lats)
@@ -244,4 +255,4 @@ if input_address:
             st.download_button("Download PowerPoint Presentation", data=open(pptx_path, "rb"), file_name=pptx_path, mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
 
     except Exception as e:
-        st.error(f"❌ An error occurred: {e}")
+        st.error(f"An error occurred: {e}")
