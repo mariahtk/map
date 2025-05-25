@@ -35,6 +35,7 @@ if not st.session_state["authenticated"]:
     st.stop()
 
 # --- REST OF THE APP ---
+
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 st.title("📍 Find 5 Closest Centres")
 
@@ -67,23 +68,29 @@ if input_address:
                     df["Source Sheet"] = sheet
                     all_data.append(df)
 
-                # Combine all data
                 data = pd.concat(all_data)
                 data = data.dropna(subset=["Latitude", "Longitude"])
-
-                # Calculate distance first
+                data = data.drop_duplicates(subset=["Centre Number"])
                 data["Distance (miles)"] = data.apply(
                     lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1
                 )
 
-                # Sort and drop duplicate Centre Numbers
-                data = data.sort_values("Distance (miles)").reset_index(drop=True)
-                data = data.drop_duplicates(subset=["Centre Number"], keep='first')
+                # --- NEW LOGIC TO ENSURE UNIQUE CENTRE NUMBERS ---
+                data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
+                seen_centre_numbers = set()
+                selected_centres = []
 
-                # Take the 5 closest unique centres
-                closest = data.head(5)
+                for _, row in data_sorted.iterrows():
+                    centre_number = row["Centre Number"]
+                    if centre_number not in seen_centre_numbers:
+                        selected_centres.append(row)
+                        seen_centre_numbers.add(centre_number)
 
-            # --- Map Logic Continues Here (unchanged) ---
+                    if len(selected_centres) == 5:
+                        break
+
+                closest = pd.DataFrame(selected_centres)
+
             lats = [input_coords[0]] + closest["Latitude"].tolist()
             lngs = [input_coords[1]] + closest["Longitude"].tolist()
             lat_min, lat_max = min(lats), max(lats)
@@ -163,6 +170,7 @@ if input_address:
                     )
                 ).add_to(m)
 
+            # Save map
             folium_map_path = "closest_centres_map.html"
             m.save(folium_map_path)
 
