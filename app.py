@@ -71,16 +71,16 @@ if input_address:
                 data = pd.concat(all_data)
                 data = data.dropna(subset=["Latitude", "Longitude"])
 
-                # Calculate distances first
+                # Calculate distance from input address
                 data["Distance (miles)"] = data.apply(
                     lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1
                 )
 
-                # Sort by distance and drop duplicates to keep closest per Centre Number
-                data = data.sort_values("Distance (miles)")
-                data = data.drop_duplicates(subset=["Centre Number"], keep="first").reset_index(drop=True)
+                # Keep only the closest record for each Centre Number
+                closest = data.loc[data.groupby("Centre Number")["Distance (miles)"].idxmin()]
 
-                closest = data.head(5)
+                # Sort by distance and take top 5 closest centres
+                closest = closest.sort_values("Distance (miles)").head(5).reset_index(drop=True)
 
             lats = [input_coords[0]] + closest["Latitude"].tolist()
             lngs = [input_coords[1]] + closest["Longitude"].tolist()
