@@ -3,8 +3,10 @@ from geopy.distance import geodesic
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
+import folium.plugins as plugins
+from io import BytesIO
 from pptx import Presentation
-from pptx.util import Inches
+from pptx.util import Inches, Pt
 import requests
 import urllib.parse
 
@@ -32,11 +34,13 @@ if not st.session_state["authenticated"]:
     login()
     st.stop()
 
-# --- APP CONFIGURATION ---
+# --- REST OF THE APP ---
+
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 st.title("📍 Find 5 Closest Centres")
 
 api_key = "edd4cb8a639240daa178b4c6321a60e6"
+
 input_address = st.text_input("Enter an address:")
 
 if input_address:
@@ -73,6 +77,7 @@ if input_address:
 
                 data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
 
+                # --- NEW LOGIC TO ENSURE UNIQUE CENTRE NUMBERS ---
                 selected_centres = []
                 seen_distances = []
                 seen_centre_numbers = set()
@@ -91,19 +96,17 @@ if input_address:
 
                 closest = pd.DataFrame(selected_centres)
 
-            # MAP SETUP
-            m = folium.Map(location=input_coords, zoom_start=14)
+            lats = [input_coords[0]] + closest["Latitude"].tolist()
+            lngs = [input_coords[1]] + closest["Longitude"].tolist()
+            lat_min, lat_max = min(lats), max(lats)
+            lng_min, lng_max = min(lngs), max(lngs)
+            lat_diff = lat_max - lat_min
+            lng_diff = lng_max - lng_min
+            max_diff = max(lat_diff, lng_diff)
+            zoom_level = 14 - (max_diff * 3)
+            zoom_level = max(zoom_level, 14)
 
-            # Add 5-mile radius circle
-            folium.Circle(
-                radius=8046.72,  # 5 miles in meters
-                location=input_coords,
-                color='green',
-                fill=True,
-                fill_opacity=0.05,
-                weight=2,
-                popup="5 Mile Radius"
-            ).add_to(m)
+            m = folium.Map(location=input_coords, zoom_start=int(zoom_level))
 
             folium.Marker(
                 location=input_coords,
@@ -129,23 +132,20 @@ if input_address:
                     return "red"
                 return "gray"
 
-            for _, row in closest.iterrows():
+            for i, (index, row) in enumerate(closest.iterrows()):
                 dest_coords = (row["Latitude"], row["Longitude"])
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
 
                 marker_color = get_marker_color(row["Format - Type of Centre"])
-                city = row.get("City", "")
-                state = row.get("State", "")
-                zipcode = row.get("Zipcode", "")
 
-                # Add main popup marker
                 folium.Marker(
                     location=dest_coords,
-                    popup=f"Centre #{int(row['Centre Number'])}<br>Address: {row['Addresses']}<br>City: {city}<br>State: {state}<br>Zipcode: {zipcode}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {row['Distance (miles)']:.2f} miles",
+                    popup=f"Centre #{int(row['Centre Number'])}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {row['Distance (miles)']:.2f} miles",
                     icon=folium.Icon(color=marker_color)
                 ).add_to(m)
 
-                # Add label marker (unchanged from your original)
+                distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+
                 label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
                 label_lat = row["Latitude"] - 0.0000001
                 label_lon = row["Longitude"]
@@ -168,14 +168,35 @@ if input_address:
                                 white-space: nowrap;
                                 text-overflow: ellipsis;
                                 box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
-                            ">
-                                {label_text}
-                            </div>
+                            ">{label_text}</div>
                         """
                     )
                 ).add_to(m)
 
-                distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {city}, {state} {zipcode} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+            # Add 5-mile radius circle
+            folium.Circle(
+                location=input_coords,
+                radius=8046.72,  # 5 miles in meters
+                color="green",
+                fill=True,
+                fill_opacity=0.2,
+                fill_color="green"
+            ).add_to(m)
+
+            # Add legend for the 5-mile radius
+            legend_html = """
+            <div style="
+                position: fixed;
+                bottom: 50px; left: 50px; width: 200px; height: 150px;
+                border:2px solid grey; z-index:9999; font-size:14px;
+                background-color:white; opacity: 0.85;">
+                &nbsp; <b>Legend</b> <br>
+                &nbsp; Your Address &nbsp; <i class="fa fa-map-marker fa-2x" style="color:green"></i><br>
+                &nbsp; Centre &nbsp; <i class="fa fa-map-marker fa-2x" style="color:blue"></i><br>
+                &nbsp; 5-mile Radius &nbsp; <i class="fa fa-circle" style="color:green"></i><br>
+            </div>
+            """
+            m.get_root().html.add_child(folium.Element(legend_html))
 
             folium_map_path = "closest_centres_map.html"
             m.save(folium_map_path)
@@ -195,7 +216,7 @@ if input_address:
                         <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
                         <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
                         <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand<br>
-                        <i style="background-color: lightgreen; border: 2px solid green; padding: 5px;">&#9679;</i> 5-Mile Radius
+                        <i style="background-color: green; padding: 5px;">&#9724;</i> 5-mile Radius
                     </div>
                 """, unsafe_allow_html=True)
 
