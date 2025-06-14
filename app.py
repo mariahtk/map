@@ -138,10 +138,9 @@ if input_address:
 
                 marker_color = get_marker_color(row["Format - Type of Centre"])
 
-                # Updated popup text: single line only
                 folium.Marker(
                     location=dest_coords,
-                    popup=f"#{int(row['Centre Number'])} - {row['Addresses']} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi",
+                    popup=f"Centre #{int(row['Centre Number'])}<br>Address: {row['Addresses']}<br>Format: {row['Format - Type of Centre']}<br>Transaction Milestone: {row['Transaction Milestone Status']}<br>Distance: {row['Distance (miles)']:.2f} miles",
                     icon=folium.Icon(color=marker_color)
                 ).add_to(m)
 
@@ -184,7 +183,7 @@ if input_address:
                 fill_color="green"
             ).add_to(m)
 
-            # Add legend for the 5-mile radius on the map (bottom-left)
+            # Add legend for the 5-mile radius (inside the map)
             legend_html = """
             <div style="
                 position: fixed;
@@ -202,7 +201,6 @@ if input_address:
             folium_map_path = "closest_centres_map.html"
             m.save(folium_map_path)
 
-            # Updated columns layout with separate legends side by side
             col1, col2, col3 = st.columns([4, 1.2, 1])
 
             with col1:
@@ -225,7 +223,7 @@ if input_address:
                 st.markdown(""" 
                     <div style="background-color: white; padding: 10px; border: 2px solid grey; border-radius: 10px; width: 100%; margin-top: 20px;">
                         <b>Radius Legend</b><br>
-                        <i style="background-color: green; padding: 5px;">&#9679;</i> 5-mile Radius
+                        <i style="background-color: green; padding: 5px; border-radius: 50%; display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 8px;"></i> 5-mile Radius
                     </div>
                 """, unsafe_allow_html=True)
 
