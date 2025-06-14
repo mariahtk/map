@@ -112,8 +112,8 @@ if input_address:
                 elif pd.isna(format_type) or format_type == "": return "red"
                 return "gray"
 
-            distance_text = f"Your Address: {input_address} - Coordinates: {input_coords[0]}, {input_coords[1]}\n\n"
-            distance_text += "Closest Centres (Distances in miles):\n"
+            # Prepare distance text in original multi-line style
+            distance_text = f"Your Address: {input_address} - Coordinates: {input_coords[0]}, {input_coords[1]}\n\nClosest Centres (Distances in miles):\n"
 
             for _, row in closest.iterrows():
                 dest_coords = (row["Latitude"], row["Longitude"])
@@ -124,7 +124,7 @@ if input_address:
                     f"Address: {row['Addresses']}<br>"
                     f"City: {row.get('City', 'N/A')}<br>"
                     f"State: {row.get('State', 'N/A')}<br>"
-                    f"Zip: {row.get('Zipcode', 'N/A')}<br>"
+                    f"Zipcode: {row.get('Zipcode', 'N/A')}<br>"
                     f"Format: {row['Format - Type of Centre']}<br>"
                     f"Transaction Milestone: {row['Transaction Milestone Status']}<br>"
                     f"Distance: {row['Distance (miles)']:.2f} miles"
@@ -133,14 +133,35 @@ if input_address:
                 label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
                 folium.Marker(
                     location=(row["Latitude"] - 0.0000001, row["Longitude"]),
-                    icon=folium.DivIcon(html=f"<div style='background:white;border:1px solid black;border-radius:5px;padding:3px;font-size:12px'>{label_text}</div>")
+                    icon=folium.DivIcon(
+                        html=f"""
+                        <div style="
+                            background-color: white;
+                            color: black;
+                            padding: 6px 10px;
+                            border: 1px solid black;
+                            border-radius: 6px;
+                            font-size: 13px;
+                            font-family: Arial, sans-serif;
+                            display: inline-block;
+                            white-space: nowrap;
+                            text-overflow: ellipsis;
+                            box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+                        ">
+                            {label_text}
+                        </div>
+                        """
+                    )
                 ).add_to(m)
-                distance_text += popup_info.replace("<br>", " | ") + "\n"
+
+                # Append to the text area exactly as before, new line per centre:
+                distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']} - City: {row.get('City', 'N/A')} - State: {row.get('State', 'N/A')} - Zip: {row.get('Zipcode', 'N/A')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
             col1, col2 = st.columns([4, 1])
             with col1:
                 st_folium(m, width=950, height=650)
             with col2:
+                # ORIGINAL legend unchanged:
                 st.markdown(""" 
                     <div style="background-color: white; padding: 10px; border: 2px solid grey; border-radius: 10px; width: 100%; margin-top: 20px;">
                         <b>Centre Type Legend</b><br>
@@ -156,7 +177,7 @@ if input_address:
             st.subheader("Distances from Your Address to the Closest Centres:")
             st.text(distance_text)
 
-            # --- POWERPOINT ---
+            # --- POWERPOINT GENERATION ---
             st.subheader("Upload Map Screenshot for PowerPoint (Optional)")
             uploaded_image = st.file_uploader("Upload an image (e.g., screenshot of map)", type=["png", "jpg", "jpeg"])
 
@@ -175,8 +196,9 @@ if input_address:
             def add_distance_slide(prs, title_text, data):
                 slide = prs.slides.add_slide(prs.slide_layouts[5])
                 slide.shapes.title.text = title_text
-                table = slide.shapes.add_table(rows=6, cols=8, left=Inches(0.3), top=Inches(1.5), width=Inches(9), height=Inches(4)).table
-                headers = ["Centre #", "Address", "City", "State", "Zipcode", "Format", "Milestone", "Distance (mi)"]
+                table = slide.shapes.add_table(rows=6, cols=8, left=Inches(0.5), top=Inches(1.5), width=Inches(9), height=Inches(3)).table
+
+                headers = ["Centre Number", "Address", "City", "State", "Zipcode", "Format", "Milestone", "Distance (mi)"]
                 for col, header in enumerate(headers):
                     table.cell(0, col).text = header
                 for i, (_, row) in enumerate(data.iterrows(), start=1):
