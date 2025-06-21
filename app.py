@@ -135,17 +135,67 @@ if input_address:
                 elif pd.isna(format_type) or format_type == "":
                     return "red"
                 return "gray"
-                   # Add 5-mile radius circle
+
+            for i, (index, row) in enumerate(closest.iterrows()):
+                dest_coords = (row["Latitude"], row["Longitude"])
+                folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
+
+                marker_color = get_marker_color(row["Format - Type of Centre"])
+
+                folium.Marker(
+                    location=dest_coords,
+                    popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | "
+                           f"{row.get('City', 'N/A')}, {row.get('State', 'N/A')} {row.get('Zipcode', 'N/A')} | "
+                           f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | "
+                           f"{row['Distance (miles)']:.2f} mi"),
+                    icon=folium.Icon(color=marker_color)
+                ).add_to(m)
+
+                distance_text += (
+                    f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, "
+                    f"{row.get('City', 'N/A')}, {row.get('State', 'N/A')} {row.get('Zipcode', 'N/A')} - "
+                    f"Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - "
+                    f"{row['Distance (miles)']:.2f} miles\n"
+                )
+
+                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
+                offset_lat = 0.0003
+                offset_lon = 0.0003
+                label_lat = row["Latitude"] + (i * offset_lat)
+                label_lon = row["Longitude"] + (i * offset_lon)
+
+                folium.Marker(
+                    location=(label_lat, label_lon),
+                    icon=folium.DivIcon(
+                        icon_size=(150, 40),
+                        icon_anchor=(0, 0),
+                        html=f"""
+                            <div style="
+                                background-color: white;
+                                color: black;
+                                padding: 6px 10px;
+                                border: 1px solid black;
+                                border-radius: 6px;
+                                font-size: 13px;
+                                font-family: Arial, sans-serif;
+                                display: inline-block;
+                                white-space: nowrap;
+                                text-overflow: ellipsis;
+                                box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+                            ">{label_text}</div>
+                        """
+                    )
+                ).add_to(m)
+
             folium.Circle(
                 location=input_coords,
-                radius=8046.72,  # 5 miles in meters
+                radius=8046.72,
                 color="green",
                 fill=True,
                 fill_opacity=0.2,
                 fill_color="green"
             ).add_to(m)
 
-            # Add legend for the 5-mile radius on the map (bottom-left)
             legend_html = """
             <div style="
                 position: fixed;
@@ -163,7 +213,6 @@ if input_address:
             folium_map_path = "closest_centres_map.html"
             m.save(folium_map_path)
 
-            # Updated layout with legends side by side
             col1, col2, col3 = st.columns([4, 1.2, 1])
 
             with col1:
@@ -193,7 +242,6 @@ if input_address:
             st.subheader("Distances from Your Address to the Closest Centres:")
             st.text(distance_text)
 
-            # --- POWERPOINT GENERATION ---
             st.subheader("Upload Map Screenshot for PowerPoint (Optional)")
             uploaded_image = st.file_uploader("Upload an image (e.g., screenshot of map)", type=["png", "jpg", "jpeg"])
 
@@ -245,9 +293,9 @@ if input_address:
             pptx_path = "closest_centres_presentation.pptx"
             prs.save(pptx_path)
             st.download_button(
-                "Download PowerPoint Presentation",
-                data=open(pptx_path, "rb"),
-                file_name=pptx_path,
+                "Download PowerPoint Presentation", 
+                data=open(pptx_path, "rb"), 
+                file_name=pptx_path, 
                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
             )
 
