@@ -145,7 +145,9 @@ if input_address:
 
                 marker_color = get_marker_color(row["Format - Type of Centre"])
 
-                # Add marker icon to cluster (popup still there)
+                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
+
+                # Add marker with popup and permanent tooltip (text box) that moves with the marker
                 folium.Marker(
                     location=dest_coords,
                     popup=(
@@ -154,6 +156,7 @@ if input_address:
                         f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | "
                         f"{row['Distance (miles)']:.2f} mi"
                     ),
+                    tooltip=folium.Tooltip(label_text, permanent=True, sticky=False, direction='right'),
                     icon=folium.Icon(color=marker_color)
                 ).add_to(marker_cluster)
 
@@ -163,36 +166,6 @@ if input_address:
                     f"Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - "
                     f"{row['Distance (miles)']:.2f} miles\n"
                 )
-
-                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
-                label_lat = row["Latitude"] - 0.0000001
-                label_lon = row["Longitude"]
-
-                # Add label DivIcon to cluster so it's always visible, no click needed
-                folium.Marker(
-                    location=(label_lat, label_lon),
-                    icon=folium.DivIcon(
-                        icon_size=(150, 40),
-                        icon_anchor=(0, 0),
-                        html=f"""
-                            <div style="
-                                background-color: white;
-                                color: black;
-                                padding: 6px 10px;
-                                border: 1px solid black;
-                                border-radius: 6px;
-                                font-size: 13px;
-                                font-family: Arial, sans-serif;
-                                display: inline-block;
-                                white-space: nowrap;
-                                text-overflow: ellipsis;
-                                box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
-                                ">
-                                {label_text}
-                            </div>
-                        """
-                    )
-                ).add_to(marker_cluster)
 
             folium.Circle(
                 location=input_coords,
