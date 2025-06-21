@@ -9,7 +9,7 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 import requests
 import urllib.parse
-from folium.plugins import MarkerCluster  # <-- Added import
+from folium.plugins import MarkerCluster
 
 # --- LOGIN SYSTEM ---
 def login():
@@ -73,7 +73,6 @@ if input_address:
                 data = data.dropna(subset=["Latitude", "Longitude"])
                 data = data.drop_duplicates(subset=["Centre Number"])
 
-                # Ensure City, State, Zipcode columns exist
                 for col in ["City", "State", "Zipcode"]:
                     if col not in data.columns:
                         data[col] = ""
@@ -84,7 +83,6 @@ if input_address:
 
                 data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
 
-                # --- NEW LOGIC TO ENSURE UNIQUE CENTRE NUMBERS ---
                 selected_centres = []
                 seen_distances = []
                 seen_centre_numbers = set()
@@ -139,7 +137,6 @@ if input_address:
                     return "red"
                 return "gray"
 
-            # Create MarkerCluster instance
             marker_cluster = MarkerCluster().add_to(m)
 
             for i, (index, row) in enumerate(closest.iterrows()):
@@ -148,7 +145,7 @@ if input_address:
 
                 marker_color = get_marker_color(row["Format - Type of Centre"])
 
-                # Add markers to cluster
+                # Add marker icon to cluster (popup still there)
                 folium.Marker(
                     location=dest_coords,
                     popup=(
@@ -171,6 +168,7 @@ if input_address:
                 label_lat = row["Latitude"] - 0.0000001
                 label_lon = row["Longitude"]
 
+                # Add label DivIcon to cluster so it's always visible, no click needed
                 folium.Marker(
                     location=(label_lat, label_lon),
                     icon=folium.DivIcon(
@@ -189,22 +187,22 @@ if input_address:
                                 white-space: nowrap;
                                 text-overflow: ellipsis;
                                 box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
-                            ">{label_text}</div>
+                                ">
+                                {label_text}
+                            </div>
                         """
                     )
                 ).add_to(marker_cluster)
 
-            # Add 5-mile radius circle
             folium.Circle(
                 location=input_coords,
-                radius=8046.72,  # 5 miles in meters
+                radius=8046.72,
                 color="green",
                 fill=True,
                 fill_opacity=0.2,
                 fill_color="green"
             ).add_to(m)
 
-            # Add legend for the 5-mile radius on the map (bottom-left)
             legend_html = """
             <div style="
                 position: fixed;
@@ -219,10 +217,6 @@ if input_address:
             """
             m.get_root().html.add_child(folium.Element(legend_html))
 
-            folium_map_path = "closest_centres_map.html"
-            m.save(folium_map_path)
-
-            # Updated columns layout with separate legends side by side
             col1, col2, col3 = st.columns([4, 1.2, 1])
 
             with col1:
@@ -252,7 +246,6 @@ if input_address:
             st.subheader("Distances from Your Address to the Closest Centres:")
             st.text(distance_text)
 
-            # --- POWERPOINT GENERATION ---
             st.subheader("Upload Map Screenshot for PowerPoint (Optional)")
             uploaded_image = st.file_uploader("Upload an image (e.g., screenshot of map)", type=["png", "jpg", "jpeg"])
 
@@ -270,12 +263,7 @@ if input_address:
             if uploaded_image is not None:
                 image_stream = BytesIO(uploaded_image.read())
                 slide.shapes.add_picture(image_stream, left, top, width=width, height=height)
-            else:
-                # If no upload, add the saved map HTML snapshot as image
-                # Note: This requires rendering the HTML to image separately; skipping here
-                pass
 
-            # Add textbox with distances
             txBox = slide.shapes.add_textbox(left, Inches(6.7), width, Inches(1.5))
             tf = txBox.text_frame
             p = tf.add_paragraph()
