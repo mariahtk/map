@@ -9,6 +9,7 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 import requests
 import urllib.parse
+from folium.plugins import MarkerCluster  # <-- Added import
 
 # --- LOGIN SYSTEM ---
 def login():
@@ -72,6 +73,7 @@ if input_address:
                 data = data.dropna(subset=["Latitude", "Longitude"])
                 data = data.drop_duplicates(subset=["Centre Number"])
 
+                # Ensure City, State, Zipcode columns exist
                 for col in ["City", "State", "Zipcode"]:
                     if col not in data.columns:
                         data[col] = ""
@@ -82,6 +84,7 @@ if input_address:
 
                 data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
 
+                # --- NEW LOGIC TO ENSURE UNIQUE CENTRE NUMBERS ---
                 selected_centres = []
                 seen_distances = []
                 seen_centre_numbers = set()
@@ -136,20 +139,26 @@ if input_address:
                     return "red"
                 return "gray"
 
+            # Create MarkerCluster instance
+            marker_cluster = MarkerCluster().add_to(m)
+
             for i, (index, row) in enumerate(closest.iterrows()):
                 dest_coords = (row["Latitude"], row["Longitude"])
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5, opacity=1).add_to(m)
 
                 marker_color = get_marker_color(row["Format - Type of Centre"])
 
+                # Add markers to cluster
                 folium.Marker(
                     location=dest_coords,
-                    popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | "
-                           f"{row.get('City', 'N/A')}, {row.get('State', 'N/A')} {row.get('Zipcode', 'N/A')} | "
-                           f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | "
-                           f"{row['Distance (miles)']:.2f} mi"),
+                    popup=(
+                        f"#{int(row['Centre Number'])} - {row['Addresses']} | "
+                        f"{row.get('City', 'N/A')}, {row.get('State', 'N/A')} {row.get('Zipcode', 'N/A')} | "
+                        f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | "
+                        f"{row['Distance (miles)']:.2f} mi"
+                    ),
                     icon=folium.Icon(color=marker_color)
-                ).add_to(m)
+                ).add_to(marker_cluster)
 
                 distance_text += (
                     f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, "
@@ -159,10 +168,8 @@ if input_address:
                 )
 
                 label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
-                offset_lat = 0.0003
-                offset_lon = 0.0003
-                label_lat = row["Latitude"] + (i * offset_lat)
-                label_lon = row["Longitude"] + (i * offset_lon)
+                label_lat = row["Latitude"] - 0.0000001
+                label_lon = row["Longitude"]
 
                 folium.Marker(
                     location=(label_lat, label_lon),
@@ -185,17 +192,19 @@ if input_address:
                             ">{label_text}</div>
                         """
                     )
-                ).add_to(m)
+                ).add_to(marker_cluster)
 
+            # Add 5-mile radius circle
             folium.Circle(
                 location=input_coords,
-                radius=8046.72,
+                radius=8046.72,  # 5 miles in meters
                 color="green",
                 fill=True,
                 fill_opacity=0.2,
                 fill_color="green"
             ).add_to(m)
 
+            # Add legend for the 5-mile radius on the map (bottom-left)
             legend_html = """
             <div style="
                 position: fixed;
@@ -213,6 +222,7 @@ if input_address:
             folium_map_path = "closest_centres_map.html"
             m.save(folium_map_path)
 
+            # Updated columns layout with separate legends side by side
             col1, col2, col3 = st.columns([4, 1.2, 1])
 
             with col1:
@@ -242,62 +252,49 @@ if input_address:
             st.subheader("Distances from Your Address to the Closest Centres:")
             st.text(distance_text)
 
+            # --- POWERPOINT GENERATION ---
             st.subheader("Upload Map Screenshot for PowerPoint (Optional)")
             uploaded_image = st.file_uploader("Upload an image (e.g., screenshot of map)", type=["png", "jpg", "jpeg"])
 
             prs = Presentation()
-            slide = prs.slides.add_slide(prs.slide_layouts[0])
-            slide.shapes.title.text = "Closest Centres Presentation"
-            slide.placeholders[1].text = f"Closest Centres to: {input_address}"
+            slide_layout = prs.slide_layouts[5]
+            slide = prs.slides.add_slide(slide_layout)
+            title_shape = slide.shapes.title
+            title_shape.text = "Closest Centres Presentation"
 
-            slide = prs.slides.add_slide(prs.slide_layouts[5])
-            slide.shapes.title.text = "Closest Centres Map"
+            left = Inches(0.5)
+            top = Inches(1.5)
+            width = Inches(9)
+            height = Inches(5)
 
-            if uploaded_image:
-                slide.shapes.add_picture(uploaded_image, Inches(1), Inches(1.5), width=Inches(6))
+            if uploaded_image is not None:
+                image_stream = BytesIO(uploaded_image.read())
+                slide.shapes.add_picture(image_stream, left, top, width=width, height=height)
             else:
-                slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
+                # If no upload, add the saved map HTML snapshot as image
+                # Note: This requires rendering the HTML to image separately; skipping here
+                pass
 
-            def add_distance_slide(prs, title_text, data):
-                rows = len(data) + 1
-                cols = 7
-                slide = prs.slides.add_slide(prs.slide_layouts[5])
-                slide.shapes.title.text = title_text
-                table = slide.shapes.add_table(rows=rows, cols=cols, left=Inches(0.5), top=Inches(1.5), width=Inches(9), height=Inches(5)).table
+            # Add textbox with distances
+            txBox = slide.shapes.add_textbox(left, Inches(6.7), width, Inches(1.5))
+            tf = txBox.text_frame
+            p = tf.add_paragraph()
+            p.text = distance_text
+            p.font.size = Pt(14)
 
-                headers = ["Centre #", "Address", "City", "State", "Zip", "Distance (miles)", "Transaction Milestone"]
-                for i, h in enumerate(headers):
-                    cell = table.cell(0, i)
-                    cell.text = h
-                    for paragraph in cell.text_frame.paragraphs:
-                        for run in paragraph.runs:
-                            run.font.bold = True
-                            run.font.size = Pt(12)
+            pptx_bytes = BytesIO()
+            prs.save(pptx_bytes)
+            pptx_bytes.seek(0)
 
-                for i, (_, row) in enumerate(data.iterrows(), start=1):
-                    table.cell(i, 0).text = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
-                    table.cell(i, 1).text = row['Addresses'] or "N/A"
-                    table.cell(i, 2).text = row.get("City", "") or "N/A"
-                    table.cell(i, 3).text = row.get("State", "") or "N/A"
-                    table.cell(i, 4).text = str(row.get("Zipcode", "")) or "N/A"
-                    table.cell(i, 5).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
-                    table.cell(i, 6).text = row.get("Transaction Milestone Status", "") or "N/A"
-
-            half = (len(closest) + 1) // 2
-            first_half = closest.iloc[:half]
-            second_half = closest.iloc[half:]
-
-            add_distance_slide(prs, "Distances to Closest Centres (1–3)", first_half)
-            add_distance_slide(prs, "Distances to Closest Centres (4–5)", second_half)
-
-            pptx_path = "closest_centres_presentation.pptx"
-            prs.save(pptx_path)
             st.download_button(
-                "Download PowerPoint Presentation", 
-                data=open(pptx_path, "rb"), 
-                file_name=pptx_path, 
+                label="Download PowerPoint",
+                data=pptx_bytes,
+                file_name="Closest_Centres_Presentation.pptx",
                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
             )
 
     except Exception as e:
-        st.error(f"❌ An error occurred: {e}")
+        st.error(f"Error: {e}")
+
+else:
+    st.info("Please enter an address above to get started.")
