@@ -222,37 +222,62 @@ if input_address:
             st.subheader("Upload Map Screenshot for PowerPoint (Optional)")
             uploaded_image = st.file_uploader("Upload an image (e.g., screenshot of map)", type=["png", "jpg", "jpeg"])
 
-            prs = Presentation()
-            slide_layout = prs.slide_layouts[5]
-            slide = prs.slides.add_slide(slide_layout)
-            title_shape = slide.shapes.title
-            title_shape.text = "Closest Centres Presentation"
+    prs = Presentation()
+            slide = prs.slides.add_slide(prs.slide_layouts[0])
+            slide.shapes.title.text = "Closest Centres Presentation"
+            slide.placeholders[1].text = f"Closest Centres to: {input_address}"
 
-            left = Inches(0.5)
-            top = Inches(1.5)
-            width = Inches(9)
-            height = Inches(5)
+            slide = prs.slides.add_slide(prs.slide_layouts[5])
+            slide.shapes.title.text = "Closest Centres Map"
 
-            if uploaded_image is not None:
-                image_stream = BytesIO(uploaded_image.read())
-                slide.shapes.add_picture(image_stream, left, top, width=width, height=height)
+            if uploaded_image:
+                slide.shapes.add_picture(uploaded_image, Inches(1), Inches(1.5), width=Inches(6))
+            else:
+                slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
 
-            txBox = slide.shapes.add_textbox(left, Inches(6.7), width, Inches(1.5))
-            tf = txBox.text_frame
-            p = tf.add_paragraph()
-            p.text = distance_text
-            p.font.size = Pt(14)
+            def add_distance_slide(prs, title_text, data):
+                rows = len(data) + 1
+                cols = 7
+                slide = prs.slides.add_slide(prs.slide_layouts[5])
+                slide.shapes.title.text = title_text
+                table = slide.shapes.add_table(rows=rows, cols=cols, left=Inches(0.5), top=Inches(1.5), width=Inches(9), height=Inches(5)).table
 
-            pptx_bytes = BytesIO()
-            prs.save(pptx_bytes)
-            pptx_bytes.seek(0)
+                headers = ["Centre #", "Address", "City", "State", "Zip", "Distance (miles)", "Transaction Milestone"]
+                for i, h in enumerate(headers):
+                    cell = table.cell(0, i)
+                    cell.text = h
+                    # Optional: format header bold
+                    for paragraph in cell.text_frame.paragraphs:
+                        for run in paragraph.runs:
+                            run.font.bold = True
+                            run.font.size = Pt(12)
 
+                for i, (_, row) in enumerate(data.iterrows(), start=1):
+                    table.cell(i, 0).text = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
+                    table.cell(i, 1).text = row['Addresses'] or "N/A"
+                    table.cell(i, 2).text = row.get("City", "") or "N/A"
+                    table.cell(i, 3).text = row.get("State", "") or "N/A"
+                    table.cell(i, 4).text = str(row.get("Zipcode", "")) or "N/A"
+                    table.cell(i, 5).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
+                    table.cell(i, 6).text = row.get("Transaction Milestone Status", "") or "N/A"
+
+            # Split closest data into two halves
+            half = (len(closest) + 1) // 2
+            first_half = closest.iloc[:half]
+            second_half = closest.iloc[half:]
+
+            add_distance_slide(prs, "Distances to Closest Centres (1–3)", first_half)
+            add_distance_slide(prs, "Distances to Closest Centres (4–5)", second_half)
+
+            pptx_path = "closest_centres_presentation.pptx"
+            prs.save(pptx_path)
             st.download_button(
-                label="Download PowerPoint",
-                data=pptx_bytes,
-                file_name="Closest_Centres_Presentation.pptx",
+                "Download PowerPoint Presentation", 
+                data=open(pptx_path, "rb"), 
+                file_name=pptx_path, 
                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
             )
+
 
     except Exception as e:
         st.error(f"Error: {e}")
