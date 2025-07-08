@@ -132,7 +132,7 @@ if input_address:
                 dest_coords = (row["Latitude"], row["Longitude"])
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
                 marker_color = get_marker_color(row["Format - Type of Centre"])
-                label_text = f"#{int(row['Centre Number'])} - {row['Addresses']} ({row['Distance (miles)']:.2f} mi)"
+                label_text = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
                 folium.Marker(
                     location=dest_coords,
                     popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | "
