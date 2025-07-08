@@ -3,7 +3,6 @@ from geopy.distance import geodesic
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
-from folium.plugins import MarkerCluster
 from pptx import Presentation
 from pptx.util import Inches, Pt
 import requests
@@ -141,7 +140,7 @@ if input_address:
                            f"{row['Distance (miles)']:.2f} mi"),
                     tooltip=folium.Tooltip(f"<div style='font-size: 16px; font-weight: bold;'>{label_text}</div>", permanent=True, direction='right'),
                     icon=folium.Icon(color=marker_color)
-                ).add_to(marker_cluster)
+                ).add_to(m)
 
                 distance_text += (
                     f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, "
