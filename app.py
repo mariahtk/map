@@ -3,7 +3,6 @@ from geopy.distance import geodesic
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
-from folium.plugins import MarkerCluster
 from pptx import Presentation
 from pptx.util import Inches, Pt
 import requests
@@ -43,7 +42,6 @@ input_address = st.text_input("Enter an address:")
 
 if input_address:
     try:
-        # --- GEOCODING ---
         encoded_address = urllib.parse.quote(input_address)
         url = f"https://api.opencagedata.com/geocode/v1/json?q={encoded_address}&key={api_key}"
         response = requests.get(url)
@@ -57,7 +55,6 @@ if input_address:
             location = data['results'][0]
             input_coords = (location['geometry']['lat'], location['geometry']['lng'])
 
-            # --- LOAD AND PROCESS EXCEL ---
             file_path = "Database IC.xlsx"
             sheets = ["Comps", "Active Centre", "Centre Opened"]
             all_data = []
@@ -82,7 +79,6 @@ if input_address:
 
                 data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
 
-                # --- SELECT 5 CLOSEST ---
                 selected_centres = []
                 seen_distances = []
                 seen_centre_numbers = set()
@@ -99,7 +95,6 @@ if input_address:
 
                 closest = pd.DataFrame(selected_centres)
 
-            # --- FOLIUM MAP ---
             lats = [input_coords[0]] + closest["Latitude"].tolist()
             lngs = [input_coords[1]] + closest["Longitude"].tolist()
             lat_min, lat_max = min(lats), max(lats)
@@ -113,8 +108,6 @@ if input_address:
                 popup=f"Your Address: {input_address}",
                 icon=folium.Icon(color="green")
             ).add_to(m)
-
-            marker_cluster = MarkerCluster().add_to(m)
 
             def get_marker_color(format_type):
                 return {
@@ -141,7 +134,7 @@ if input_address:
                            f"{row['Distance (miles)']:.2f} mi"),
                     tooltip=folium.Tooltip(f"<div style='font-size: 16px; font-weight: bold;'>{label_text}</div>", permanent=True, direction='right'),
                     icon=folium.Icon(color=marker_color)
-                ).add_to(marker_cluster)
+                ).add_to(m)
 
                 distance_text += (
                     f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, "
@@ -150,7 +143,6 @@ if input_address:
                     f"{row['Distance (miles)']:.2f} miles\n"
                 )
 
-            # --- DRAW RADIUS & LEGEND ---
             folium.Circle(location=input_coords, radius=8046.72, color="green", fill=True, fill_opacity=0.2).add_to(m)
             legend_html = """<div style="position: fixed; bottom: 50px; left: 50px; width: 200px; height: 150px;
                                 border:2px solid grey; z-index:9999; font-size:14px;
@@ -162,7 +154,6 @@ if input_address:
                             </div>"""
             m.get_root().html.add_child(folium.Element(legend_html))
 
-            # --- DISPLAY ---
             col1, col2, col3 = st.columns([4, 1.2, 1])
             with col1:
                 st_folium(m, width=950, height=650)
@@ -187,7 +178,6 @@ if input_address:
             st.subheader("Distances from Your Address to the Closest Centres:")
             st.text(distance_text)
 
-            # --- POWERPOINT GENERATION ---
             st.subheader("Upload Map Screenshot for PowerPoint (Optional)")
             uploaded_image = st.file_uploader("Upload an image (e.g., screenshot of map)", type=["png", "jpg", "jpeg"])
 
@@ -238,6 +228,5 @@ if input_address:
 
     except Exception as e:
         st.error(f"Error: {e}")
-
 else:
     st.info("Please enter an address above to get started.")
