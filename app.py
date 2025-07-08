@@ -32,6 +32,21 @@ if not st.session_state["authenticated"]:
     login()
     st.stop()
 
+# --- Function to infer area type ---
+def infer_area_type(location):
+    components = location.get("components", {})
+    # Check for suburb explicitly
+    if "suburb" in components:
+        return "Suburb"
+    # Check for city or city_district (considered CBD here)
+    if "city" in components or "city_district" in components:
+        return "CBD"
+    # Check for village, hamlet, or town - treat as rural
+    if any(key in components for key in ["village", "hamlet", "town"]):
+        return "Rural"
+    # Default fallback
+    return "Suburb"
+
 # --- MAIN APP ---
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 st.title("📍 Find 5 Closest Centres")
@@ -54,6 +69,10 @@ if input_address:
         else:
             location = data['results'][0]
             input_coords = (location['geometry']['lat'], location['geometry']['lng'])
+
+            # Infer area type automatically
+            area_type = infer_area_type(location)
+            st.write(f"Area type detected: **{area_type}**")
 
             file_path = "Database IC.xlsx"
             sheets = ["Comps", "Active Centre", "Centre Opened"]
@@ -143,14 +162,18 @@ if input_address:
                     f"{row['Distance (miles)']:.2f} miles\n"
                 )
 
-            folium.Circle(location=input_coords, radius=8046.72, color="green", fill=True, fill_opacity=0.2).add_to(m)
-            legend_html = """<div style="position: fixed; bottom: 50px; left: 50px; width: 200px; height: 150px;
+            # Radius based on inferred area type
+            radius_miles = {"CBD": 1, "Suburb": 5, "Rural": 10}
+            radius_meters = radius_miles.get(area_type, 5) * 1609.34  # convert miles to meters
+            folium.Circle(location=input_coords, radius=radius_meters, color="green", fill=True, fill_opacity=0.2).add_to(m)
+
+            legend_html = f"""<div style="position: fixed; bottom: 50px; left: 50px; width: 200px; height: 150px;
                                 border:2px solid grey; z-index:9999; font-size:14px;
                                 background-color:white; opacity: 0.85;">
                                 &nbsp; <b>Legend</b> <br>
                                 &nbsp; Your Address &nbsp; <i class="fa fa-map-marker fa-2x" style="color:green"></i><br>
                                 &nbsp; Centre &nbsp; <i class="fa fa-map-marker fa-2x" style="color:blue"></i><br>
-                                &nbsp; 5-mile Radius &nbsp; <i class="fa fa-circle" style="color:green"></i><br>
+                                &nbsp; {radius_miles.get(area_type, 5)}-mile Radius &nbsp; <i class="fa fa-circle" style="color:green"></i><br>
                             </div>"""
             m.get_root().html.add_child(folium.Element(legend_html))
 
@@ -169,10 +192,10 @@ if input_address:
                                 <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                             </div>""", unsafe_allow_html=True)
             with col3:
-                st.markdown("""<div style="background-color: white; padding: 10px; border: 2px solid grey;
+                st.markdown(f"""<div style="background-color: white; padding: 10px; border: 2px solid grey;
                                 border-radius: 10px; width: 100%; margin-top: 20px;">
                                 <b>Radius Legend</b><br>
-                                <i style="background-color: green; padding: 5px;">&#9679;</i> 5-mile Radius
+                                <i style="background-color: green; padding: 5px;">&#9679;</i> {radius_miles.get(area_type, 5)}-mile Radius
                             </div>""", unsafe_allow_html=True)
 
             st.subheader("Distances from Your Address to the Closest Centres:")
