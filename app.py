@@ -139,7 +139,7 @@ if input_address:
                            f"{row.get('City', 'N/A')}, {row.get('State', 'N/A')} {row.get('Zipcode', 'N/A')} | "
                            f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | "
                            f"{row['Distance (miles)']:.2f} mi"),
-                    tooltip=folium.Tooltip(label_text, permanent=True, direction='right'),
+                    tooltip=folium.Tooltip(f"<div style='font-size: 16px; font-weight: bold;'>{label_text}</div>", permanent=True, direction='right'),
                     icon=folium.Icon(color=marker_color)
                 ).add_to(marker_cluster)
 
