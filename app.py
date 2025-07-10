@@ -44,7 +44,7 @@ def infer_area_type(location):
         "indianapolis", "seattle", "denver", "washington", "boston", "el paso", "nashville", "detroit",
         "oklahoma city", "portland", "las vegas", "memphis", "louisville", "baltimore", "milwaukee", "albuquerque",
         "tucson", "fresno", "sacramento", "kansas city", "long beach", "atlanta", "colorado springs", "raleigh",
-        "miami", "cleveland", "minneapolis", "honolulu", "pittsburgh", "st. louis", "cincinnati", "orlando",
+        "miami", "cleveland", "minneapolis", "honolulu", "pittsburgh", "st. louis", "cincinnati", "orlando", 
 
         # Canada
         "toronto", "montreal", "vancouver", "calgary", "edmonton", "ottawa", "winnipeg", "quebec city",
