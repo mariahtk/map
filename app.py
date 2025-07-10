@@ -35,16 +35,34 @@ if not st.session_state["authenticated"]:
 # --- Function to infer area type ---
 def infer_area_type(location):
     components = location.get("components", {})
-    # Check for suburb explicitly
+    formatted_str = location.get("formatted", "").lower()
+
+    big_cities_keywords = [
+        # United States
+        "new york", "los angeles", "chicago", "houston", "phoenix", "philadelphia", "san antonio", "san diego",
+        "dallas", "san jose", "austin", "jacksonville", "fort worth", "columbus", "charlotte", "san francisco",
+        "indianapolis", "seattle", "denver", "washington", "boston", "el paso", "nashville", "detroit",
+        "oklahoma city", "portland", "las vegas", "memphis", "louisville", "baltimore", "milwaukee", "albuquerque",
+        "tucson", "fresno", "sacramento", "kansas city", "long beach", "atlanta", "colorado springs", "raleigh",
+        "miami", "cleveland", "minneapolis", "honolulu", "pittsburgh", "st. louis", "cincinnati", "orlando",
+
+        # Canada
+        "toronto", "montreal", "vancouver", "calgary", "edmonton", "ottawa", "winnipeg", "quebec city",
+        "hamilton", "kitchener", "london", "victoria", "halifax", "windsor", "saskatoon", "regina", "st. john's",
+
+        # Mexico
+        "mexico city", "guadalajara", "monterrey", "puebla", "tijuana", "león", "cd juárez", "zapopan", "toluca",
+        "querétaro", "mérida", "chihuahua", "hermosillo", "saltillo", "cuernavaca"
+    ]
+
+    if any(city in formatted_str for city in big_cities_keywords):
+        return "CBD"
     if "suburb" in components:
         return "Suburb"
-    # Check for city or city_district (considered CBD here)
     if "city" in components or "city_district" in components:
         return "CBD"
-    # Check for village, hamlet, or town - treat as rural
     if any(key in components for key in ["village", "hamlet", "town"]):
         return "Rural"
-    # Default fallback
     return "Suburb"
 
 # --- MAIN APP ---
@@ -162,9 +180,8 @@ if input_address:
                     f"{row['Distance (miles)']:.2f} miles\n"
                 )
 
-            # Radius based on inferred area type
             radius_miles = {"CBD": 1, "Suburb": 5, "Rural": 10}
-            radius_meters = radius_miles.get(area_type, 5) * 1609.34  # convert miles to meters
+            radius_meters = radius_miles.get(area_type, 5) * 1609.34
             folium.Circle(location=input_coords, radius=radius_meters, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
             legend_html = f"""<div style="position: fixed; bottom: 50px; left: 50px; width: 200px; height: 150px;
