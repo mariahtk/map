@@ -9,6 +9,8 @@ import requests
 import urllib.parse
 import traceback
 from branca.element import Template, MacroElement
+import os
+import tempfile
 
 # MUST BE FIRST Streamlit call
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
@@ -41,7 +43,7 @@ if not st.session_state["authenticated"]:
 def infer_area_type(location):
     components = location.get("components", {})
     formatted_str = location.get("formatted", "").lower()
-    big_cities_keywords = ["new york", "los angeles", "toronto", "vancouver", "calgary", "mexico city", "houston"]  # shorten for brevity
+    big_cities_keywords = ["new york", "los angeles", "toronto", "vancouver", "calgary", "mexico city", "houston"]
     if any(city in formatted_str for city in big_cities_keywords):
         return "CBD"
     if "suburb" in components:
@@ -167,6 +169,41 @@ if input_address:
                                     <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
                                     <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                                 </div>""", unsafe_allow_html=True)
+
+            # --- PowerPoint Export ---
+            if st.button("📤 Export to PowerPoint"):
+                try:
+                    prs = Presentation()
+                    slide_layout = prs.slide_layouts[5]
+                    slide = prs.slides.add_slide(slide_layout)
+                    title = slide.shapes.title
+                    title.text = f"5 Closest Centres to:\n{input_address}"
+
+                    left = Inches(0.5)
+                    top = Inches(1.5)
+                    width = Inches(9)
+                    height = Inches(5.5)
+                    textbox = slide.shapes.add_textbox(left, top, width, height)
+                    tf = textbox.text_frame
+                    tf.word_wrap = True
+
+                    for _, row in closest.iterrows():
+                        text = (f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, "
+                                f"{row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')}\n"
+                                f"Format: {row['Format - Type of Centre']} | Milestone: {row['Transaction Milestone Status']} | "
+                                f"Distance: {row['Distance (miles)']:.2f} miles\n")
+                        p = tf.add_paragraph()
+                        p.text = text
+                        p.font.size = Pt(14)
+
+                    pptx_path = os.path.join(tempfile.gettempdir(), "ClosestCentres.pptx")
+                    prs.save(pptx_path)
+
+                    with open(pptx_path, "rb") as f:
+                        st.download_button("⬇️ Download PowerPoint", f, file_name="ClosestCentres.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+                except Exception as pptx_error:
+                    st.error("❌ PowerPoint export failed.")
+                    st.text(str(pptx_error))
 
     except Exception as e:
         st.error("An error occurred:")
