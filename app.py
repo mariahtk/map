@@ -63,6 +63,19 @@ def infer_area_type(location):
         return "Rural"
     return "Suburb"
 
+# Reduce vertical padding around the main block container for less whitespace
+st.markdown(
+    """
+    <style>
+    div.block-container {
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 # --- MAIN APP ---
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 st.title("📍 Find 5 Closest Centres")
@@ -189,8 +202,12 @@ if input_address:
             with col1:
                 st_folium(m, width=950, height=650)
                 
-                # Distance details below map, no title
-                styled_text = f"<div style='font-size:16px; line-height:1.6;'><b>{distance_text.replace(chr(10), '<br>')}</b></div>"
+                # Distance details below map, no title, reduced spacing
+                styled_text = f"""
+                <div style='font-size:16px; line-height:1.4; padding: 5px 0 0 0; margin-top: 0;'>
+                  <b>{distance_text.replace(chr(10), '<br>')}</b>
+                </div>
+                """
                 st.markdown(styled_text, unsafe_allow_html=True)
 
             with col2:
