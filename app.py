@@ -40,6 +40,7 @@ def infer_area_type(location):
     formatted_str = location.get("formatted", "").lower()
 
     big_cities_keywords = [
+        # United States & Canada & Mexico big cities list
         "new york", "los angeles", "chicago", "houston", "phoenix", "philadelphia", "san antonio", "san diego",
         "dallas", "san jose", "austin", "jacksonville", "fort worth", "columbus", "charlotte", "san francisco",
         "indianapolis", "seattle", "denver", "washington", "boston", "el paso", "nashville", "detroit",
@@ -67,6 +68,7 @@ st.set_page_config(page_title="Closest Centres Map", layout="wide")
 st.title("📍 Find 5 Closest Centres")
 
 api_key = "edd4cb8a639240daa178b4c6321a60e6"
+
 input_address = st.text_input("Enter an address:")
 
 if input_address:
@@ -149,7 +151,10 @@ if input_address:
                 label_text = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
                 folium.Marker(
                     location=dest_coords,
-                    popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City', 'N/A')}, {row.get('State', 'N/A')} {row.get('Zipcode', 'N/A')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
+                    popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | "
+                           f"{row.get('City', 'N/A')}, {row.get('State', 'N/A')} {row.get('Zipcode', 'N/A')} | "
+                           f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | "
+                           f"{row['Distance (miles)']:.2f} mi"),
                     tooltip=folium.Tooltip(f"<div style='font-size: 16px; font-weight: bold;'>{label_text}</div>", permanent=True, direction='right'),
                     icon=folium.Icon(color=marker_color)
                 ).add_to(m)
@@ -165,7 +170,7 @@ if input_address:
             radius_meters = radius_miles.get(area_type, 5) * 1609.34
             folium.Circle(location=input_coords, radius=radius_meters, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
-            # Simplified Radius-only legend (in-map top-left corner)
+            # Radius-only legend (in-map top-left corner)
             legend_template = f"""
             {{% macro html(this, kwargs) %}}
             <div style="position: absolute; top: 10px; left: 10px; width: 170px; z-index: 9999;
@@ -183,16 +188,21 @@ if input_address:
             col1, col2 = st.columns([5, 2])
             with col1:
                 st_folium(m, width=950, height=650)
+                
+                # Distance details below map, no title
+                styled_text = f"<div style='font-size:16px; line-height:1.6;'><b>{distance_text.replace(chr(10), '<br>')}</b></div>"
+                st.markdown(styled_text, unsafe_allow_html=True)
+
             with col2:
-                st.markdown(f"""<div style=\"background-color: white; padding: 10px; border: 2px solid grey;
-                                    border-radius: 10px; width: 100%; margin-top: 20px;\">
+                st.markdown(f"""<div style="background-color: white; padding: 10px; border: 2px solid grey;
+                                    border-radius: 10px; width: 100%; margin-top: 20px;">
                                     <b>Centre Type Legend</b><br>
-                                    <i style=\"background-color: lightgreen; padding: 5px;\">&#9724;</i> Proposed Address<br>
-                                    <i style=\"background-color: lightblue; padding: 5px;\">&#9724;</i> Regus<br>
-                                    <i style=\"background-color: darkblue; padding: 5px;\">&#9724;</i> HQ<br>
-                                    <i style=\"background-color: purple; padding: 5px;\">&#9724;</i> Signature<br>
-                                    <i style=\"background-color: black; padding: 5px;\">&#9724;</i> Spaces<br>
-                                    <i style=\"background-color: gold; padding: 5px;\">&#9724;</i> Non-Standard Brand
+                                    <i style="background-color: lightgreen; padding: 5px;">&#9724;</i> Proposed Address<br>
+                                    <i style="background-color: lightblue; padding: 5px;">&#9724;</i> Regus<br>
+                                    <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
+                                    <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
+                                    <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
+                                    <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                                 </div>""", unsafe_allow_html=True)
 
     except Exception as e:
