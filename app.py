@@ -18,12 +18,17 @@ st.set_page_config(page_title="Closest Centres Map", layout="wide")
 # Stronger CSS to hide Streamlit share/github/feedback buttons + menu/footer
 st.markdown("""
     <style>
+    /* Hide hamburger menu and footer */
     #MainMenu {visibility: hidden !important; display: none !important;}
     footer {visibility: hidden !important; display: none !important;}
+
+    /* Hide toolbar buttons (GitHub, Share, Favorite) */
     header [data-testid="stToolbar"] {
         visibility: hidden !important;
         height: 0px !important;
     }
+
+    /* Optional: reduce top/bottom padding */
     div.block-container {
         padding-top: 1rem !important;
         padding-bottom: 1rem !important;
@@ -61,7 +66,7 @@ def infer_area_type(location):
     formatted_str = location.get("formatted", "").lower()
 
     big_cities_keywords = [
-        # US, Canada, Mexico, Central/South America major cities
+        # US major cities and boroughs/neighborhoods
         "new york", "manhattan", "brooklyn", "queens", "bronx", "staten island",
         "los angeles", "chicago", "houston", "phoenix", "philadelphia",
         "san antonio", "san diego", "dallas", "san jose", "austin", "jacksonville",
@@ -80,25 +85,42 @@ def infer_area_type(location):
         "glendale", "reno", "norfolk", "winston-salem", "north las vegas", "irving",
         "chesapeake", "gilbert", "hialeah", "garland", "fremont", "richmond",
         "boise", "baton rouge",
+
+        # Canada major cities and regions
         "toronto", "scarborough", "etobicoke", "north york", "montreal", "vancouver", "calgary", 
         "ottawa", "edmonton", "mississauga", "winnipeg", "quebec city", "hamilton", 
         "kitchener", "london", "victoria", "halifax", "oshawa", "windsor", "saskatoon", 
         "regina", "st. john's",
+
+        # Mexico major cities
         "mexico city", "guadalajara", "monterrey", "puebla", "tijuana", "leon",
         "mexicali", "culiacan", "queretaro", "san luis potosi", "toluca", "morelia",
+
+        # Central/South America major cities
         "buenos aires", "rio de janeiro", "sao paulo", "bogota", "lima", "santiago",
         "caracas", "quito", "montevideo", "asuncion", "guayaquil", "cali",
     ]
 
+    # Partial match for big cities/boroughs
     if any(city in formatted_str for city in big_cities_keywords):
         return "CBD"
 
+    # Check if explicitly rural
     if any(key in components for key in ["village", "hamlet", "town"]):
         return "Rural"
 
+    # Default to Suburb
     return "Suburb"
 
-# --- Main App ---
+# --- Minimize Padding ---
+st.markdown("""
+    <style>
+    div.block-container {padding-top: 1rem; padding-bottom: 1rem;}
+    .distance-text {margin-top: -35px !important;}
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- MAIN APP ---
 st.title("\U0001F4CD Find 5 Closest Centres")
 api_key = "edd4cb8a639240daa178b4c6321a60e6"
 input_address = st.text_input("Enter an address:")
@@ -146,11 +168,16 @@ if input_address:
                     seen_distances.append(d)
                 if len(selected_centres) == 5:
                     break
+            closest = pd.DataFrame(selected_centres)
 
-            # ✅ Deduplicate final selected centres
-            closest = pd.DataFrame(selected_centres).drop_duplicates(subset=["Centre Number"])
-
-            m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
+            # Folium map with zoom controls and scale bar
+            m = folium.Map(
+                location=input_coords,
+                zoom_start=14,
+                zoom_control=True,
+                control_scale=True,
+                scrollWheelZoom=True
+            )
             folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
 
             def get_marker_color(ftype):
@@ -208,8 +235,10 @@ if input_address:
                                     <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                                 </div>""", unsafe_allow_html=True)
 
+            # Upload image moved below map and data
             uploaded_image = st.file_uploader("\U0001F5BC\ufe0f Optional: Upload Map Screenshot for PowerPoint", type=["png", "jpg", "jpeg"])
 
+            # --- PowerPoint Export ---
             if st.button("\U0001F4E4 Export to PowerPoint"):
                 try:
                     prs = Presentation()
@@ -232,14 +261,25 @@ if input_address:
                         slide = prs.slides.add_slide(slide_layout)
                         if title_text:
                             slide.shapes.title.text = title_text
-                        rows = len(centres_subset) + 1
+
+                        rows = len(centres_subset) + 1  # header + data rows
                         cols = 6
                         left = Inches(0.5)
                         top = Inches(1)
                         width = Inches(9)
-                        height = Inches(0.8 + 0.4 * rows)
+                        height = Inches(0.8 + 0.4 * rows)  # adapt height
 
                         table = slide.shapes.add_table(rows, cols, left, top, width, height).table
+
+                        # Set column widths (adjust as needed)
+                        table.columns[0].width = Inches(1)     # Centre #
+                        table.columns[1].width = Inches(3)     # Address
+                        table.columns[2].width = Inches(2)     # City, State, Zip
+                        table.columns[3].width = Inches(1.5)   # Format
+                        table.columns[4].width = Inches(1.5)   # Milestone
+                        table.columns[5].width = Inches(1)     # Distance
+
+                        # Set header row
                         headers = ["Centre #", "Address", "City, State, Zip", "Format", "Milestone", "Distance (miles)"]
                         for col_idx, header_text in enumerate(headers):
                             cell = table.cell(0, col_idx)
@@ -248,6 +288,7 @@ if input_address:
                                 paragraph.font.bold = True
                                 paragraph.font.size = Pt(14)
 
+                        # Fill data rows
                         for i, row in enumerate(centres_subset, start=1):
                             table.cell(i, 0).text = str(int(row["Centre Number"]))
                             table.cell(i, 1).text = row["Addresses"]
@@ -257,6 +298,7 @@ if input_address:
                             table.cell(i, 4).text = row["Transaction Milestone Status"]
                             table.cell(i, 5).text = f"{row['Distance (miles)']:.2f}"
 
+                            # Set font size for all cells
                             for col_idx in range(cols):
                                 cell = table.cell(i, col_idx)
                                 for paragraph in cell.text_frame.paragraphs:
