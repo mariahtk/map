@@ -7,6 +7,7 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 import requests
 import urllib.parse
+import traceback
 
 # --- LOGIN SYSTEM ---
 def login():
@@ -46,8 +47,8 @@ def infer_area_type(location):
         "miami", "cleveland", "minneapolis", "honolulu", "pittsburgh", "st. louis", "cincinnati", "orlando",
         "toronto", "montreal", "vancouver", "calgary", "edmonton", "ottawa", "winnipeg", "quebec city",
         "hamilton", "kitchener", "london", "victoria", "halifax", "windsor", "saskatoon", "regina", "st. john's",
-        "mexico city", "guadalajara", "monterrey", "puebla", "tijuana", "le\u00f3n", "cd ju\u00e1rez", "zapopan", "toluca",
-        "quer\u00e9taro", "m\u00e9rida", "chihuahua", "hermosillo", "saltillo", "cuernavaca"
+        "mexico city", "guadalajara", "monterrey", "puebla", "tijuana", "león", "cd juárez", "zapopan", "toluca",
+        "querétaro", "mérida", "chihuahua", "hermosillo", "saltillo", "cuernavaca"
     ]
 
     if any(city in formatted_str for city in big_cities_keywords):
@@ -62,7 +63,7 @@ def infer_area_type(location):
 
 # --- MAIN APP ---
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
-st.title("\ud83d\udccd Find 5 Closest Centres")
+st.title("📍 Find 5 Closest Centres")
 
 api_key = "edd4cb8a639240daa178b4c6321a60e6"
 input_address = st.text_input("Enter an address:")
@@ -75,9 +76,9 @@ if input_address:
         data = response.json()
 
         if response.status_code != 200:
-            st.error(f"\u274c API Error: {response.status_code}. Try again.")
+            st.error(f"❌ API Error: {response.status_code}. Try again.")
         elif not data.get('results'):
-            st.error("\u274c Address not found. Try again.")
+            st.error("❌ Address not found. Try again.")
         else:
             location = data['results'][0]
             input_coords = (location['geometry']['lat'], location['geometry']['lng'])
@@ -164,9 +165,9 @@ if input_address:
             folium.Circle(location=input_coords, radius=radius_meters, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
             legend_html = f"""
-                <div style="position: absolute; top: 10px; left: 10px; width: 220px; height: auto;
+                <div style=\"position: absolute; top: 10px; left: 10px; width: 220px; height: auto;
                             border: 2px solid grey; z-index:9999; font-size:14px;
-                            background-color:white; opacity: 0.95; padding: 10px;">
+                            background-color:white; opacity: 0.95; padding: 10px;\">
                     <b>Map Legend</b><br>
                     <span style='color:green;'>&#x25A0;</span> Your Address<br>
                     <span style='color:blue;'>&#x25A0;</span> Centre<br>
@@ -179,15 +180,15 @@ if input_address:
             with col1:
                 st_folium(m, width=950, height=650)
             with col2:
-                st.markdown(f"""<div style="background-color: white; padding: 10px; border: 2px solid grey;
-                                    border-radius: 10px; width: 100%; margin-top: 20px;">
+                st.markdown(f"""<div style=\"background-color: white; padding: 10px; border: 2px solid grey;
+                                    border-radius: 10px; width: 100%; margin-top: 20px;\">
                                     <b>Centre Type Legend</b><br>
-                                    <i style="background-color: lightgreen; padding: 5px;">&#9724;</i> Proposed Address<br>
-                                    <i style="background-color: lightblue; padding: 5px;">&#9724;</i> Regus<br>
-                                    <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
-                                    <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
-                                    <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
-                                    <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
+                                    <i style=\"background-color: lightgreen; padding: 5px;\">&#9724;</i> Proposed Address<br>
+                                    <i style=\"background-color: lightblue; padding: 5px;\">&#9724;</i> Regus<br>
+                                    <i style=\"background-color: darkblue; padding: 5px;\">&#9724;</i> HQ<br>
+                                    <i style=\"background-color: purple; padding: 5px;\">&#9724;</i> Signature<br>
+                                    <i style=\"background-color: black; padding: 5px;\">&#9724;</i> Spaces<br>
+                                    <i style=\"background-color: gold; padding: 5px;\">&#9724;</i> Non-Standard Brand
                                 </div>""", unsafe_allow_html=True)
 
             st.subheader("Distances from Your Address to the Closest Centres:")
@@ -195,6 +196,8 @@ if input_address:
             st.markdown(styled_text, unsafe_allow_html=True)
 
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error("An error occurred:")
+        st.text(str(e))
+        st.text(traceback.format_exc())
 else:
     st.info("Please enter an address above to get started.")
