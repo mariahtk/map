@@ -18,6 +18,7 @@ st.set_page_config(page_title="Closest Centres Map", layout="wide")
 # Stronger CSS to hide Streamlit share/github/feedback buttons + menu/footer
 st.markdown("""
     <style>
+    /* Hide hamburger menu, footer, GitHub, Share */
     #MainMenu {visibility: hidden !important; display: none !important;}
     footer {visibility: hidden !important; display: none !important;}
     .stShareWidget, button[title="Share"], button[title="Feedback"] {
@@ -26,7 +27,14 @@ st.markdown("""
     a[href*="github.com"] {
         display: none !important;
     }
+
+    /* Optional: minimize vertical padding */
+    div.block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+    }
     </style>
+""", unsafe_allow_html=True)
 
 # --- LOGIN SYSTEM ---
 def login():
