@@ -64,8 +64,11 @@ if not st.session_state["authenticated"]:
 def infer_area_type(location):
     components = location.get("components", {})
     formatted_str = location.get("formatted", "").lower()
+
     big_cities_keywords = [
-        "new york", "los angeles", "chicago", "houston", "phoenix", "philadelphia",
+        # US major cities and boroughs/neighborhoods
+        "new york", "manhattan", "brooklyn", "queens", "bronx", "staten island",
+        "los angeles", "chicago", "houston", "phoenix", "philadelphia",
         "san antonio", "san diego", "dallas", "san jose", "austin", "jacksonville",
         "fort worth", "columbus", "charlotte", "san francisco", "indianapolis",
         "seattle", "denver", "washington", "boston", "el paso", "detroit",
@@ -79,28 +82,34 @@ def infer_area_type(location):
         "greensboro", "anchorage", "plano", "lincoln", "orlando", "irvine",
         "toledo", "jersey city", "chula vista", "durham", "fort wayne", "st. petersburg",
         "laredo", "buffalo", "madison", "lubbock", "chandler", "scottsdale",
-        "glendale", "reno", "norfolk", "winston–salem", "north las vegas", "irving",
+        "glendale", "reno", "norfolk", "winston-salem", "north las vegas", "irving",
         "chesapeake", "gilbert", "hialeah", "garland", "fremont", "richmond",
         "boise", "baton rouge",
-        # Canada major cities
-        "toronto", "montreal", "vancouver", "calgary", "ottawa", "edmonton",
-        "mississauga", "winnipeg", "queens", "hamilton", "kitchener", "london",
-        "victoria", "halifax", "oshawa", "windsor", "saskatoon", "regina", "st. john's",
+
+        # Canada major cities and regions
+        "toronto", "scarborough", "etobicoke", "north york", "montreal", "vancouver", "calgary", 
+        "ottawa", "edmonton", "mississauga", "winnipeg", "quebec city", "hamilton", 
+        "kitchener", "london", "victoria", "halifax", "oshawa", "windsor", "saskatoon", 
+        "regina", "st. john's",
+
         # Mexico major cities
         "mexico city", "guadalajara", "monterrey", "puebla", "tijuana", "leon",
         "mexicali", "culiacan", "queretaro", "san luis potosi", "toluca", "morelia",
-        # Central and South America major cities
+
+        # Central/South America major cities
         "buenos aires", "rio de janeiro", "sao paulo", "bogota", "lima", "santiago",
         "caracas", "quito", "montevideo", "asuncion", "guayaquil", "cali",
     ]
+
+    # Partial match for big cities/boroughs
     if any(city in formatted_str for city in big_cities_keywords):
         return "CBD"
-    if "suburb" in components:
-        return "Suburb"
-    if "city" in components or "city_district" in components:
-        return "CBD"
+
+    # Check if explicitly rural
     if any(key in components for key in ["village", "hamlet", "town"]):
         return "Rural"
+
+    # Default to Suburb
     return "Suburb"
 
 # --- Minimize Padding ---
