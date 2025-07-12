@@ -43,7 +43,35 @@ if not st.session_state["authenticated"]:
 def infer_area_type(location):
     components = location.get("components", {})
     formatted_str = location.get("formatted", "").lower()
-    big_cities_keywords = ["new york", "los angeles", "toronto", "vancouver", "calgary", "mexico city", "houston"]
+    big_cities_keywords = [
+        "new york", "los angeles", "chicago", "houston", "phoenix", "philadelphia",
+        "san antonio", "san diego", "dallas", "san jose", "austin", "jacksonville",
+        "fort worth", "columbus", "charlotte", "san francisco", "indianapolis",
+        "seattle", "denver", "washington", "boston", "el paso", "detroit",
+        "nashville", "memphis", "portland", "oklahoma city", "las vegas", "louisville",
+        "baltimore", "milwaukee", "albuquerque", "tucson", "fresno", "sacramento",
+        "mesa", "kansas city", "atlanta", "long beach", "colorado springs", "raleigh",
+        "miami", "virginia beach", "oakland", "minneapolis", "tulsa", "arlington",
+        "new orleans", "wichita", "cleveland", "tampa", "bakersfield", "aurora",
+        "honolulu", "anaheim", "santa ana", "corpus christi", "riverside", "lexington",
+        "stockton", "henderson", "saint paul", "st. louis", "cincinnati", "pittsburgh",
+        "greensboro", "anchorage", "plano", "lincoln", "orlando", "irvine",
+        "toledo", "jersey city", "chula vista", "durham", "fort wayne", "st. petersburg",
+        "laredo", "buffalo", "madison", "lubbock", "chandler", "scottsdale",
+        "glendale", "reno", "norfolk", "winston–salem", "north las vegas", "irving",
+        "chesapeake", "gilbert", "hialeah", "garland", "fremont", "richmond",
+        "boise", "baton rouge",
+        # Canada major cities
+        "toronto", "montreal", "vancouver", "calgary", "ottawa", "edmonton",
+        "mississauga", "winnipeg", "queens", "hamilton", "kitchener", "london",
+        "victoria", "halifax", "oshawa", "windsor", "saskatoon", "regina", "st. john's",
+        # Mexico major cities
+        "mexico city", "guadalajara", "monterrey", "puebla", "tijuana", "leon",
+        "mexicali", "culiacan", "queretaro", "san luis potosi", "toluca", "morelia",
+        # Central and South America major cities
+        "buenos aires", "rio de janeiro", "sao paulo", "bogota", "lima", "santiago",
+        "caracas", "quito", "montevideo", "asuncion", "guayaquil", "cali",
+    ]
     if any(city in formatted_str for city in big_cities_keywords):
         return "CBD"
     if "suburb" in components:
@@ -66,8 +94,6 @@ st.markdown("""
 st.title("\U0001F4CD Find 5 Closest Centres")
 api_key = "edd4cb8a639240daa178b4c6321a60e6"
 input_address = st.text_input("Enter an address:")
-
-uploaded_image = st.file_uploader("\U0001F5BC\ufe0f Optional: Upload Map Screenshot for PowerPoint", type=["png", "jpg", "jpeg"])
 
 if input_address:
     try:
@@ -171,6 +197,9 @@ if input_address:
                                     <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
                                     <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                                 </div>""", unsafe_allow_html=True)
+
+            # Upload image moved below map and data
+            uploaded_image = st.file_uploader("\U0001F5BC\ufe0f Optional: Upload Map Screenshot for PowerPoint", type=["png", "jpg", "jpeg"])
 
             # --- PowerPoint Export ---
             if st.button("\U0001F4E4 Export to PowerPoint"):
