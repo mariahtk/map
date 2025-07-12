@@ -67,6 +67,8 @@ st.title("\U0001F4CD Find 5 Closest Centres")
 api_key = "edd4cb8a639240daa178b4c6321a60e6"
 input_address = st.text_input("Enter an address:")
 
+uploaded_image = st.file_uploader("\U0001F5BC\ufe0f Optional: Upload Map Screenshot for PowerPoint", type=["png", "jpg", "jpeg"])
+
 if input_address:
     try:
         encoded_address = urllib.parse.quote(input_address)
@@ -171,38 +173,56 @@ if input_address:
                                 </div>""", unsafe_allow_html=True)
 
             # --- PowerPoint Export ---
-            if st.button("📤 Export to PowerPoint"):
+            if st.button("\U0001F4E4 Export to PowerPoint"):
                 try:
                     prs = Presentation()
                     slide_layout = prs.slide_layouts[5]
+
                     slide = prs.slides.add_slide(slide_layout)
                     title = slide.shapes.title
                     title.text = f"5 Closest Centres to:\n{input_address}"
 
-                    left = Inches(0.5)
-                    top = Inches(1.5)
-                    width = Inches(9)
-                    height = Inches(5.5)
-                    textbox = slide.shapes.add_textbox(left, top, width, height)
-                    tf = textbox.text_frame
-                    tf.word_wrap = True
+                    if uploaded_image:
+                        image_path = os.path.join(tempfile.gettempdir(), uploaded_image.name)
+                        with open(image_path, "wb") as img_file:
+                            img_file.write(uploaded_image.read())
+                        slide.shapes.add_picture(image_path, Inches(0.5), Inches(1.5), height=Inches(3.5))
+                        top_text = Inches(5.2)
+                    else:
+                        top_text = Inches(1.5)
 
-                    for _, row in closest.iterrows():
-                        text = (f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, "
-                                f"{row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')}\n"
-                                f"Format: {row['Format - Type of Centre']} | Milestone: {row['Transaction Milestone Status']} | "
-                                f"Distance: {row['Distance (miles)']:.2f} miles\n")
-                        p = tf.add_paragraph()
-                        p.text = text
-                        p.font.size = Pt(14)
+                    def add_centres_to_slide(centres_subset, title_text=None):
+                        slide = prs.slides.add_slide(slide_layout)
+                        if title_text:
+                            slide.shapes.title.text = title_text
+                        textbox = slide.shapes.add_textbox(Inches(0.5), Inches(1.0), Inches(9), Inches(6))
+                        tf = textbox.text_frame
+                        tf.word_wrap = True
+                        for row in centres_subset:
+                            text = (f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, "
+                                    f"{row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')}\n"
+                                    f"Format: {row['Format - Type of Centre']} | Milestone: {row['Transaction Milestone Status']} | "
+                                    f"Distance: {row['Distance (miles)']:.2f} miles\n")
+                            p = tf.add_paragraph()
+                            p.text = text
+                            p.font.size = Pt(14)
+
+                    centre_rows = closest.to_dict(orient="records")
+                    for i in range(0, len(centre_rows), 4):
+                        group = centre_rows[i:i+4]
+                        if i == 0 and not uploaded_image:
+                            add_centres_to_slide(group, title_text=f"5 Closest Centres to:\n{input_address}")
+                        else:
+                            add_centres_to_slide(group)
 
                     pptx_path = os.path.join(tempfile.gettempdir(), "ClosestCentres.pptx")
                     prs.save(pptx_path)
 
                     with open(pptx_path, "rb") as f:
-                        st.download_button("⬇️ Download PowerPoint", f, file_name="ClosestCentres.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+                        st.download_button("\u2B07\uFE0F Download PowerPoint", f, file_name="ClosestCentres.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+
                 except Exception as pptx_error:
-                    st.error("❌ PowerPoint export failed.")
+                    st.error("\u274C PowerPoint export failed.")
                     st.text(str(pptx_error))
 
     except Exception as e:
