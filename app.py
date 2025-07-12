@@ -167,6 +167,53 @@ if input_address:
                                     <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
                                     <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                                 </div>""", unsafe_allow_html=True)
+                      st.subheader("Upload Map Screenshot for PowerPoint (Optional)")
+            uploaded_image = st.file_uploader("Upload an image (e.g., screenshot of map)", type=["png", "jpg", "jpeg"])
+
+            prs = Presentation()
+            slide = prs.slides.add_slide(prs.slide_layouts[0])
+            slide.shapes.title.text = "Closest Centres Presentation"
+            slide.placeholders[1].text = f"Closest Centres to: {input_address}"
+
+            slide = prs.slides.add_slide(prs.slide_layouts[5])
+            slide.shapes.title.text = "Closest Centres Map"
+
+            if uploaded_image:
+                slide.shapes.add_picture(uploaded_image, Inches(1), Inches(1.5), width=Inches(6))
+            else:
+                slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
+
+            def add_distance_slide(prs, title_text, data):
+                rows = len(data) + 1
+                cols = 7
+                slide = prs.slides.add_slide(prs.slide_layouts[5])
+                slide.shapes.title.text = title_text
+                table = slide.shapes.add_table(rows=rows, cols=cols, left=Inches(0.5), top=Inches(1.5), width=Inches(9), height=Inches(5)).table
+                headers = ["Centre #", "Address", "City", "State", "Zip", "Distance (miles)", "Transaction Milestone"]
+                for i, h in enumerate(headers):
+                    cell = table.cell(0, i)
+                    cell.text = h
+                    for paragraph in cell.text_frame.paragraphs:
+                        for run in paragraph.runs:
+                            run.font.bold = True
+                            run.font.size = Pt(12)
+                for i, (_, row) in enumerate(data.iterrows(), start=1):
+                    table.cell(i, 0).text = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
+                    table.cell(i, 1).text = row['Addresses'] or "N/A"
+                    table.cell(i, 2).text = row.get("City", "") or "N/A"
+                    table.cell(i, 3).text = row.get("State", "") or "N/A"
+                    table.cell(i, 4).text = str(row.get("Zipcode", "")) or "N/A"
+                    table.cell(i, 5).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
+                    table.cell(i, 6).text = row.get("Transaction Milestone Status", "") or "N/A"
+
+            half = (len(closest) + 1) // 2
+            add_distance_slide(prs, "Distances to Closest Centres (1–3)", closest.iloc[:half])
+            add_distance_slide(prs, "Distances to Closest Centres (4–5)", closest.iloc[half:])
+
+            pptx_path = "closest_centres_presentation.pptx"
+            prs.save(pptx_path)
+            st.download_button("Download PowerPoint Presentation", data=open(pptx_path, "rb"), file_name=pptx_path,
+                               mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
 
     except Exception as e:
         st.error("An error occurred:")
