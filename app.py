@@ -16,17 +16,17 @@ import tempfile
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 
 # Stronger CSS to hide Streamlit share/github/feedback buttons + menu/footer
-hide_buttons_style = """
+st.markdown("""
     <style>
-    .stShareWidget {display: none !important;}
-    button[title="Share"] {display: none !important;}
-    button[title="Feedback"] {display: none !important;}
-    a[href*="github.com"] {display: none !important;}
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
+    #MainMenu {visibility: hidden !important; display: none !important;}
+    footer {visibility: hidden !important; display: none !important;}
+    .stShareWidget, button[title="Share"], button[title="Feedback"] {
+        display: none !important;
+    }
+    a[href*="github.com"] {
+        display: none !important;
+    }
     </style>
-"""
-st.markdown(hide_buttons_style, unsafe_allow_html=True)
 
 # --- LOGIN SYSTEM ---
 def login():
