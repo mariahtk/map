@@ -15,14 +15,23 @@ import tempfile
 # MUST BE FIRST Streamlit call
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 
-# Hide Streamlit hamburger menu and footer
-hide_streamlit_style = """
+# Hide Streamlit hamburger menu, footer, share, GitHub, and feedback buttons
+hide_buttons_style = """
     <style>
+    button[title="Share"] {
+        display: none !important;
+    }
+    a[href*="github.com"] {
+        display: none !important;
+    }
+    button[title="Feedback"] {
+        display: none !important;
+    }
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     </style>
 """
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+st.markdown(hide_buttons_style, unsafe_allow_html=True)
 
 # --- LOGIN SYSTEM ---
 def login():
@@ -149,8 +158,8 @@ if input_address:
                     break
             closest = pd.DataFrame(selected_centres)
 
-            # Explicitly enable zoom control
-            m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True)
+            # Folium map with zoom controls and scale bar
+            m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
             folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
 
             def get_marker_color(ftype):
