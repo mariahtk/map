@@ -8,6 +8,7 @@ from pptx.util import Inches, Pt
 import requests
 import urllib.parse
 import traceback
+from branca.element import Template, MacroElement
 
 # --- LOGIN SYSTEM ---
 def login():
@@ -164,17 +165,22 @@ if input_address:
             radius_meters = radius_miles.get(area_type, 5) * 1609.34
             folium.Circle(location=input_coords, radius=radius_meters, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
-            legend_html = f"""
-                <div style=\"position: absolute; top: 10px; left: 10px; width: 220px; height: auto;
-                            border: 2px solid grey; z-index:9999; font-size:14px;
-                            background-color:white; opacity: 0.95; padding: 10px;\">
-                    <b>Map Legend</b><br>
-                    <span style='color:green;'>&#x25A0;</span> Your Address<br>
-                    <span style='color:blue;'>&#x25A0;</span> Centre<br>
-                    <span style='color:green;'>&#x25CF;</span> {radius_miles.get(area_type, 5)}-mile Radius
-                </div>
+            # Radius legend (in-map top-left corner)
+            legend_template = f"""
+            {{% macro html(this, kwargs) %}}
+            <div style="position: absolute; top: 10px; left: 10px; width: 210px; z-index: 9999;
+                        background-color: white; padding: 10px; border: 2px solid gray;
+                        border-radius: 5px; font-size: 14px;">
+                <b>Map Legend</b><br>
+                <span style='color:green;'>&#x25A0;</span> Your Address<br>
+                <span style='color:blue;'>&#x25A0;</span> Centre<br>
+                <span style='color:green;'>&#x25CF;</span> {radius_miles.get(area_type, 5)}-mile Radius
+            </div>
+            {{% endmacro %}}
             """
-            m.get_root().html.add_child(folium.Element(legend_html))
+            legend = MacroElement()
+            legend._template = Template(legend_template)
+            m.get_root().add_child(legend)
 
             col1, col2 = st.columns([5, 2])
             with col1:
