@@ -38,21 +38,16 @@ def infer_area_type(location):
     formatted_str = location.get("formatted", "").lower()
 
     big_cities_keywords = [
-        # United States
         "new york", "los angeles", "chicago", "houston", "phoenix", "philadelphia", "san antonio", "san diego",
         "dallas", "san jose", "austin", "jacksonville", "fort worth", "columbus", "charlotte", "san francisco",
         "indianapolis", "seattle", "denver", "washington", "boston", "el paso", "nashville", "detroit",
         "oklahoma city", "portland", "las vegas", "memphis", "louisville", "baltimore", "milwaukee", "albuquerque",
         "tucson", "fresno", "sacramento", "kansas city", "long beach", "atlanta", "colorado springs", "raleigh",
-        "miami", "cleveland", "minneapolis", "honolulu", "pittsburgh", "st. louis", "cincinnati", "orlando", 
-
-        # Canada
+        "miami", "cleveland", "minneapolis", "honolulu", "pittsburgh", "st. louis", "cincinnati", "orlando",
         "toronto", "montreal", "vancouver", "calgary", "edmonton", "ottawa", "winnipeg", "quebec city",
         "hamilton", "kitchener", "london", "victoria", "halifax", "windsor", "saskatoon", "regina", "st. john's",
-
-        # Mexico
-        "mexico city", "guadalajara", "monterrey", "puebla", "tijuana", "león", "cd juárez", "zapopan", "toluca",
-        "querétaro", "mérida", "chihuahua", "hermosillo", "saltillo", "cuernavaca"
+        "mexico city", "guadalajara", "monterrey", "puebla", "tijuana", "le\u00f3n", "cd ju\u00e1rez", "zapopan", "toluca",
+        "quer\u00e9taro", "m\u00e9rida", "chihuahua", "hermosillo", "saltillo", "cuernavaca"
     ]
 
     if any(city in formatted_str for city in big_cities_keywords):
@@ -67,10 +62,9 @@ def infer_area_type(location):
 
 # --- MAIN APP ---
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
-st.title("📍 Find 5 Closest Centres")
+st.title("\ud83d\udccd Find 5 Closest Centres")
 
 api_key = "edd4cb8a639240daa178b4c6321a60e6"
-
 input_address = st.text_input("Enter an address:")
 
 if input_address:
@@ -81,14 +75,13 @@ if input_address:
         data = response.json()
 
         if response.status_code != 200:
-            st.error(f"❌ API Error: {response.status_code}. Try again.")
+            st.error(f"\u274c API Error: {response.status_code}. Try again.")
         elif not data.get('results'):
-            st.error("❌ Address not found. Try again.")
+            st.error("\u274c Address not found. Try again.")
         else:
             location = data['results'][0]
             input_coords = (location['geometry']['lat'], location['geometry']['lng'])
 
-            # Infer area type automatically
             area_type = infer_area_type(location)
             st.write(f"Area type detected: **{area_type}**")
 
@@ -132,19 +125,8 @@ if input_address:
 
                 closest = pd.DataFrame(selected_centres)
 
-            lats = [input_coords[0]] + closest["Latitude"].tolist()
-            lngs = [input_coords[1]] + closest["Longitude"].tolist()
-            lat_min, lat_max = min(lats), max(lats)
-            lng_min, lng_max = min(lngs), max(lngs)
-            max_diff = max(lat_max - lat_min, lng_max - lng_min)
-            zoom_level = max(14 - (max_diff * 3), 14)
-
-            m = folium.Map(location=input_coords, zoom_start=int(zoom_level))
-            folium.Marker(
-                location=input_coords,
-                popup=f"Your Address: {input_address}",
-                icon=folium.Icon(color="green")
-            ).add_to(m)
+            m = folium.Map(location=input_coords, zoom_start=14)
+            folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
 
             def get_marker_color(format_type):
                 return {
@@ -155,7 +137,7 @@ if input_address:
                     "Non-Standard Brand": "gold"
                 }.get(format_type, "red" if pd.isna(format_type) or format_type == "" else "gray")
 
-            distance_text = f"Your Address: {input_address} - Coordinates: {input_coords[0]}, {input_coords[1]}\n\n"
+            distance_text = ""
             distance_text += "Closest Centres (Distances in miles):\n"
 
             for _, row in closest.iterrows():
@@ -165,10 +147,7 @@ if input_address:
                 label_text = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
                 folium.Marker(
                     location=dest_coords,
-                    popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | "
-                           f"{row.get('City', 'N/A')}, {row.get('State', 'N/A')} {row.get('Zipcode', 'N/A')} | "
-                           f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | "
-                           f"{row['Distance (miles)']:.2f} mi"),
+                    popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City', 'N/A')}, {row.get('State', 'N/A')} {row.get('Zipcode', 'N/A')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
                     tooltip=folium.Tooltip(f"<div style='font-size: 16px; font-weight: bold;'>{label_text}</div>", permanent=True, direction='right'),
                     icon=folium.Icon(color=marker_color)
                 ).add_to(m)
@@ -184,87 +163,36 @@ if input_address:
             radius_meters = radius_miles.get(area_type, 5) * 1609.34
             folium.Circle(location=input_coords, radius=radius_meters, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
-            legend_html = f"""<div style="position: fixed; bottom: 50px; left: 50px; width: 200px; height: 150px;
-                                border:2px solid grey; z-index:9999; font-size:14px;
-                                background-color:white; opacity: 0.85;">
-                                &nbsp; <b>Legend</b> <br>
-                                &nbsp; Your Address &nbsp; <i class="fa fa-map-marker fa-2x" style="color:green"></i><br>
-                                &nbsp; Centre &nbsp; <i class="fa fa-map-marker fa-2x" style="color:blue"></i><br>
-                                &nbsp; {radius_miles.get(area_type, 5)}-mile Radius &nbsp; <i class="fa fa-circle" style="color:green"></i><br>
-                            </div>"""
+            legend_html = f"""
+                <div style="position: absolute; top: 10px; left: 10px; width: 220px; height: auto;
+                            border: 2px solid grey; z-index:9999; font-size:14px;
+                            background-color:white; opacity: 0.95; padding: 10px;">
+                    <b>Map Legend</b><br>
+                    <span style='color:green;'>&#x25A0;</span> Your Address<br>
+                    <span style='color:blue;'>&#x25A0;</span> Centre<br>
+                    <span style='color:green;'>&#x25CF;</span> {radius_miles.get(area_type, 5)}-mile Radius
+                </div>
+            """
             m.get_root().html.add_child(folium.Element(legend_html))
 
-            col1, col2, col3 = st.columns([4, 1.2, 1])
+            col1, col2 = st.columns([5, 2])
             with col1:
                 st_folium(m, width=950, height=650)
             with col2:
-                st.markdown("""<div style="background-color: white; padding: 10px; border: 2px solid grey;
-                                border-radius: 10px; width: 100%; margin-top: 20px;">
-                                <b>Centre Type Legend</b><br>
-                                <i style="background-color: lightgreen; padding: 5px;">&#9724;</i> Proposed Address<br>
-                                <i style="background-color: lightblue; padding: 5px;">&#9724;</i> Regus<br>
-                                <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
-                                <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
-                                <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
-                                <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
-                            </div>""", unsafe_allow_html=True)
-            with col3:
                 st.markdown(f"""<div style="background-color: white; padding: 10px; border: 2px solid grey;
-                                border-radius: 10px; width: 100%; margin-top: 20px;">
-                                <b>Radius Legend</b><br>
-                                <i style="background-color: green; padding: 5px;">&#9679;</i> {radius_miles.get(area_type, 5)}-mile Radius
-                            </div>""", unsafe_allow_html=True)
+                                    border-radius: 10px; width: 100%; margin-top: 20px;">
+                                    <b>Centre Type Legend</b><br>
+                                    <i style="background-color: lightgreen; padding: 5px;">&#9724;</i> Proposed Address<br>
+                                    <i style="background-color: lightblue; padding: 5px;">&#9724;</i> Regus<br>
+                                    <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
+                                    <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
+                                    <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
+                                    <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
+                                </div>""", unsafe_allow_html=True)
 
             st.subheader("Distances from Your Address to the Closest Centres:")
-            st.text(distance_text)
-
-            st.subheader("Upload Map Screenshot for PowerPoint (Optional)")
-            uploaded_image = st.file_uploader("Upload an image (e.g., screenshot of map)", type=["png", "jpg", "jpeg"])
-
-            prs = Presentation()
-            slide = prs.slides.add_slide(prs.slide_layouts[0])
-            slide.shapes.title.text = "Closest Centres Presentation"
-            slide.placeholders[1].text = f"Closest Centres to: {input_address}"
-
-            slide = prs.slides.add_slide(prs.slide_layouts[5])
-            slide.shapes.title.text = "Closest Centres Map"
-
-            if uploaded_image:
-                slide.shapes.add_picture(uploaded_image, Inches(1), Inches(1.5), width=Inches(6))
-            else:
-                slide.shapes.add_textbox(Inches(1), Inches(1.5), Inches(8), Inches(4)).text = "Insert screenshot here."
-
-            def add_distance_slide(prs, title_text, data):
-                rows = len(data) + 1
-                cols = 7
-                slide = prs.slides.add_slide(prs.slide_layouts[5])
-                slide.shapes.title.text = title_text
-                table = slide.shapes.add_table(rows=rows, cols=cols, left=Inches(0.5), top=Inches(1.5), width=Inches(9), height=Inches(5)).table
-                headers = ["Centre #", "Address", "City", "State", "Zip", "Distance (miles)", "Transaction Milestone"]
-                for i, h in enumerate(headers):
-                    cell = table.cell(0, i)
-                    cell.text = h
-                    for paragraph in cell.text_frame.paragraphs:
-                        for run in paragraph.runs:
-                            run.font.bold = True
-                            run.font.size = Pt(12)
-                for i, (_, row) in enumerate(data.iterrows(), start=1):
-                    table.cell(i, 0).text = str(int(row['Centre Number'])) if pd.notna(row['Centre Number']) else "N/A"
-                    table.cell(i, 1).text = row['Addresses'] or "N/A"
-                    table.cell(i, 2).text = row.get("City", "") or "N/A"
-                    table.cell(i, 3).text = row.get("State", "") or "N/A"
-                    table.cell(i, 4).text = str(row.get("Zipcode", "")) or "N/A"
-                    table.cell(i, 5).text = f"{row['Distance (miles)']:.2f}" if pd.notna(row['Distance (miles)']) else "N/A"
-                    table.cell(i, 6).text = row.get("Transaction Milestone Status", "") or "N/A"
-
-            half = (len(closest) + 1) // 2
-            add_distance_slide(prs, "Distances to Closest Centres (1–3)", closest.iloc[:half])
-            add_distance_slide(prs, "Distances to Closest Centres (4–5)", closest.iloc[half:])
-
-            pptx_path = "closest_centres_presentation.pptx"
-            prs.save(pptx_path)
-            st.download_button("Download PowerPoint Presentation", data=open(pptx_path, "rb"), file_name=pptx_path,
-                               mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+            styled_text = f"<div style='font-size:16px; line-height:1.6;'><b>{distance_text.replace(chr(10), '<br>')}</b></div>"
+            st.markdown(styled_text, unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"Error: {e}")
