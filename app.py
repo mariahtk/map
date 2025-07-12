@@ -56,6 +56,7 @@ def infer_area_type(location):
 st.markdown("""
     <style>
     div.block-container {padding-top: 1rem; padding-bottom: 1rem;}
+    .distance-text {margin-top: -15px !important;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -149,7 +150,7 @@ if input_address:
             with col1:
                 st_folium(m, width=950, height=650)
                 styled_text = f"""
-                <div style='font-size:16px; line-height:1.4; padding: 5px 0 0 0; margin-top: 0;'>
+                <div class='distance-text' style='font-size:16px; line-height:1.4; padding: 0; margin-top: -25px;'>
                   <b>{distance_text.replace(chr(10), '<br>')}</b>
                 </div>
                 """
