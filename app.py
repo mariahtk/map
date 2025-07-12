@@ -15,20 +15,15 @@ import tempfile
 # MUST BE FIRST Streamlit call
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 
-# Stronger CSS to hide Streamlit share/github/feedback buttons + menu/footer
+# Hide Streamlit chrome
 st.markdown("""
     <style>
-    /* Hide hamburger menu and footer */
-    #MainMenu {visibility: hidden !important; display: none !important;}
-    footer {visibility: hidden !important; display: none !important;}
-
-    /* Hide toolbar buttons (GitHub, Share, Favorite) */
+    #MainMenu {visibility: hidden !important;}
+    footer {visibility: hidden !important;}
     header [data-testid="stToolbar"] {
         visibility: hidden !important;
         height: 0px !important;
     }
-
-    /* Optional: reduce top/bottom padding */
     div.block-container {
         padding-top: 1rem !important;
         padding-bottom: 1rem !important;
@@ -66,7 +61,7 @@ def infer_area_type(location):
     formatted_str = location.get("formatted", "").lower()
 
     big_cities_keywords = [
-        # US major cities and boroughs/neighborhoods
+        # US
         "new york", "manhattan", "brooklyn", "queens", "bronx", "staten island",
         "los angeles", "chicago", "houston", "phoenix", "philadelphia",
         "san antonio", "san diego", "dallas", "san jose", "austin", "jacksonville",
@@ -86,39 +81,26 @@ def infer_area_type(location):
         "chesapeake", "gilbert", "hialeah", "garland", "fremont", "richmond",
         "boise", "baton rouge",
 
-        # Canada major cities and regions
+        # Canada
         "toronto", "scarborough", "etobicoke", "north york", "montreal", "vancouver", "calgary", 
         "ottawa", "edmonton", "mississauga", "winnipeg", "quebec city", "hamilton", 
         "kitchener", "london", "victoria", "halifax", "oshawa", "windsor", "saskatoon", 
         "regina", "st. john's",
 
-        # Mexico major cities
+        # Mexico
         "mexico city", "guadalajara", "monterrey", "puebla", "tijuana", "leon",
         "mexicali", "culiacan", "queretaro", "san luis potosi", "toluca", "morelia",
 
-        # Central/South America major cities
+        # LATAM
         "buenos aires", "rio de janeiro", "sao paulo", "bogota", "lima", "santiago",
         "caracas", "quito", "montevideo", "asuncion", "guayaquil", "cali",
     ]
 
-    # Partial match for big cities/boroughs
     if any(city in formatted_str for city in big_cities_keywords):
         return "CBD"
-
-    # Check if explicitly rural
     if any(key in components for key in ["village", "hamlet", "town"]):
         return "Rural"
-
-    # Default to Suburb
     return "Suburb"
-
-# --- Minimize Padding ---
-st.markdown("""
-    <style>
-    div.block-container {padding-top: 1rem; padding-bottom: 1rem;}
-    .distance-text {margin-top: -35px !important;}
-    </style>
-    """, unsafe_allow_html=True)
 
 # --- MAIN APP ---
 st.title("\U0001F4CD Find 5 Closest Centres")
@@ -162,26 +144,26 @@ if input_address:
             seen_distances, seen_centre_numbers = [], set()
             for _, row in data_sorted.iterrows():
                 d = row["Distance (miles)"]
-                if row["Centre Number"] not in seen_centre_numbers and all(abs(d - x) >= 0.005 for x in seen_distances):
+                centre_num = row["Centre Number"]
+                if centre_num in seen_centre_numbers:
+                    continue
+                if all(abs(d - x) >= 0.005 for x in seen_distances):
                     selected_centres.append(row)
-                    seen_centre_numbers.add(row["Centre Number"])
+                    seen_centre_numbers.add(centre_num)
                     seen_distances.append(d)
                 if len(selected_centres) == 5:
                     break
             closest = pd.DataFrame(selected_centres)
 
-            # Folium map with zoom controls and scale bar
-            m = folium.Map(
-                location=input_coords,
-                zoom_start=14,
-                zoom_control=True,
-                control_scale=True,
-                scrollWheelZoom=True
-            )
+            # Folium map
+            m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
             folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
 
             def get_marker_color(ftype):
-                return {"Regus": "blue", "HQ": "darkblue", "Signature": "purple", "Spaces": "black", "Non-Standard Brand": "gold"}.get(ftype, "red")
+                return {
+                    "Regus": "blue", "HQ": "darkblue", "Signature": "purple",
+                    "Spaces": "black", "Non-Standard Brand": "gold"
+                }.get(ftype, "red")
 
             distance_text = ""
             for _, row in closest.iterrows():
@@ -189,10 +171,12 @@ if input_address:
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
                 color = get_marker_color(row["Format - Type of Centre"])
                 label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
-                folium.Marker(location=dest_coords,
-                              popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
-                              tooltip=folium.Tooltip(f"<div style='font-size:16px;font-weight:bold'>{label}</div>", permanent=True, direction='right'),
-                              icon=folium.Icon(color=color)).add_to(m)
+                folium.Marker(
+                    location=dest_coords,
+                    popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
+                    tooltip=folium.Tooltip(f"<div style='font-size:16px;font-weight:bold'>{label}</div>", permanent=True, direction='right'),
+                    icon=folium.Icon(color=color)
+                ).add_to(m)
                 distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
             radius_miles = {"CBD": 1, "Suburb": 5, "Rural": 10}
@@ -235,18 +219,14 @@ if input_address:
                                     <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                                 </div>""", unsafe_allow_html=True)
 
-            # Upload image moved below map and data
             uploaded_image = st.file_uploader("\U0001F5BC\ufe0f Optional: Upload Map Screenshot for PowerPoint", type=["png", "jpg", "jpeg"])
 
-            # --- PowerPoint Export ---
             if st.button("\U0001F4E4 Export to PowerPoint"):
                 try:
                     prs = Presentation()
                     slide_layout = prs.slide_layouts[5]
-
                     slide = prs.slides.add_slide(slide_layout)
-                    title = slide.shapes.title
-                    title.text = f"5 Closest Centres to:\n{input_address}"
+                    slide.shapes.title.text = f"5 Closest Centres to:\n{input_address}"
 
                     if uploaded_image:
                         image_path = os.path.join(tempfile.gettempdir(), uploaded_image.name)
@@ -262,55 +242,32 @@ if input_address:
                         if title_text:
                             slide.shapes.title.text = title_text
 
-                        rows = len(centres_subset) + 1  # header + data rows
+                        rows = len(centres_subset) + 1
                         cols = 6
-                        left = Inches(0.5)
-                        top = Inches(1)
-                        width = Inches(9)
-                        height = Inches(0.8 + 0.4 * rows)  # adapt height
+                        table = slide.shapes.add_table(rows, cols, Inches(0.5), Inches(1), Inches(9), Inches(0.8 + 0.4 * rows)).table
 
-                        table = slide.shapes.add_table(rows, cols, left, top, width, height).table
-
-                        # Set column widths (adjust as needed)
-                        table.columns[0].width = Inches(1)     # Centre #
-                        table.columns[1].width = Inches(3)     # Address
-                        table.columns[2].width = Inches(2)     # City, State, Zip
-                        table.columns[3].width = Inches(1.5)   # Format
-                        table.columns[4].width = Inches(1.5)   # Milestone
-                        table.columns[5].width = Inches(1)     # Distance
-
-                        # Set header row
                         headers = ["Centre #", "Address", "City, State, Zip", "Format", "Milestone", "Distance (miles)"]
                         for col_idx, header_text in enumerate(headers):
                             cell = table.cell(0, col_idx)
                             cell.text = header_text
-                            for paragraph in cell.text_frame.paragraphs:
-                                paragraph.font.bold = True
-                                paragraph.font.size = Pt(14)
+                            for p in cell.text_frame.paragraphs:
+                                p.font.bold = True
+                                p.font.size = Pt(14)
 
-                        # Fill data rows
                         for i, row in enumerate(centres_subset, start=1):
                             table.cell(i, 0).text = str(int(row["Centre Number"]))
                             table.cell(i, 1).text = row["Addresses"]
-                            city_state_zip = f"{row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')}".strip(", ")
-                            table.cell(i, 2).text = city_state_zip
+                            table.cell(i, 2).text = f"{row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')}".strip(", ")
                             table.cell(i, 3).text = row["Format - Type of Centre"]
                             table.cell(i, 4).text = row["Transaction Milestone Status"]
                             table.cell(i, 5).text = f"{row['Distance (miles)']:.2f}"
-
-                            # Set font size for all cells
                             for col_idx in range(cols):
-                                cell = table.cell(i, col_idx)
-                                for paragraph in cell.text_frame.paragraphs:
-                                    paragraph.font.size = Pt(12)
+                                for p in table.cell(i, col_idx).text_frame.paragraphs:
+                                    p.font.size = Pt(12)
 
-                    centre_rows = closest.to_dict(orient="records")
-                    for i in range(0, len(centre_rows), 4):
-                        group = centre_rows[i:i+4]
-                        if i == 0 and not uploaded_image:
-                            add_centres_to_slide_table(group, title_text=f"5 Closest Centres to:\n{input_address}")
-                        else:
-                            add_centres_to_slide_table(group)
+                    rows = closest.to_dict(orient="records")
+                    for i in range(0, len(rows), 4):
+                        add_centres_to_slide_table(rows[i:i+4])
 
                     pptx_path = os.path.join(tempfile.gettempdir(), "ClosestCentres.pptx")
                     prs.save(pptx_path)
