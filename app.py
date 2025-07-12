@@ -15,6 +15,15 @@ import tempfile
 # MUST BE FIRST Streamlit call
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 
+# Hide Streamlit hamburger menu and footer
+hide_streamlit_style = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    </style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 # --- LOGIN SYSTEM ---
 def login():
     st.image("IWG Logo.jpg", width=150)
@@ -140,7 +149,8 @@ if input_address:
                     break
             closest = pd.DataFrame(selected_centres)
 
-            m = folium.Map(location=input_coords, zoom_start=14)
+            # Explicitly enable zoom control
+            m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True)
             folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
 
             def get_marker_color(ftype):
