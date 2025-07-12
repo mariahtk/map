@@ -165,16 +165,14 @@ if input_address:
             radius_meters = radius_miles.get(area_type, 5) * 1609.34
             folium.Circle(location=input_coords, radius=radius_meters, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
-            # Radius legend (in-map top-left corner)
+            # Simplified Radius-only legend (in-map top-left corner)
             legend_template = f"""
             {{% macro html(this, kwargs) %}}
-            <div style="position: absolute; top: 10px; left: 10px; width: 210px; z-index: 9999;
+            <div style="position: absolute; top: 10px; left: 10px; width: 170px; z-index: 9999;
                         background-color: white; padding: 10px; border: 2px solid gray;
                         border-radius: 5px; font-size: 14px;">
-                <b>Map Legend</b><br>
-                <span style='color:green;'>&#x25A0;</span> Your Address<br>
-                <span style='color:blue;'>&#x25A0;</span> Centre<br>
-                <span style='color:green;'>&#x25CF;</span> {radius_miles.get(area_type, 5)}-mile Radius
+                <b>Radius</b><br>
+                <span style='color:green;'>&#x25CF;</span> {radius_miles.get(area_type, 5)}-mile Zone
             </div>
             {{% endmacro %}}
             """
@@ -196,10 +194,6 @@ if input_address:
                                     <i style=\"background-color: black; padding: 5px;\">&#9724;</i> Spaces<br>
                                     <i style=\"background-color: gold; padding: 5px;\">&#9724;</i> Non-Standard Brand
                                 </div>""", unsafe_allow_html=True)
-
-            st.subheader("Distances from Your Address to the Closest Centres:")
-            styled_text = f"<div style='font-size:16px; line-height:1.6;'><b>{distance_text.replace(chr(10), '<br>')}</b></div>"
-            st.markdown(styled_text, unsafe_allow_html=True)
 
     except Exception as e:
         st.error("An error occurred:")
