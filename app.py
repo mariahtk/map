@@ -20,14 +20,17 @@ st.set_page_config(page_title="Closest Centres Map", layout="wide")
 # --- Hide Streamlit UI Chrome & Branding ---
 st.markdown("""
     <style>
-    /* Hide Streamlit built-in UI elements */
+    /* Hide built-in Streamlit UI */
     #MainMenu {visibility: hidden !important;}
     footer {visibility: hidden !important;}
     header {visibility: hidden !important;}
 
-    /* Hide floating buttons (e.g., GitHub, Deploy, Status Widget) */
+    /* Hide common floating buttons */
     [data-testid="stStatusWidget"] {display: none !important;}
     .stDeployButton {display: none !important;}
+    iframe[src*="streamlit.io"] {display: none !important;}
+
+    /* Hide known footer and branding classes */
     .st-emotion-cache-13ln4jf,
     .st-emotion-cache-zq5wmm,
     .st-emotion-cache-1v0mbdj,
@@ -35,12 +38,7 @@ st.markdown("""
         display: none !important;
     }
 
-    /* Hide iframe footer fallback */
-    iframe[src*="streamlit.io"] {
-        display: none !important;
-    }
-
-    /* Remove container padding for cleaner UI */
+    /* Remove padding for clean look */
     div.block-container {
         padding-top: 1rem !important;
         padding-bottom: 1rem !important;
@@ -48,20 +46,27 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- Hide "Manage App" button injected by Streamlit Cloud ---
+# --- JavaScript to remove "Manage App" or other unknown floating elements ---
 components.html("""
 <script>
-const hideInterval = setInterval(() => {
-  const el = document.querySelector('div[aria-label="Manage app"]');
-  if (el) {
-    el.style.display = "none";
-    clearInterval(hideInterval);
-  }
+const killFloaters = () => {
+    const floaters = document.querySelectorAll('div[aria-label*="Manage"], div[role="complementary"], a[href*="streamlit.app"]');
+    floaters.forEach(el => {
+        el.style.display = "none";
+    });
+};
+
+const interval = setInterval(() => {
+    killFloaters();
+    if (document.readyState === "complete") {
+        clearInterval(interval);
+        killFloaters();  // just in case
+    }
 }, 500);
 </script>
 """, height=0)
 
-# --- Add custom IWG support link ---
+# --- Custom IWG Support Link ---
 components.html("""
 <div style="position: fixed; bottom: 12px; right: 16px; z-index: 10000;
             background-color: white; padding: 8px 14px; border-radius: 8px;
