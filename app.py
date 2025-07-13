@@ -11,20 +11,23 @@ import traceback
 from branca.element import Template, MacroElement
 import os
 import tempfile
+import streamlit as st
+import streamlit.components.v1 as components
 
 # MUST BE FIRST Streamlit call
+st.set_page_config(page_title="Closest Centres Map", layout="wide")
+
+# --- Hide Streamlit UI Chrome & Branding ---
 st.markdown("""
     <style>
-    /* Hide Streamlit Main Menu, Footer, and Toolbar */
+    /* Hide Streamlit built-in UI elements */
     #MainMenu {visibility: hidden !important;}
     footer {visibility: hidden !important;}
     header {visibility: hidden !important;}
 
-    /* Hide floating deploy/status buttons like GitHub, Manage App, Made with Streamlit */
+    /* Hide floating buttons (e.g., GitHub, Deploy, Status Widget) */
     [data-testid="stStatusWidget"] {display: none !important;}
     .stDeployButton {display: none !important;}
-
-    /* Common Streamlit badge/footer classes (fallback) */
     .st-emotion-cache-13ln4jf,
     .st-emotion-cache-zq5wmm,
     .st-emotion-cache-1v0mbdj,
@@ -32,12 +35,12 @@ st.markdown("""
         display: none !important;
     }
 
-    /* Hide iframe badges (extra fail-safe) */
+    /* Hide iframe footer fallback */
     iframe[src*="streamlit.io"] {
         display: none !important;
     }
 
-    /* Remove container padding for cleaner layout */
+    /* Remove container padding for cleaner UI */
     div.block-container {
         padding-top: 1rem !important;
         padding-bottom: 1rem !important;
@@ -45,6 +48,30 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# --- Hide "Manage App" button injected by Streamlit Cloud ---
+components.html("""
+<script>
+const hideInterval = setInterval(() => {
+  const el = document.querySelector('div[aria-label="Manage app"]');
+  if (el) {
+    el.style.display = "none";
+    clearInterval(hideInterval);
+  }
+}, 500);
+</script>
+""", height=0)
+
+# --- Add custom IWG support link ---
+components.html("""
+<div style="position: fixed; bottom: 12px; right: 16px; z-index: 10000;
+            background-color: white; padding: 8px 14px; border-radius: 8px;
+            border: 1px solid #ccc; font-size: 14px; font-family: sans-serif;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
+  💬 <a href="mailto:support@iwgplc.com" style="text-decoration: none; color: #004d99;" target="_blank">
+    Contact IWG Support
+  </a>
+</div>
+""", height=0)
 
 # --- LOGIN SYSTEM ---
 def login():
