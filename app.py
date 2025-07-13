@@ -18,20 +18,26 @@ st.set_page_config(page_title="Closest Centres Map", layout="wide")
 # Hide Streamlit chrome
 st.markdown("""
     <style>
+    /* Hide Streamlit Main Menu, Footer, and Toolbar */
     #MainMenu {visibility: hidden !important;}
     footer {visibility: hidden !important;}
-    header [data-testid="stToolbar"] {
-        visibility: hidden !important;
-        height: 0px !important;
+    header {visibility: hidden !important;}
+
+    /* Hide floating deploy buttons and footers (GitHub, Made with Streamlit) */
+    [data-testid="stStatusWidget"] {display: none !important;}
+    .stDeployButton {display: none !important;}
+    .st-emotion-cache-13ln4jf, .st-emotion-cache-zq5wmm, .st-emotion-cache-1v0mbdj, .st-emotion-cache-1dp5vir {
+        display: none !important;
     }
+
+    /* Remove padding to maximize layout space */
     div.block-container {
         padding-top: 1rem !important;
         padding-bottom: 1rem !important;
     }
-    footer:has([data-testid="stStatusWidget"]),
-    .stDeployButton,
-    .st-emotion-cache-zq5wmm.ezrtsby0,
-    .st-emotion-cache-13ln4jf {
+
+    /* Hide iframe badge if it loads via shadow DOM (failsafe) */
+    iframe[src*="streamlit.io"] {
         display: none !important;
     }
     </style>
