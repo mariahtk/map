@@ -28,8 +28,15 @@ st.markdown("""
         padding-top: 1rem !important;
         padding-bottom: 1rem !important;
     }
+    footer:has([data-testid="stStatusWidget"]),
+    .stDeployButton,
+    .st-emotion-cache-zq5wmm.ezrtsby0,
+    .st-emotion-cache-13ln4jf {
+        display: none !important;
+    }
     </style>
 """, unsafe_allow_html=True)
+
 
 # --- LOGIN SYSTEM ---
 def login():
