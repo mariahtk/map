@@ -13,9 +13,6 @@ import os
 import tempfile
 
 # MUST BE FIRST Streamlit call
-st.set_page_config(page_title="Closest Centres Map", layout="wide")
-
-# Hide Streamlit chrome
 st.markdown("""
     <style>
     /* Hide Streamlit Main Menu, Footer, and Toolbar */
@@ -23,22 +20,27 @@ st.markdown("""
     footer {visibility: hidden !important;}
     header {visibility: hidden !important;}
 
-    /* Hide floating deploy buttons and footers (GitHub, Made with Streamlit) */
+    /* Hide floating deploy/status buttons like GitHub, Manage App, Made with Streamlit */
     [data-testid="stStatusWidget"] {display: none !important;}
     .stDeployButton {display: none !important;}
-    .st-emotion-cache-13ln4jf, .st-emotion-cache-zq5wmm, .st-emotion-cache-1v0mbdj, .st-emotion-cache-1dp5vir {
+
+    /* Common Streamlit badge/footer classes (fallback) */
+    .st-emotion-cache-13ln4jf,
+    .st-emotion-cache-zq5wmm,
+    .st-emotion-cache-1v0mbdj,
+    .st-emotion-cache-1dp5vir {
         display: none !important;
     }
 
-    /* Remove padding to maximize layout space */
+    /* Hide iframe badges (extra fail-safe) */
+    iframe[src*="streamlit.io"] {
+        display: none !important;
+    }
+
+    /* Remove container padding for cleaner layout */
     div.block-container {
         padding-top: 1rem !important;
         padding-bottom: 1rem !important;
-    }
-
-    /* Hide iframe badge if it loads via shadow DOM (failsafe) */
-    iframe[src*="streamlit.io"] {
-        display: none !important;
     }
     </style>
 """, unsafe_allow_html=True)
