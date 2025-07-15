@@ -11,34 +11,24 @@ import traceback
 from branca.element import Template, MacroElement
 import os
 import tempfile
-import streamlit as st
 import streamlit.components.v1 as components
 
-# MUST BE FIRST Streamlit call
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 
-# --- Hide Streamlit UI Chrome & Branding ---
 st.markdown("""
     <style>
-    /* Hide built-in Streamlit UI */
     #MainMenu {visibility: hidden !important;}
     footer {visibility: hidden !important;}
     header {visibility: hidden !important;}
-
-    /* Hide common floating buttons */
     [data-testid="stStatusWidget"] {display: none !important;}
     .stDeployButton {display: none !important;}
     iframe[src*="streamlit.io"] {display: none !important;}
-
-    /* Hide known footer and branding classes */
     .st-emotion-cache-13ln4jf,
     .st-emotion-cache-zq5wmm,
     .st-emotion-cache-1v0mbdj,
     .st-emotion-cache-1dp5vir {
         display: none !important;
     }
-
-    /* Remove padding for clean look */
     div.block-container {
         padding-top: 1rem !important;
         padding-bottom: 1rem !important;
@@ -46,7 +36,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- JavaScript to remove "Manage App" or other unknown floating elements ---
 components.html("""
 <script>
 const killFloaters = () => {
@@ -55,18 +44,16 @@ const killFloaters = () => {
         el.style.display = "none";
     });
 };
-
 const interval = setInterval(() => {
     killFloaters();
     if (document.readyState === "complete") {
         clearInterval(interval);
-        killFloaters();  // just in case
+        killFloaters();
     }
 }, 500);
 </script>
 """, height=0)
 
-# --- Custom IWG Support Link ---
 components.html("""
 <div style="position: fixed; bottom: 12px; right: 16px; z-index: 10000;
             background-color: white; padding: 8px 14px; border-radius: 8px;
@@ -78,7 +65,6 @@ components.html("""
 </div>
 """, height=0)
 
-# --- LOGIN SYSTEM ---
 def login():
     st.image("IWG Logo.jpg", width=150)
     st.title("Internal Map Login")
@@ -102,13 +88,11 @@ if not st.session_state["authenticated"]:
     login()
     st.stop()
 
-# --- Area Type Inference ---
 def infer_area_type(location):
     components = location.get("components", {})
     formatted_str = location.get("formatted", "").lower()
 
     big_cities_keywords = [
-        # US
         "new york", "manhattan", "brooklyn", "queens", "bronx", "staten island",
         "los angeles", "chicago", "houston", "phoenix", "philadelphia",
         "san antonio", "san diego", "dallas", "san jose", "austin", "jacksonville",
@@ -116,40 +100,15 @@ def infer_area_type(location):
         "seattle", "denver", "washington", "boston", "el paso", "detroit",
         "nashville", "memphis", "portland", "oklahoma city", "las vegas", "louisville",
         "baltimore", "milwaukee", "albuquerque", "tucson", "fresno", "sacramento",
-        "mesa", "kansas city", "atlanta", "long beach", "colorado springs", "raleigh",
-        "miami", "virginia beach", "oakland", "minneapolis", "tulsa", "arlington",
-        "new orleans", "wichita", "cleveland", "tampa", "bakersfield", "aurora",
-        "honolulu", "anaheim", "santa ana", "corpus christi", "riverside", "lexington",
-        "stockton", "henderson", "saint paul", "st. louis", "cincinnati", "pittsburgh",
-        "greensboro", "anchorage", "plano", "lincoln", "orlando", "irvine",
-        "toledo", "jersey city", "chula vista", "durham", "fort wayne", "st. petersburg",
-        "laredo", "buffalo", "madison", "lubbock", "chandler", "scottsdale",
-        "glendale", "reno", "norfolk", "winston-salem", "north las vegas", "irving",
-        "chesapeake", "gilbert", "hialeah", "garland", "fremont", "richmond",
-        "boise", "baton rouge",
-
-        # Canada
-        "toronto", "scarborough", "etobicoke", "north york", "montreal", "vancouver", "calgary", 
-        "ottawa", "edmonton", "mississauga", "winnipeg", "quebec city", "hamilton", 
-        "kitchener", "london", "victoria", "halifax", "oshawa", "windsor", "saskatoon", 
-        "regina", "st. john's",
-
-        # Mexico
-        "mexico city", "guadalajara", "monterrey", "puebla", "tijuana", "leon",
-        "mexicali", "culiacan", "queretaro", "san luis potosi", "toluca", "morelia",
-
-        # LATAM
-        "buenos aires", "rio de janeiro", "sao paulo", "bogota", "lima", "santiago",
-        "caracas", "quito", "montevideo", "asuncion", "guayaquil", "cali",
+        "toronto", "scarborough", "etobicoke", "north york", "montreal", "vancouver",
+        "calgary", "ottawa", "edmonton", "mexico city", "guadalajara", "monterrey"
     ]
-
     if any(city in formatted_str for city in big_cities_keywords):
         return "CBD"
     if any(key in components for key in ["village", "hamlet", "town"]):
         return "Rural"
     return "Suburb"
 
-# --- MAIN APP ---
 st.title("\U0001F4CD Find 5 Closest Centres")
 api_key = "edd4cb8a639240daa178b4c6321a60e6"
 input_address = st.text_input("Enter an address:")
@@ -202,7 +161,6 @@ if input_address:
                     break
             closest = pd.DataFrame(selected_centres)
 
-            # Folium map
             m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
             folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
 
@@ -247,9 +205,11 @@ if input_address:
             col1, col2 = st.columns([5, 2])
             with col1:
                 st_folium(m, width=950, height=650)
+
+                # 🔥 UPDATED STYLING HERE
                 styled_text = f"""
-                <div class='distance-text' style='font-size:16px; line-height:1.4; padding: 0; margin-top: -35px;'>
-                  <b>{distance_text.replace(chr(10), '<br>')}</b>
+                <div class='distance-text' style='font-size:18px; font-weight: bold; line-height:1.6; padding: 10px; margin-top: -25px; color: #000000;'>
+                  {distance_text.replace(chr(10), '<br>')}
                 </div>
                 """
                 st.markdown(styled_text, unsafe_allow_html=True)
@@ -265,7 +225,6 @@ if input_address:
                                     <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
                                     <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                                 </div>""", unsafe_allow_html=True)
-
             uploaded_image = st.file_uploader("\U0001F5BC\ufe0f Optional: Upload Map Screenshot for PowerPoint", type=["png", "jpg", "jpeg"])
 
             if st.button("\U0001F4E4 Export to PowerPoint"):
