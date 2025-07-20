@@ -158,8 +158,8 @@ if input_address:
 
             # Ensure consistent columns
             for col in ["City", "State", "Zipcode"]:
-            if col not in data.columns:
-            data[col] = ""
+                if col not in data.columns:
+                    data[col] = ""
                    
             data["Distance (miles)"] = data.apply(
                 lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1)
