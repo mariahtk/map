@@ -148,16 +148,16 @@ if input_address:
             comps_addresses = comps_df.set_index("Centre Number")["Addresses"]
 
             # Fill missing Addresses in active_df from comps_df
-            def fill_address(row):
-                if pd.isna(row["Addresses"]) or not str(row["Addresses"]).strip():
-                      # Try to get from comps_addresses
-                    try:
-                        return comps_addresses.loc[row["Centre Number"]]
-                    except KeyError:
-                        return row["Addresses"]
-                return row["Addresses"]
+            def fill_address_line1(row):
+                if pd.isna(row["Address Line 1"]) or not str(row["Address Line 1"]).strip():
+                    return comps_address_lookup.get(row["Centre Number"], row["Address Line 1"])
+                return row["Address Line 1"]
 
-            active_df["Addresses"] = active_df.apply(fill_address, axis=1)
+            active_df["Address Line 1"] = active_df.apply(fill_address_line1, axis=1)
+            opened_df["Address Line 1"] = opened_df.apply(fill_address_line1, axis=1)
+
+            # Now rename 'Addresses' to 'Address Line 1' in comps_df for consistency
+            comps_df = comps_df.rename(columns={"Addresses": "Address Line 1"})
 
             # Now combine with priority: Active Centre > Centre Opened > Comps
             combined_df = pd.concat([active_df, opened_df, comps_df], ignore_index=True)
