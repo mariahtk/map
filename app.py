@@ -130,24 +130,56 @@ if input_address:
             area_type = infer_area_type(location)
             st.write(f"Area type detected: **{area_type}**")
 
+            # === Load sheets ===
             file_path = "Database IC.xlsx"
-            sheets = ["Comps", "Active Centre", "Centre Opened"]
-            all_data = []
-            for sheet in sheets:
-                df = pd.read_excel(file_path, sheet_name=sheet, engine="openpyxl")
-                df["Source Sheet"] = sheet
-                all_data.append(df)
-            data = pd.concat(all_data).dropna(subset=["Latitude", "Longitude"]).drop_duplicates(subset=["Centre Number"])
+            active_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
+            opened_df = pd.read_excel(file_path, sheet_name="Centre Opened", engine="openpyxl")
+            comps_df = pd.read_excel(file_path, sheet_name="Comps", engine="openpyxl")
+
+            # Rename address columns for consistency
+            active_df = active_df.rename(columns={"Address Line 1": "Address"})
+            opened_df = opened_df.rename(columns={"Address Line 1": "Address"})
+            comps_df = comps_df.rename(columns={"Addresses": "Address"})
+
+            # Create lookup dict for address from comps
+            comps_address_lookup = comps_df.set_index("Centre Number")["Address"].to_dict()
+
+            def fill_address(row):
+                if pd.isna(row["Address"]) or not str(row["Address"]).strip():
+                    return comps_address_lookup.get(row["Centre Number"], row["Address"])
+                return row["Address"]
+
+            # Fill missing addresses in active and opened
+            active_df["Address"] = active_df.apply(fill_address, axis=1)
+            opened_df["Address"] = opened_df.apply(fill_address, axis=1)
+
+            # Combine in order of priority (Active > Opened > Comps)
+            combined_df = pd.concat([active_df, opened_df, comps_df], ignore_index=True)
+
+            # Drop rows missing critical info
+            combined_df = combined_df.dropna(subset=["Centre Number", "Latitude", "Longitude"])
+
+            # Remove duplicates by Centre Number, keep first (highest priority)
+            combined_df = combined_df.drop_duplicates(subset=["Centre Number"], keep="first")
+
+            # Ensure City, State, Zipcode exist
             for col in ["City", "State", "Zipcode"]:
-                if col not in data.columns:
-                    data[col] = ""
+                if col not in combined_df.columns:
+                    combined_df[col] = ""
 
-            data["Distance (miles)"] = data.apply(
-                lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1)
-            data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
+            # Calculate distances
+            combined_df["Distance (miles)"] = combined_df.apply(
+                lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles,
+                axis=1
+            )
 
+            # Sort by distance
+            data_sorted = combined_df.sort_values("Distance (miles)").reset_index(drop=True)
+
+            # Pick 5 closest centres, avoid very close duplicates by distance threshold
             selected_centres = []
-            seen_distances, seen_centre_numbers = [], set()
+            seen_distances = []
+            seen_centre_numbers = set()
             for _, row in data_sorted.iterrows():
                 d = row["Distance (miles)"]
                 centre_num = row["Centre Number"]
@@ -161,6 +193,7 @@ if input_address:
                     break
             closest = pd.DataFrame(selected_centres)
 
+            # Map and UI rendering (unchanged from your original)
             m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
             folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
 
@@ -178,11 +211,12 @@ if input_address:
                 label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
                 folium.Marker(
                     location=dest_coords,
-                    popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
+                    popup=(f"#{int(row['Centre Number'])} - {row['Address']} | {row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')} | "
+                           f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
                     tooltip=folium.Tooltip(f"<div style='font-size:16px;font-weight:bold'>{label}</div>", permanent=True, direction='right'),
                     icon=folium.Icon(color=color)
                 ).add_to(m)
-                distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+                distance_text += f"Centre #{int(row['Centre Number'])} - {row['Address']}, {row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
             radius_miles = {"CBD": 1, "Suburb": 5, "Rural": 10}
             radius_meters = radius_miles.get(area_type, 5) * 1609.34
@@ -206,7 +240,6 @@ if input_address:
             with col1:
                 st_folium(m, width=950, height=650)
 
-                # 🔥 UPDATED STYLING HERE
                 styled_text = f"""
                 <div class='distance-text' style='font-size:18px; font-weight: bold; line-height:1.6; padding: 10px; margin-top: -25px; color: #000000;'>
                   {distance_text.replace(chr(10), '<br>')}
@@ -225,6 +258,7 @@ if input_address:
                                     <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
                                     <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                                 </div>""", unsafe_allow_html=True)
+
             uploaded_image = st.file_uploader("\U0001F5BC\ufe0f Optional: Upload Map Screenshot for PowerPoint", type=["png", "jpg", "jpeg"])
 
             if st.button("\U0001F4E4 Export to PowerPoint"):
@@ -262,7 +296,7 @@ if input_address:
 
                         for i, row in enumerate(centres_subset, start=1):
                             table.cell(i, 0).text = str(int(row["Centre Number"]))
-                            table.cell(i, 1).text = row["Addresses"]
+                            table.cell(i, 1).text = row["Address"]
                             table.cell(i, 2).text = f"{row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')}".strip(", ")
                             table.cell(i, 3).text = row["Format - Type of Centre"]
                             table.cell(i, 4).text = row["Transaction Milestone Status"]
