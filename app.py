@@ -11,24 +11,34 @@ import traceback
 from branca.element import Template, MacroElement
 import os
 import tempfile
+import streamlit as st
 import streamlit.components.v1 as components
 
+# MUST BE FIRST Streamlit call
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 
+# --- Hide Streamlit UI Chrome & Branding ---
 st.markdown("""
     <style>
+    /* Hide built-in Streamlit UI */
     #MainMenu {visibility: hidden !important;}
     footer {visibility: hidden !important;}
     header {visibility: hidden !important;}
+
+    /* Hide common floating buttons */
     [data-testid="stStatusWidget"] {display: none !important;}
     .stDeployButton {display: none !important;}
     iframe[src*="streamlit.io"] {display: none !important;}
+
+    /* Hide known footer and branding classes */
     .st-emotion-cache-13ln4jf,
     .st-emotion-cache-zq5wmm,
     .st-emotion-cache-1v0mbdj,
     .st-emotion-cache-1dp5vir {
         display: none !important;
     }
+
+    /* Remove padding for clean look */
     div.block-container {
         padding-top: 1rem !important;
         padding-bottom: 1rem !important;
@@ -36,6 +46,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# --- JavaScript to remove "Manage App" or other unknown floating elements ---
 components.html("""
 <script>
 const killFloaters = () => {
@@ -44,16 +55,18 @@ const killFloaters = () => {
         el.style.display = "none";
     });
 };
+
 const interval = setInterval(() => {
     killFloaters();
     if (document.readyState === "complete") {
         clearInterval(interval);
-        killFloaters();
+        killFloaters();  // just in case
     }
 }, 500);
 </script>
 """, height=0)
 
+# --- Custom IWG Support Link ---
 components.html("""
 <div style="position: fixed; bottom: 12px; right: 16px; z-index: 10000;
             background-color: white; padding: 8px 14px; border-radius: 8px;
@@ -65,6 +78,7 @@ components.html("""
 </div>
 """, height=0)
 
+# --- LOGIN SYSTEM ---
 def login():
     st.image("IWG Logo.jpg", width=150)
     st.title("Internal Map Login")
@@ -88,11 +102,13 @@ if not st.session_state["authenticated"]:
     login()
     st.stop()
 
+# --- Area Type Inference ---
 def infer_area_type(location):
     components = location.get("components", {})
     formatted_str = location.get("formatted", "").lower()
 
     big_cities_keywords = [
+        # US
         "new york", "manhattan", "brooklyn", "queens", "bronx", "staten island",
         "los angeles", "chicago", "houston", "phoenix", "philadelphia",
         "san antonio", "san diego", "dallas", "san jose", "austin", "jacksonville",
@@ -100,15 +116,40 @@ def infer_area_type(location):
         "seattle", "denver", "washington", "boston", "el paso", "detroit",
         "nashville", "memphis", "portland", "oklahoma city", "las vegas", "louisville",
         "baltimore", "milwaukee", "albuquerque", "tucson", "fresno", "sacramento",
-        "toronto", "scarborough", "etobicoke", "north york", "montreal", "vancouver",
-        "calgary", "ottawa", "edmonton", "mexico city", "guadalajara", "monterrey"
+        "mesa", "kansas city", "atlanta", "long beach", "colorado springs", "raleigh",
+        "miami", "virginia beach", "oakland", "minneapolis", "tulsa", "arlington",
+        "new orleans", "wichita", "cleveland", "tampa", "bakersfield", "aurora",
+        "honolulu", "anaheim", "santa ana", "corpus christi", "riverside", "lexington",
+        "stockton", "henderson", "saint paul", "st. louis", "cincinnati", "pittsburgh",
+        "greensboro", "anchorage", "plano", "lincoln", "orlando", "irvine",
+        "toledo", "jersey city", "chula vista", "durham", "fort wayne", "st. petersburg",
+        "laredo", "buffalo", "madison", "lubbock", "chandler", "scottsdale",
+        "glendale", "reno", "norfolk", "winston-salem", "north las vegas", "irving",
+        "chesapeake", "gilbert", "hialeah", "garland", "fremont", "richmond",
+        "boise", "baton rouge",
+
+        # Canada
+        "toronto", "scarborough", "etobicoke", "north york", "montreal", "vancouver", "calgary", 
+        "ottawa", "edmonton", "mississauga", "winnipeg", "quebec city", "hamilton", 
+        "kitchener", "london", "victoria", "halifax", "oshawa", "windsor", "saskatoon", 
+        "regina", "st. john's",
+
+        # Mexico
+        "mexico city", "guadalajara", "monterrey", "puebla", "tijuana", "leon",
+        "mexicali", "culiacan", "queretaro", "san luis potosi", "toluca", "morelia",
+
+        # LATAM
+        "buenos aires", "rio de janeiro", "sao paulo", "bogota", "lima", "santiago",
+        "caracas", "quito", "montevideo", "asuncion", "guayaquil", "cali",
     ]
+
     if any(city in formatted_str for city in big_cities_keywords):
         return "CBD"
     if any(key in components for key in ["village", "hamlet", "town"]):
         return "Rural"
     return "Suburb"
 
+# --- MAIN APP ---
 st.title("\U0001F4CD Find 5 Closest Centres")
 api_key = "edd4cb8a639240daa178b4c6321a60e6"
 input_address = st.text_input("Enter an address:")
@@ -131,62 +172,21 @@ if input_address:
             st.write(f"Area type detected: **{area_type}**")
 
             file_path = "Database IC.xlsx"
+            sheets = ["Comps", "Active Centre", "Centre Opened"]
+            all_data = []
+            for sheet in sheets:
+                df = pd.read_excel(file_path, sheet_name=sheet, engine="openpyxl")
+                df["Source Sheet"] = sheet
+                all_data.append(df)
+            data = pd.concat(all_data).dropna(subset=["Latitude", "Longitude"]).drop_duplicates(subset=["Centre Number"])
+            for col in ["City", "State", "Zipcode"]:
+                if col not in data.columns:
+                    data[col] = ""
 
-            # Read sheets separately
-            active_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
-            opened_df = pd.read_excel(file_path, sheet_name="Centre Opened", engine="openpyxl")
-            comps_df = pd.read_excel(file_path, sheet_name="Comps", engine="openpyxl")
+            data["Distance (miles)"] = data.apply(
+                lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1)
+            data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
 
-            # Normalize address column names for merging (addresses in different columns)
-            if "Address Line 1" in active_df.columns:
-                active_df = active_df.rename(columns={"Address Line 1": "Addresses"})
-            if "Address Line 1" in opened_df.columns:
-                opened_df = opened_df.rename(columns={"Address Line 1": "Addresses"})
-            # Comps already has "Addresses" column
-
-            # Drop rows missing coordinates or Centre Number in all dataframes
-            active_df = active_df.dropna(subset=["Latitude", "Longitude", "Centre Number"])
-            opened_df = opened_df.dropna(subset=["Latitude", "Longitude", "Centre Number"])
-            comps_df = comps_df.dropna(subset=["Latitude", "Longitude", "Centre Number"])
-
-            # Ensure City, State, Zipcode columns exist in all dfs
-            for df in [active_df, opened_df, comps_df]:
-                for col in ["City", "State", "Zipcode"]:
-                    if col not in df.columns:
-                        df[col] = ""
-
-            # Priority: Keep all active_df rows first
-            combined_df = active_df.copy()
-
-            # Now append rows from opened_df where Centre Number not in active_df
-            opened_to_add = opened_df[~opened_df["Centre Number"].isin(combined_df["Centre Number"])]
-            combined_df = pd.concat([combined_df, opened_to_add], ignore_index=True)
-
-            # Then append rows from comps_df where Centre Number not in combined_df yet
-            comps_to_add = comps_df[~comps_df["Centre Number"].isin(combined_df["Centre Number"])]
-            combined_df = pd.concat([combined_df, comps_to_add], ignore_index=True)
-
-            # Now fill missing Addresses in combined_df from comps_df if possible
-            # Create a mapping of Centre Number -> Addresses from comps_df
-            comps_address_map = comps_df.set_index("Centre Number")["Addresses"].to_dict()
-
-            def fill_address(row):
-                if pd.isna(row.get("Addresses")) or not str(row.get("Addresses")).strip():
-                    return comps_address_map.get(row["Centre Number"], "")
-                return row["Addresses"]
-
-            combined_df["Addresses"] = combined_df.apply(fill_address, axis=1)
-
-            # Calculate distances
-            combined_df["Distance (miles)"] = combined_df.apply(
-                lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles,
-                axis=1
-            )
-
-            # Sort by distance
-            data_sorted = combined_df.sort_values("Distance (miles)").reset_index(drop=True)
-
-            # Select up to 5 closest centres, no duplicates by Centre Number
             selected_centres = []
             seen_distances, seen_centre_numbers = [], set()
             for _, row in data_sorted.iterrows():
@@ -194,7 +194,6 @@ if input_address:
                 centre_num = row["Centre Number"]
                 if centre_num in seen_centre_numbers:
                     continue
-                # Avoid very close distances duplicates
                 if all(abs(d - x) >= 0.005 for x in seen_distances):
                     selected_centres.append(row)
                     seen_centre_numbers.add(centre_num)
@@ -203,7 +202,7 @@ if input_address:
                     break
             closest = pd.DataFrame(selected_centres)
 
-            # Folium map setup
+            # Folium map
             m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
             folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
 
@@ -217,16 +216,15 @@ if input_address:
             for _, row in closest.iterrows():
                 dest_coords = (row["Latitude"], row["Longitude"])
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
-                color = get_marker_color(row.get("Format - Type of Centre", ""))
+                color = get_marker_color(row["Format - Type of Centre"])
                 label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
                 folium.Marker(
                     location=dest_coords,
-                    popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')} | "
-                           f"{row.get('Format - Type of Centre', '')} | {row.get('Transaction Milestone Status', '')} | {row['Distance (miles)']:.2f} mi"),
+                    popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
                     tooltip=folium.Tooltip(f"<div style='font-size:16px;font-weight:bold'>{label}</div>", permanent=True, direction='right'),
                     icon=folium.Icon(color=color)
                 ).add_to(m)
-                distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')} - Format: {row.get('Format - Type of Centre', '')} - Milestone: {row.get('Transaction Milestone Status', '')} - {row['Distance (miles)']:.2f} miles\n"
+                distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
             radius_miles = {"CBD": 1, "Suburb": 5, "Rural": 10}
             radius_meters = radius_miles.get(area_type, 5) * 1609.34
@@ -249,11 +247,9 @@ if input_address:
             col1, col2 = st.columns([5, 2])
             with col1:
                 st_folium(m, width=950, height=650)
-
-                # 🔥 UPDATED STYLING HERE
                 styled_text = f"""
-                <div class='distance-text' style='font-size:18px; font-weight: bold; line-height:1.6; padding: 10px; margin-top: -25px; color: #000000;'>
-                  {distance_text.replace(chr(10), '<br>')}
+                <div class='distance-text' style='font-size:20px; line-height:1.6; padding: 10px 0; margin-top: -20px; font-weight: bold;'>
+                  <b>{distance_text.replace(chr(10), '<br>')}</b>
                 </div>
                 """
                 st.markdown(styled_text, unsafe_allow_html=True)
@@ -309,8 +305,8 @@ if input_address:
                             table.cell(i, 0).text = str(int(row["Centre Number"]))
                             table.cell(i, 1).text = row["Addresses"]
                             table.cell(i, 2).text = f"{row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')}".strip(", ")
-                            table.cell(i, 3).text = row.get("Format - Type of Centre", "")
-                            table.cell(i, 4).text = row.get("Transaction Milestone Status", "")
+                            table.cell(i, 3).text = row["Format - Type of Centre"]
+                            table.cell(i, 4).text = row["Transaction Milestone Status"]
                             table.cell(i, 5).text = f"{row['Distance (miles)']:.2f}"
                             for col_idx in range(cols):
                                 for p in table.cell(i, col_idx).text_frame.paragraphs:
