@@ -208,6 +208,24 @@ if input_address:
                 .drop(columns=["Sheet Priority"])
             )
 
+            # --- NEW: Override Transaction Milestone Status with Active Centre values ---
+
+            # Load Active Centre separately to get transaction milestone status mapping
+            active_centre_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
+            active_centre_df["Centre Number"] = active_centre_df["Centre Number"].astype(str).str.strip()
+
+            active_status_map = active_centre_df.dropna(subset=["Centre Number", "Transaction Milestone Status"])\
+                                               .set_index("Centre Number")["Transaction Milestone Status"].to_dict()
+
+            def replace_transaction_status(row):
+                cn = row["Centre Number"]
+                if cn in active_status_map:
+                    return active_status_map[cn]
+                else:
+                    return row["Transaction Milestone Status"]
+
+            data["Transaction Milestone Status"] = data.apply(replace_transaction_status, axis=1)
+
             # Make sure City, State, Zipcode columns exist
             for col in ["City", "State", "Zipcode"]:
                 if col not in data.columns:
