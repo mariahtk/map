@@ -11,7 +11,6 @@ import traceback
 from branca.element import Template, MacroElement
 import os
 import tempfile
-import streamlit as st
 import streamlit.components.v1 as components
 
 # MUST BE FIRST Streamlit call
@@ -178,7 +177,21 @@ if input_address:
                 df = pd.read_excel(file_path, sheet_name=sheet, engine="openpyxl")
                 df["Source Sheet"] = sheet
                 all_data.append(df)
-            data = pd.concat(all_data).dropna(subset=["Latitude", "Longitude"]).drop_duplicates(subset=["Centre Number"])
+
+            # Prioritize Comps > Active Centre > Centre Opened
+            priority_order = {"Comps": 0, "Active Centre": 1, "Centre Opened": 2}
+
+            combined_data = pd.concat(all_data)
+            combined_data["Sheet Priority"] = combined_data["Source Sheet"].map(priority_order)
+
+            data = (
+                combined_data
+                .sort_values(by="Sheet Priority")
+                .dropna(subset=["Latitude", "Longitude"])
+                .drop_duplicates(subset=["Centre Number"], keep="first")
+                .drop(columns=["Sheet Priority"])
+            )
+
             for col in ["City", "State", "Zipcode"]:
                 if col not in data.columns:
                     data[col] = ""
