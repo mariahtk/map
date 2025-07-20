@@ -166,6 +166,9 @@ if input_address:
             comps_to_add = comps_df[~comps_df["Centre Number"].isin(combined_df["Centre Number"])]
             combined_df = pd.concat([combined_df, comps_to_add], ignore_index=True)
 
+            # Remove any duplicates by Centre Number just in case, keep first (which is from Active or Opened, as priority)
+            combined_df = combined_df.drop_duplicates(subset="Centre Number", keep="first")
+
             # Now fill missing Addresses in combined_df from comps_df if possible
             # Create a mapping of Centre Number -> Addresses from comps_df
             comps_address_map = comps_df.set_index("Centre Number")["Addresses"].to_dict()
@@ -250,7 +253,6 @@ if input_address:
             with col1:
                 st_folium(m, width=950, height=650)
 
-                # 🔥 UPDATED STYLING HERE
                 styled_text = f"""
                 <div class='distance-text' style='font-size:18px; font-weight: bold; line-height:1.6; padding: 10px; margin-top: -25px; color: #000000;'>
                   {distance_text.replace(chr(10), '<br>')}
