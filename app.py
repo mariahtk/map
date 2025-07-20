@@ -155,21 +155,19 @@ if input_address:
                     if col not in df.columns:
                         df[col] = ""
 
-            # --- UPDATED STRICT DUPLICATE REMOVAL ---
-            # Get Centre Numbers in Active Centre
+            # --- Remove duplicates by Centre Number from other sheets if present in active ---
             active_centre_numbers = set(active_df["Centre Number"])
 
-            # Remove these Centre Numbers from opened and comps completely
             opened_df_filtered = opened_df[~opened_df["Centre Number"].isin(active_centre_numbers)]
             comps_df_filtered = comps_df[~comps_df["Centre Number"].isin(active_centre_numbers)]
 
-            # Combine datasets
+            # Combine all filtered dataframes
             combined_df = pd.concat([active_df, opened_df_filtered, comps_df_filtered], ignore_index=True)
 
-            # Drop any remaining duplicates on Centre Number, keep first occurrence
+            # Drop any duplicates on Centre Number just in case, keep first (Active Centre rows come first by concat order)
             combined_df = combined_df.drop_duplicates(subset=["Centre Number"], keep="first").reset_index(drop=True)
 
-            # Now fill missing Addresses in combined_df from comps_df if possible
+            # Fill missing Addresses from comps_df mapping
             comps_address_map = comps_df.set_index("Centre Number")["Addresses"].to_dict()
 
             def fill_address(row):
@@ -188,7 +186,7 @@ if input_address:
             # Sort by distance
             data_sorted = combined_df.sort_values("Distance (miles)").reset_index(drop=True)
 
-            # Select up to 5 closest centres, no duplicates by Centre Number
+            # Select up to 5 closest centres, no duplicates by Centre Number, avoid very close distance duplicates
             selected_centres = []
             seen_distances, seen_centre_numbers = [], set()
             for _, row in data_sorted.iterrows():
