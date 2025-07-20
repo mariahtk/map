@@ -155,23 +155,36 @@ if input_address:
                     if col not in df.columns:
                         df[col] = ""
 
-            # --- Remove duplicates by Centre Number from other sheets if present in active ---
+            # Normalize Centre Number column type and strip spaces
+            for df in [active_df, opened_df, comps_df]:
+                df["Centre Number"] = df["Centre Number"].astype(str).str.strip()
+
+            # Also normalize Addresses columns to string (avoid NaNs)
+            for df in [active_df, opened_df, comps_df]:
+                if "Addresses" in df.columns:
+                    df["Addresses"] = df["Addresses"].fillna("").astype(str).str.strip()
+                else:
+                    df["Addresses"] = ""
+
+            # Get Centre Numbers from Active Centre sheet to prioritize
             active_centre_numbers = set(active_df["Centre Number"])
 
-            opened_df_filtered = opened_df[~opened_df["Centre Number"].isin(active_centre_numbers)]
-            comps_df_filtered = comps_df[~comps_df["Centre Number"].isin(active_centre_numbers)]
+            # Filter opened and comps to remove any Centre Number already in active (to avoid duplicates)
+            opened_df_filtered = opened_df[~opened_df["Centre Number"].isin(active_centre_numbers)].copy()
+            comps_df_filtered = comps_df[~comps_df["Centre Number"].isin(active_centre_numbers)].copy()
 
-            # Combine all filtered dataframes
+            # Combine all three dfs - active first to keep priority
             combined_df = pd.concat([active_df, opened_df_filtered, comps_df_filtered], ignore_index=True)
 
-            # Drop any duplicates on Centre Number just in case, keep first (Active Centre rows come first by concat order)
+            # Drop duplicates strictly on Centre Number - keep first (Active has priority due to concat order)
             combined_df = combined_df.drop_duplicates(subset=["Centre Number"], keep="first").reset_index(drop=True)
 
-            # Fill missing Addresses from comps_df mapping
+            # Create a lookup dict from comps for filling missing addresses
             comps_address_map = comps_df.set_index("Centre Number")["Addresses"].to_dict()
 
+            # Fill missing addresses in combined_df from comps address if empty
             def fill_address(row):
-                if pd.isna(row.get("Addresses")) or not str(row.get("Addresses")).strip():
+                if not row["Addresses"].strip():
                     return comps_address_map.get(row["Centre Number"], "")
                 return row["Addresses"]
 
@@ -186,7 +199,7 @@ if input_address:
             # Sort by distance
             data_sorted = combined_df.sort_values("Distance (miles)").reset_index(drop=True)
 
-            # Select up to 5 closest centres, no duplicates by Centre Number, avoid very close distance duplicates
+            # Select up to 5 closest centres, no duplicates by Centre Number
             selected_centres = []
             seen_distances, seen_centre_numbers = [], set()
             for _, row in data_sorted.iterrows():
