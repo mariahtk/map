@@ -344,8 +344,6 @@ if input_address:
                                     p.font.size = Pt(12)
 
                     rows = closest.to_dict(orient="records")
-                    for i in range(0, len(rows),
-                    rows = closest.to_dict(orient="records")
                     for i in range(0, len(rows), 4):
                         add_centres_to_slide_table(rows[i:i+4])
 
