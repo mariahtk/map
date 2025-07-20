@@ -134,34 +134,31 @@ if input_address:
 
             file_path = "Database IC.xlsx"
 
-            # Step 1: Load Active and Opened first (priority)
+         
+            # Read all 3 sheets with source tags
             active_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
             active_df["Source Sheet"] = "Active Centre"
 
             opened_df = pd.read_excel(file_path, sheet_name="Centre Opened", engine="openpyxl")
             opened_df["Source Sheet"] = "Centre Opened"
 
-            # Combine prioritized data
-            main_df = pd.concat([active_df, opened_df], ignore_index=True)
-
-            # Step 2: Track existing centre numbers (so we don't duplicate)
-            existing_centres = set(main_df["Centre Number"])
-
-            # Step 3: Load Comps and remove any duplicates
             comps_df = pd.read_excel(file_path, sheet_name="Comps", engine="openpyxl")
             comps_df["Source Sheet"] = "Comps"
-            comps_df = comps_df[~comps_df["Centre Number"].isin(existing_centres)]
 
-            # Step 4: Combine prioritized + filtered Comps
-            data = pd.concat([main_df, comps_df], ignore_index=True)
+            # Combine with priority: Active Centre > Centre Opened > Comps
+            combined_df = pd.concat([active_df, opened_df, comps_df], ignore_index=True)
+    
+            # Drop duplicates, keeping the first occurrence (from highest-priority sheet)
+            combined_df = combined_df.dropna(subset=["Centre Number"])
+            combined_df = combined_df.drop_duplicates(subset=["Centre Number"], keep="first")
 
-            # Step 5: Final cleanup
-            data = data.dropna(subset=["Latitude", "Longitude"]).drop_duplicates(subset=["Centre Number"])
+            # Optional: Drop rows missing coordinates (only if needed)
+            combined_df = combined_df.dropna(subset=["Latitude", "Longitude"])
 
-            # Ensure consistent columns
+            # Ensure all expected columns exist
             for col in ["City", "State", "Zipcode"]:
-                if col not in data.columns:
-                    data[col] = ""
+                if col not in combined_df.columns:
+                    combined_df[col] = ""
                    
             data["Distance (miles)"] = data.apply(
                 lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1)
