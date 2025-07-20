@@ -131,13 +131,23 @@ if input_address:
             st.write(f"Area type detected: **{area_type}**")
 
             file_path = "Database IC.xlsx"
-            sheets = ["Comps", "Active Centre", "Centre Opened"]
-            all_data = []
-            for sheet in sheets:
-                df = pd.read_excel(file_path, sheet_name=sheet, engine="openpyxl")
-                df["Source Sheet"] = sheet
-                all_data.append(df)
-            data = pd.concat(all_data).dropna(subset=["Latitude", "Longitude"]).drop_duplicates(subset=["Centre Number"])
+            comps_df = pd.read_excel(file_path, sheet_name="Comps", engine="openpyxl")
+            comps_df["Source Sheet"] = "Comps"
+
+            active_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
+            active_df["Source Sheet"] = "Active Centre"
+
+            opened_df = pd.read_excel(file_path, sheet_name="Centre Opened", engine="openpyxl")
+            opened_df["Source Sheet"] = "Centre Opened"
+
+            # Filter out centres already in Comps
+            existing_centres = set(comps_df["Centre Number"])
+            additional_df = pd.concat([active_df, opened_df])
+            additional_df = additional_df[~additional_df["Centre Number"].isin(existing_centres)]
+
+            # Combine, prioritize Comps
+            data = pd.concat([comps_df, additional_df])
+            data = data.dropna(subset=["Latitude", "Longitude"]).drop_duplicates(subset=["Centre Number"])
             for col in ["City", "State", "Zipcode"]:
                 if col not in data.columns:
                     data[col] = ""
