@@ -160,9 +160,14 @@ if input_address:
                 if col not in combined_df.columns:
                     combined_df[col] = ""
                    
-            data["Distance (miles)"] = data.apply(
-                lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1)
-            data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
+            # Calculate distances
+            combined_df["Distance (miles)"] = combined_df.apply(
+                lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles,
+                axis=1
+            )
+
+            # Sort by distance
+            data_sorted = combined_df.sort_values("Distance (miles)").reset_index(drop=True)
 
             selected_centres = []
             seen_distances, seen_centre_numbers = [], set()
