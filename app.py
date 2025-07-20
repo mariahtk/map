@@ -147,6 +147,9 @@ if input_address:
 
             # Combine with priority: Active Centre > Centre Opened > Comps
             combined_df = pd.concat([active_df, opened_df, comps_df], ignore_index=True)
+
+            # Drop rows with missing Addresses
+            combined_df = combined_df.dropna(subset=["Addresses"])
     
             # Drop duplicates, keeping the first occurrence (from highest-priority sheet)
             combined_df = combined_df.dropna(subset=["Centre Number"])
