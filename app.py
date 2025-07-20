@@ -131,27 +131,36 @@ if input_address:
             st.write(f"Area type detected: **{area_type}**")
 
             file_path = "Database IC.xlsx"
-            comps_df = pd.read_excel(file_path, sheet_name="Comps", engine="openpyxl")
-            comps_df["Source Sheet"] = "Comps"
 
+            # Step 1: Load Active and Opened first (priority)
             active_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
             active_df["Source Sheet"] = "Active Centre"
 
             opened_df = pd.read_excel(file_path, sheet_name="Centre Opened", engine="openpyxl")
             opened_df["Source Sheet"] = "Centre Opened"
 
-            # Filter out centres already in Comps
-            existing_centres = set(comps_df["Centre Number"])
-            additional_df = pd.concat([active_df, opened_df])
-            additional_df = additional_df[~additional_df["Centre Number"].isin(existing_centres)]
+            # Combine prioritized data
+            main_df = pd.concat([active_df, opened_df], ignore_index=True)
 
-            # Combine, prioritize Comps
-            data = pd.concat([comps_df, additional_df])
+            # Step 2: Track existing centre numbers (so we don't duplicate)
+            existing_centres = set(main_df["Centre Number"])
+
+            # Step 3: Load Comps and remove any duplicates
+            comps_df = pd.read_excel(file_path, sheet_name="Comps", engine="openpyxl")
+            comps_df["Source Sheet"] = "Comps"
+            comps_df = comps_df[~comps_df["Centre Number"].isin(existing_centres)]
+
+            # Step 4: Combine prioritized + filtered Comps
+            data = pd.concat([main_df, comps_df], ignore_index=True)
+
+            # Step 5: Final cleanup
             data = data.dropna(subset=["Latitude", "Longitude"]).drop_duplicates(subset=["Centre Number"])
-            for col in ["City", "State", "Zipcode"]:
-                if col not in data.columns:
-                    data[col] = ""
 
+            # Ensure consistent columns
+            for col in ["City", "State", "Zipcode"]:
+             if col not in data.columns:
+            data[col] = ""
+                   
             data["Distance (miles)"] = data.apply(
                 lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1)
             data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
