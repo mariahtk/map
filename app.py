@@ -155,19 +155,24 @@ if input_address:
                     if col not in df.columns:
                         df[col] = ""
 
-            # Priority: Keep all active_df rows first
-            combined_df = active_df.copy()
+            # --- UPDATED PRIORITY LOGIC TO AVOID DUPLICATES ---
+            # Add source column to each dataframe to identify priority
+            active_df = active_df.copy()
+            active_df["source"] = 1  # Highest priority
+            opened_df = opened_df.copy()
+            opened_df["source"] = 2
+            comps_df = comps_df.copy()
+            comps_df["source"] = 3  # Lowest priority
 
-            # Now append rows from opened_df where Centre Number not in active_df
-            opened_to_add = opened_df[~opened_df["Centre Number"].isin(combined_df["Centre Number"])]
-            combined_df = pd.concat([combined_df, opened_to_add], ignore_index=True)
+            # Combine all dataframes
+            combined_df = pd.concat([active_df, opened_df, comps_df], ignore_index=True)
 
-            # Then append rows from comps_df where Centre Number not in combined_df yet
-            comps_to_add = comps_df[~comps_df["Centre Number"].isin(combined_df["Centre Number"])]
-            combined_df = pd.concat([combined_df, comps_to_add], ignore_index=True)
+            # Sort by Centre Number and source so Active Centre rows come first
+            combined_df = combined_df.sort_values(by=["Centre Number", "source"])
 
-            # Remove any duplicates by Centre Number just in case, keep first (which is from Active or Opened, as priority)
-            combined_df = combined_df.drop_duplicates(subset="Centre Number", keep="first")
+            # Drop duplicates by Centre Number, keep first (highest priority source)
+            combined_df = combined_df.drop_duplicates(subset="Centre Number", keep="first").reset_index(drop=True)
+            # -----------------------------------------------------
 
             # Now fill missing Addresses in combined_df from comps_df if possible
             # Create a mapping of Centre Number -> Addresses from comps_df
@@ -253,6 +258,7 @@ if input_address:
             with col1:
                 st_folium(m, width=950, height=650)
 
+                # 🔥 UPDATED STYLING HERE
                 styled_text = f"""
                 <div class='distance-text' style='font-size:18px; font-weight: bold; line-height:1.6; padding: 10px; margin-top: -25px; color: #000000;'>
                   {distance_text.replace(chr(10), '<br>')}
