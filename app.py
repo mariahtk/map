@@ -132,87 +132,77 @@ if input_address:
 
             file_path = "Database IC.xlsx"
 
-            # Read sheets separately
+            # Load sheets
             active_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
             opened_df = pd.read_excel(file_path, sheet_name="Centre Opened", engine="openpyxl")
             comps_df = pd.read_excel(file_path, sheet_name="Comps", engine="openpyxl")
 
-            # Normalize address column names for merging (addresses in different columns)
+            # Normalize address column names
             if "Address Line 1" in active_df.columns:
                 active_df = active_df.rename(columns={"Address Line 1": "Addresses"})
             if "Address Line 1" in opened_df.columns:
                 opened_df = opened_df.rename(columns={"Address Line 1": "Addresses"})
-            # Comps already has "Addresses" column
+            # Comps already has "Addresses"
 
-            # Drop rows missing coordinates or Centre Number in all dataframes
+            # Drop rows missing critical info
             active_df = active_df.dropna(subset=["Latitude", "Longitude", "Centre Number"])
             opened_df = opened_df.dropna(subset=["Latitude", "Longitude", "Centre Number"])
             comps_df = comps_df.dropna(subset=["Latitude", "Longitude", "Centre Number"])
 
-            # Ensure City, State, Zipcode columns exist in all dfs
+            # Ensure City, State, Zipcode columns exist
             for df in [active_df, opened_df, comps_df]:
                 for col in ["City", "State", "Zipcode"]:
                     if col not in df.columns:
                         df[col] = ""
 
-            # Normalize Centre Number column type and strip spaces
+            # Normalize Centre Number as string (strip spaces)
             for df in [active_df, opened_df, comps_df]:
                 df["Centre Number"] = df["Centre Number"].astype(str).str.strip()
 
-            # Also normalize Addresses columns to string (avoid NaNs)
+            # Normalize Addresses columns to string, fill NA with ""
             for df in [active_df, opened_df, comps_df]:
-                if "Addresses" in df.columns:
-                    df["Addresses"] = df["Addresses"].fillna("").astype(str).str.strip()
-                else:
-                    df["Addresses"] = ""
+                df["Addresses"] = df["Addresses"].fillna("").astype(str).str.strip()
 
-            # Get Centre Numbers from Active Centre sheet to prioritize
+            # STEP 1: Remove Centre Numbers in Active Centre from opened and comps (avoid duplicates)
             active_centre_numbers = set(active_df["Centre Number"])
+            opened_filtered = opened_df[~opened_df["Centre Number"].isin(active_centre_numbers)].copy()
 
-            # Filter opened and comps to remove any Centre Number already in active (to avoid duplicates)
-            opened_df_filtered = opened_df[~opened_df["Centre Number"].isin(active_centre_numbers)].copy()
-            comps_df_filtered = comps_df[~comps_df["Centre Number"].isin(active_centre_numbers)].copy()
+            # STEP 2: Remove Centre Numbers in active and opened from comps (avoid duplicates)
+            active_and_opened_centre_numbers = active_centre_numbers.union(set(opened_filtered["Centre Number"]))
+            comps_filtered = comps_df[~comps_df["Centre Number"].isin(active_and_opened_centre_numbers)].copy()
 
-            # Combine all three dfs - active first to keep priority
-            combined_df = pd.concat([active_df, opened_df_filtered, comps_df_filtered], ignore_index=True)
+            # STEP 3: Combine all, active first (priority), then opened, then comps
+            combined_df = pd.concat([active_df, opened_filtered, comps_filtered], ignore_index=True)
 
-            # Drop duplicates strictly on Centre Number - keep first (Active has priority due to concat order)
+            # STEP 4: Strict deduplicate on Centre Number again (just in case), keep first (priority order)
             combined_df = combined_df.drop_duplicates(subset=["Centre Number"], keep="first").reset_index(drop=True)
 
-            # Create a lookup dict from comps for filling missing addresses
+            # STEP 5: Fill missing Addresses in combined_df from comps if available
             comps_address_map = comps_df.set_index("Centre Number")["Addresses"].to_dict()
-
-            # Fill missing addresses in combined_df from comps address if empty
             def fill_address(row):
                 if not row["Addresses"].strip():
                     return comps_address_map.get(row["Centre Number"], "")
                 return row["Addresses"]
-
             combined_df["Addresses"] = combined_df.apply(fill_address, axis=1)
 
-            # Calculate distances
+            # Calculate distances from input location
             combined_df["Distance (miles)"] = combined_df.apply(
                 lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles,
                 axis=1
             )
 
-            # Sort by distance
+            # Sort by distance ascending
             data_sorted = combined_df.sort_values("Distance (miles)").reset_index(drop=True)
 
-            # Select up to 5 closest centres, no duplicates by Centre Number
+            # Select up to 5 closest centres, strictly no duplicate Centre Numbers
             selected_centres = []
-            seen_distances, seen_centre_numbers = [], set()
+            seen_centre_numbers = set()
             for _, row in data_sorted.iterrows():
-                d = row["Distance (miles)"]
                 centre_num = row["Centre Number"]
-                if centre_num in seen_centre_numbers:
-                    continue
-                # Avoid very close distances duplicates
-                if all(abs(d - x) >= 0.005 for x in seen_distances):
+                if centre_num not in seen_centre_numbers:
                     selected_centres.append(row)
                     seen_centre_numbers.add(centre_num)
-                    seen_distances.append(d)
-                if len(selected_centres) == 5:
+                if len(selected_centres) >= 5:
                     break
             closest = pd.DataFrame(selected_centres)
 
