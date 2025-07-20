@@ -158,7 +158,7 @@ if input_address:
 
             # Ensure consistent columns
             for col in ["City", "State", "Zipcode"]:
-             if col not in data.columns:
+            if col not in data.columns:
             data[col] = ""
                    
             data["Distance (miles)"] = data.apply(
