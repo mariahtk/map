@@ -177,25 +177,43 @@ if input_address:
                 df = pd.read_excel(file_path, sheet_name=sheet, engine="openpyxl")
                 df["Source Sheet"] = sheet
                 all_data.append(df)
-
-            # Prioritize Comps > Active Centre > Centre Opened
-            priority_order = {"Comps": 0, "Active Centre": 1, "Centre Opened": 2}
-
             combined_data = pd.concat(all_data)
+
+            # Clean Centre Number and drop rows missing important data
+            combined_data["Centre Number"] = combined_data["Centre Number"].astype(str).str.strip()
+            combined_data = combined_data.dropna(subset=["Latitude", "Longitude", "Centre Number"])
+
+            address_col = "Addresses"
+
+            def has_valid_address(val):
+                if pd.isna(val):
+                    return False
+                if isinstance(val, str) and val.strip() == "":
+                    return False
+                return True
+
+            # Remove duplicate Centre Number rows with missing/empty addresses BEFORE deduplication
+            dupe_centre_nums = combined_data["Centre Number"][combined_data["Centre Number"].duplicated(keep=False)].unique()
+            condition = combined_data["Centre Number"].isin(dupe_centre_nums) & (~combined_data[address_col].apply(has_valid_address))
+            combined_data = combined_data[~condition]
+
+            # Assign priority to sheets
+            priority_order = {"Comps": 0, "Active Centre": 1, "Centre Opened": 2}
             combined_data["Sheet Priority"] = combined_data["Source Sheet"].map(priority_order)
 
             data = (
                 combined_data
                 .sort_values(by="Sheet Priority")
-                .dropna(subset=["Latitude", "Longitude"])
                 .drop_duplicates(subset=["Centre Number"], keep="first")
                 .drop(columns=["Sheet Priority"])
             )
 
+            # Make sure City, State, Zipcode columns exist
             for col in ["City", "State", "Zipcode"]:
                 if col not in data.columns:
                     data[col] = ""
 
+            # Calculate distances
             data["Distance (miles)"] = data.apply(
                 lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1)
             data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
@@ -326,6 +344,8 @@ if input_address:
                                     p.font.size = Pt(12)
 
                     rows = closest.to_dict(orient="records")
+                    for i in range(0, len(rows),
+                    rows = closest.to_dict(orient="records")
                     for i in range(0, len(rows), 4):
                         add_centres_to_slide_table(rows[i:i+4])
 
@@ -333,7 +353,12 @@ if input_address:
                     prs.save(pptx_path)
 
                     with open(pptx_path, "rb") as f:
-                        st.download_button("\u2B07\uFE0F Download PowerPoint", f, file_name="ClosestCentres.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+                        st.download_button(
+                            "\u2B07\uFE0F Download PowerPoint", 
+                            f, 
+                            file_name="ClosestCentres.pptx", 
+                            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                        )
 
                 except Exception as pptx_error:
                     st.error("\u274C PowerPoint export failed.")
