@@ -12,8 +12,6 @@ from branca.element import Template, MacroElement
 import os
 import tempfile
 import streamlit.components.v1 as components
-import openpyxl
-
 
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 
@@ -133,55 +131,20 @@ if input_address:
             st.write(f"Area type detected: **{area_type}**")
 
             file_path = "Database IC.xlsx"
-
-            # Read sheets separately
-            active_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
-            active_df["Source Sheet"] = "Active Centre"
-
-            opened_df = pd.read_excel(file_path, sheet_name="Centre Opened", engine="openpyxl")
-            opened_df["Source Sheet"] = "Centre Opened"
-
-            comps_df = pd.read_excel(file_path, sheet_name="Comps", engine="openpyxl")
-            comps_df["Source Sheet"] = "Comps"
-
-            # Ensure 'Centre Number' is the key, and index by it for quick lookup
-            comps_addresses = comps_df.set_index("Centre Number")["Addresses"]
-
-            # Fill missing Addresses in active_df from comps_df
-            def fill_address_line1(row):
-                if pd.isna(row["Address Line 1"]) or not str(row["Address Line 1"]).strip():
-                    return comps_address_lookup.get(row["Centre Number"], row["Address Line 1"])
-                return row["Address Line 1"]
-
-            active_df["Address Line 1"] = active_df.apply(fill_address_line1, axis=1)
-            opened_df["Address Line 1"] = opened_df.apply(fill_address_line1, axis=1)
-
-            # Now rename 'Addresses' to 'Address Line 1' in comps_df for consistency
-            comps_df = comps_df.rename(columns={"Addresses": "Address Line 1"})
-
-            # Now combine with priority: Active Centre > Centre Opened > Comps
-            combined_df = pd.concat([active_df, opened_df, comps_df], ignore_index=True)
-
-            # Drop duplicates by "Centre Number", keep first occurrence (Active Centre rows come first so they're kept)
-            combined_df = combined_df.dropna(subset=["Centre Number"])
-            combined_df = combined_df.drop_duplicates(subset=["Centre Number"], keep="first")
-
-            # Drop rows missing coordinates (optional)
-            combined_df = combined_df.dropna(subset=["Latitude", "Longitude"])
-
-            # Ensure expected columns exist
+            sheets = ["Comps", "Active Centre", "Centre Opened"]
+            all_data = []
+            for sheet in sheets:
+                df = pd.read_excel(file_path, sheet_name=sheet, engine="openpyxl")
+                df["Source Sheet"] = sheet
+                all_data.append(df)
+            data = pd.concat(all_data).dropna(subset=["Latitude", "Longitude"]).drop_duplicates(subset=["Centre Number"])
             for col in ["City", "State", "Zipcode"]:
-                if col not in combined_df.columns:
-                    combined_df[col] = ""
-                   
-            # Calculate distances
-            combined_df["Distance (miles)"] = combined_df.apply(
-                lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles,
-                axis=1
-            )
+                if col not in data.columns:
+                    data[col] = ""
 
-            # Sort by distance
-            data_sorted = combined_df.sort_values("Distance (miles)").reset_index(drop=True)
+            data["Distance (miles)"] = data.apply(
+                lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1)
+            data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
 
             selected_centres = []
             seen_distances, seen_centre_numbers = [], set()
