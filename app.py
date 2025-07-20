@@ -134,8 +134,7 @@ if input_address:
 
             file_path = "Database IC.xlsx"
 
-         
-            # Read all 3 sheets with source tags
+            # Read sheets separately
             active_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
             active_df["Source Sheet"] = "Active Centre"
 
@@ -145,20 +144,32 @@ if input_address:
             comps_df = pd.read_excel(file_path, sheet_name="Comps", engine="openpyxl")
             comps_df["Source Sheet"] = "Comps"
 
-            # Combine with priority: Active Centre > Centre Opened > Comps
+            # Ensure 'Centre Number' is the key, and index by it for quick lookup
+            comps_addresses = comps_df.set_index("Centre Number")["Addresses"]
+
+            # Fill missing Addresses in active_df from comps_df
+            def fill_address(row):
+                if pd.isna(row["Addresses"]) or not str(row["Addresses"]).strip():
+                      # Try to get from comps_addresses
+                    try:
+                        return comps_addresses.loc[row["Centre Number"]]
+                    except KeyError:
+                        return row["Addresses"]
+                return row["Addresses"]
+
+            active_df["Addresses"] = active_df.apply(fill_address, axis=1)
+
+            # Now combine with priority: Active Centre > Centre Opened > Comps
             combined_df = pd.concat([active_df, opened_df, comps_df], ignore_index=True)
 
-            # Drop rows with missing Addresses
-            combined_df = combined_df.dropna(subset=["Addresses"])
-    
-            # Drop duplicates, keeping the first occurrence (from highest-priority sheet)
+            # Drop duplicates by "Centre Number", keep first occurrence (Active Centre rows come first so they're kept)
             combined_df = combined_df.dropna(subset=["Centre Number"])
             combined_df = combined_df.drop_duplicates(subset=["Centre Number"], keep="first")
 
-            # Optional: Drop rows missing coordinates (only if needed)
+            # Drop rows missing coordinates (optional)
             combined_df = combined_df.dropna(subset=["Latitude", "Longitude"])
 
-            # Ensure all expected columns exist
+            # Ensure expected columns exist
             for col in ["City", "State", "Zipcode"]:
                 if col not in combined_df.columns:
                     combined_df[col] = ""
