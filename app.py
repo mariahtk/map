@@ -171,65 +171,58 @@ if input_address:
             st.write(f"Area type detected: **{area_type}**")
 
             file_path = "Database IC.xlsx"
+            sheets = ["Comps", "Active Centre", "Centre Opened"]
+            all_data = []
+            for sheet in sheets:
+                df = pd.read_excel(file_path, sheet_name=sheet, engine="openpyxl")
+                # Normalize Centre Number: convert to string, strip whitespace, remove leading zeros
+                df["Centre Number"] = df["Centre Number"].astype(str).str.strip().str.lstrip("0")
+                df["Source Sheet"] = sheet
+                all_data.append(df)
+            combined_data = pd.concat(all_data)
+            combined_data = combined_data.dropna(subset=["Latitude", "Longitude", "Centre Number"])
 
-            # --- UPDATED DATA LOADING & CLEANING ---
-
+            # Load Comps separately for address fallback and duplicate filtering
             comps_df = pd.read_excel(file_path, sheet_name="Comps", engine="openpyxl")
+            comps_df["Centre Number"] = comps_df["Centre Number"].astype(str).str.strip().str.lstrip("0")
+            comps_address_map = comps_df.set_index("Centre Number")["Addresses"].to_dict()
+
+            # Remove rows from other sheets if Centre Number exists in Comps
+            comps_numbers = comps_df["Centre Number"].unique()
+            combined_data = combined_data[~((combined_data["Source Sheet"] != "Comps") & combined_data["Centre Number"].isin(comps_numbers))]
+
+            # Fill missing addresses from Comps sheet if empty
+            def fill_address(row):
+                addr = row["Addresses"]
+                if pd.isna(addr) or str(addr).strip() == "":
+                    return comps_address_map.get(row["Centre Number"], "")
+                return addr
+            combined_data["Addresses"] = combined_data.apply(fill_address, axis=1)
+
+            # Assign priority for sorting and deduplication
+            priority_order = {"Active Centre": 0, "Comps": 1, "Centre Opened": 2}
+            combined_data["Sheet Priority"] = combined_data["Source Sheet"].map(priority_order)
+
+            # Deduplicate by Centre Number keeping highest priority sheet
+            data = (
+                combined_data
+                .sort_values(by="Sheet Priority")
+                .drop_duplicates(subset=["Centre Number"], keep="first")
+                .drop(columns=["Sheet Priority"])
+            )
+
+            # Override Transaction Milestone Status with Active Centre values
             active_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
-            opened_df = pd.read_excel(file_path, sheet_name="Centre Opened", engine="openpyxl")
+            active_df["Centre Number"] = active_df["Centre Number"].astype(str).str.strip().str.lstrip("0")
+            active_status_map = active_df.dropna(subset=["Centre Number", "Transaction Milestone Status"])\
+                                        .set_index("Centre Number")["Transaction Milestone Status"].to_dict()
 
-            for df in [comps_df, active_df, opened_df]:
-                df["Centre Number"] = df["Centre Number"].astype(str).str.strip()
-                df.dropna(subset=["Latitude", "Longitude", "Centre Number"], inplace=True)
+            def override_status(row):
+                return active_status_map.get(row["Centre Number"], row.get("Transaction Milestone Status", ""))
 
-            # Combine Active + Opened for milestone mapping
-            active_combined_df = pd.concat([active_df, opened_df], ignore_index=True)
+            data["Transaction Milestone Status"] = data.apply(override_status, axis=1)
 
-            # Make dict for milestone by Centre Number from Active + Opened
-            milestone_map = active_combined_df.dropna(subset=["Centre Number", "Transaction Milestone Status"])\
-                                             .set_index("Centre Number")["Transaction Milestone Status"].to_dict()
-
-            # Filter out Active+Opened centres that appear in Comps (to avoid duplicate centres)
-            comps_centres = set(comps_df["Centre Number"].unique())
-            active_filtered_df = active_combined_df[~active_combined_df["Centre Number"].isin(comps_centres)]
-
-            # Combine filtered active + opened with comps
-            combined_data = pd.concat([active_filtered_df, comps_df], ignore_index=True)
-
-            address_col = "Addresses"
-
-            def has_valid_address(val):
-                if pd.isna(val):
-                    return False
-                if isinstance(val, str) and val.strip() == "":
-                    return False
-                return True
-
-            # Remove duplicate Centre Number rows with missing/empty addresses BEFORE deduplication
-            dupe_centre_nums = combined_data["Centre Number"][combined_data["Centre Number"].duplicated(keep=False)].unique()
-            condition = combined_data["Centre Number"].isin(dupe_centre_nums) & (~combined_data[address_col].apply(has_valid_address))
-            combined_data = combined_data[~condition]
-
-            # Replace Transaction Milestone Status with mapping from Active+Opened if available
-            combined_data["Transaction Milestone Status"] = combined_data["Centre Number"].map(milestone_map).fillna(combined_data["Transaction Milestone Status"])
-
-            # Group by Centre Number and pick best row per centre
-            def pick_best_row(group):
-                valid_addr_rows = group[group[address_col].apply(has_valid_address)]
-                if not valid_addr_rows.empty:
-                    # Prefer rows with milestone from active/opened if possible
-                    for idx, row in valid_addr_rows.iterrows():
-                        if row["Transaction Milestone Status"] in milestone_map.values():
-                            return row
-                    return valid_addr_rows.iloc[0]
-                else:
-                    return group.iloc[0]
-
-            cleaned_data = combined_data.groupby("Centre Number").apply(pick_best_row).reset_index(drop=True)
-
-            data = cleaned_data
-
-            # Make sure City, State, Zipcode columns exist
+            # Ensure City, State, Zipcode columns exist
             for col in ["City", "State", "Zipcode"]:
                 if col not in data.columns:
                     data[col] = ""
@@ -239,6 +232,7 @@ if input_address:
                 lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1)
             data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
 
+            # Select 5 closest centres with no duplicates and minimal distance gaps
             selected_centres = []
             seen_distances, seen_centre_numbers = [], set()
             for _, row in data_sorted.iterrows():
@@ -254,7 +248,7 @@ if input_address:
                     break
             closest = pd.DataFrame(selected_centres)
 
-            # Folium map
+            # Folium map setup
             m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
             folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
 
@@ -346,32 +340,27 @@ if input_address:
                         table = slide.shapes.add_table(rows, cols, Inches(0.5), Inches(1), Inches(9), Inches(0.8 + 0.4 * rows)).table
 
                         headers = ["Centre #", "Address", "City, State, Zip", "Format", "Milestone", "Distance (miles)"]
-                        for col_idx, header_text in enumerate(headers):
+                        for col_idx, header in enumerate(headers):
                             cell = table.cell(0, col_idx)
-                            cell.text = header_text
+                            cell.text = header
                             cell.text_frame.paragraphs[0].font.bold = True
                             cell.text_frame.paragraphs[0].font.size = Pt(12)
 
-                        for i, (_, r) in enumerate(centres_subset.iterrows()):
-                            table.cell(i + 1, 0).text = str(int(r["Centre Number"]))
-                            table.cell(i + 1, 1).text = r["Addresses"]
-                            table.cell(i + 1, 2).text = f"{r.get('City','')}, {r.get('State','')} {r.get('Zipcode','')}"
-                            table.cell(i + 1, 3).text = r["Format - Type of Centre"]
-                            table.cell(i + 1, 4).text = r["Transaction Milestone Status"]
-                            table.cell(i + 1, 5).text = f"{r['Distance (miles)']:.2f}"
+                        for i, row in centres_subset.iterrows():
+                            table.cell(i + 1, 0).text = str(int(row["Centre Number"]))
+                            table.cell(i + 1, 1).text = str(row["Addresses"])
+                            city_state_zip = f'{row.get("City","")}, {row.get("State","")} {row.get("Zipcode","")}'
+                            table.cell(i + 1, 2).text = city_state_zip
+                            table.cell(i + 1, 3).text = str(row["Format - Type of Centre"])
+                            table.cell(i + 1, 4).text = str(row["Transaction Milestone Status"])
+                            table.cell(i + 1, 5).text = f'{row["Distance (miles)"]:.2f}'
 
-                        return slide
+                    add_centres_to_slide_table(closest, title_text="Closest Centres")
 
-                    add_centres_to_slide_table(closest, title_text=f"5 Closest Centres to:\n{input_address}")
-
-                    prs_path = os.path.join(tempfile.gettempdir(), "Closest_Centres.pptx")
-                    prs.save(prs_path)
-                    with open(prs_path, "rb") as f:
-                        st.download_button("Download PowerPoint", f.read(), file_name="Closest_Centres.pptx")
+                    prs.save("Closest_Centres.pptx")
+                    st.success("PowerPoint file 'Closest_Centres.pptx' created successfully!")
                 except Exception as e:
-                    st.error(f"Error creating PowerPoint: {e}")
-                    st.text(traceback.format_exc())
+                    st.error(f"Error creating PowerPoint: {e}\n{traceback.format_exc()}")
 
     except Exception as e:
-        st.error(f"\u274C Unexpected error: {e}")
-        st.text(traceback.format_exc())
+        st.error(f"\u274C Unexpected error: {e}\n{traceback.format_exc()}")
