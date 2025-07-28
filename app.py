@@ -107,22 +107,39 @@ def infer_area_type(location):
     formatted_str = location.get("formatted", "").lower()
 
     big_cities_keywords = [
-        "new york","manhattan","brooklyn","queens","bronx","staten island","los angeles","chicago","houston","phoenix",
-        "philadelphia","san antonio","san diego","dallas","san jose","austin","jacksonville","fort worth","columbus",
-        "charlotte","san francisco","indianapolis","seattle","denver","washington","boston","el paso","detroit",
-        "nashville","memphis","portland","oklahoma city","las vegas","louisville","baltimore","milwaukee","albuquerque",
-        "tucson","fresno","sacramento","mesa","kansas city","atlanta","long beach","colorado springs","raleigh","miami",
-        "virginia beach","oakland","minneapolis","tulsa","arlington","new orleans","wichita","cleveland","tampa",
-        "bakersfield","aurora","honolulu","anaheim","santa ana","corpus christi","riverside","lexington","stockton",
-        "henderson","saint paul","st. louis","cincinnati","pittsburgh","greensboro","anchorage","plano","lincoln",
-        "orlando","irvine","toledo","jersey city","chula vista","durham","fort wayne","st. petersburg","laredo",
-        "buffalo","madison","lubbock","chandler","scottsdale","glendale","reno","norfolk","winston-salem","north las vegas",
-        "irving","chesapeake","gilbert","hialeah","garland","fremont","richmond","boise","baton rouge",
-        "toronto","scarborough","etobicoke","north york","montreal","vancouver","calgary","ottawa","edmonton","mississauga",
-        "winnipeg","quebec city","hamilton","kitchener","london","victoria","halifax","oshawa","windsor","saskatoon",
-        "regina","st. john's","mexico city","guadalajara","monterrey","puebla","tijuana","leon","mexicali","culiacan",
-        "queretaro","san luis potosi","toluca","morelia","buenos aires","rio de janeiro","sao paulo","bogota","lima",
-        "santiago","caracas","quito","montevideo","asuncion","guayaquil","cali"
+        # US
+        "new york", "manhattan", "brooklyn", "queens", "bronx", "staten island",
+        "los angeles", "chicago", "houston", "phoenix", "philadelphia",
+        "san antonio", "san diego", "dallas", "san jose", "austin", "jacksonville",
+        "fort worth", "columbus", "charlotte", "san francisco", "indianapolis",
+        "seattle", "denver", "washington", "boston", "el paso", "detroit",
+        "nashville", "memphis", "portland", "oklahoma city", "las vegas", "louisville",
+        "baltimore", "milwaukee", "albuquerque", "tucson", "fresno", "sacramento",
+        "mesa", "kansas city", "atlanta", "long beach", "colorado springs", "raleigh",
+        "miami", "virginia beach", "oakland", "minneapolis", "tulsa", "arlington",
+        "new orleans", "wichita", "cleveland", "tampa", "bakersfield", "aurora",
+        "honolulu", "anaheim", "santa ana", "corpus christi", "riverside", "lexington",
+        "stockton", "henderson", "saint paul", "st. louis", "cincinnati", "pittsburgh",
+        "greensboro", "anchorage", "plano", "lincoln", "orlando", "irvine",
+        "toledo", "jersey city", "chula vista", "durham", "fort wayne", "st. petersburg",
+        "laredo", "buffalo", "madison", "lubbock", "chandler", "scottsdale",
+        "glendale", "reno", "norfolk", "winston-salem", "north las vegas", "irving",
+        "chesapeake", "gilbert", "hialeah", "garland", "fremont", "richmond",
+        "boise", "baton rouge",
+
+        # Canada
+        "toronto", "scarborough", "etobicoke", "north york", "montreal", "vancouver", "calgary", 
+        "ottawa", "edmonton", "mississauga", "winnipeg", "quebec city", "hamilton", 
+        "kitchener", "london", "victoria", "halifax", "oshawa", "windsor", "saskatoon", 
+        "regina", "st. john's",
+
+        # Mexico
+        "mexico city", "guadalajara", "monterrey", "puebla", "tijuana", "leon",
+        "mexicali", "culiacan", "queretaro", "san luis potosi", "toluca", "morelia",
+
+        # LATAM
+        "buenos aires", "rio de janeiro", "sao paulo", "bogota", "lima", "santiago",
+        "caracas", "quito", "montevideo", "asuncion", "guayaquil", "cali",
     ]
 
     if any(city in formatted_str for city in big_cities_keywords):
@@ -153,7 +170,6 @@ if input_address:
             area_type = infer_area_type(location)
             st.write(f"Area type detected: **{area_type}**")
 
-            # ---- Load Excel data ----
             file_path = "Database IC.xlsx"
             sheets = ["Comps", "Active Centre", "Centre Opened"]
             all_data = []
@@ -162,24 +178,26 @@ if input_address:
                 df["Source Sheet"] = sheet
                 all_data.append(df)
             combined_data = pd.concat(all_data)
+
+            # Clean Centre Number and drop rows missing important data
             combined_data["Centre Number"] = combined_data["Centre Number"].astype(str).str.strip()
-
-            # ---- NEW: Fill missing Addresses from Comps ----
-            comps_df = pd.read_excel(file_path, sheet_name="Comps", engine="openpyxl")
-            comps_df["Centre Number"] = comps_df["Centre Number"].astype(str).str.strip()
-            comps_address_map = comps_df.set_index("Centre Number")["Addresses"].to_dict()
-
-            def fill_missing_address(row):
-                if pd.isna(row["Addresses"]) or str(row["Addresses"]).strip() == "":
-                    return comps_address_map.get(row["Centre Number"], "")
-                return row["Addresses"]
-
-            combined_data["Addresses"] = combined_data.apply(fill_missing_address, axis=1)
-
-            # Drop rows missing important data
             combined_data = combined_data.dropna(subset=["Latitude", "Longitude", "Centre Number"])
 
-            # Assign priority
+            address_col = "Addresses"
+
+            def has_valid_address(val):
+                if pd.isna(val):
+                    return False
+                if isinstance(val, str) and val.strip() == "":
+                    return False
+                return True
+
+            # Remove duplicate Centre Number rows with missing/empty addresses BEFORE deduplication
+            dupe_centre_nums = combined_data["Centre Number"][combined_data["Centre Number"].duplicated(keep=False)].unique()
+            condition = combined_data["Centre Number"].isin(dupe_centre_nums) & (~combined_data[address_col].apply(has_valid_address))
+            combined_data = combined_data[~condition]
+
+            # Assign priority to sheets
             priority_order = {"Comps": 0, "Active Centre": 1, "Centre Opened": 2}
             combined_data["Sheet Priority"] = combined_data["Source Sheet"].map(priority_order)
 
@@ -190,9 +208,12 @@ if input_address:
                 .drop(columns=["Sheet Priority"])
             )
 
-            # --- Override Transaction Milestone Status ---
+            # --- NEW: Override Transaction Milestone Status with Active Centre values ---
+
+            # Load Active Centre separately to get transaction milestone status mapping
             active_centre_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
             active_centre_df["Centre Number"] = active_centre_df["Centre Number"].astype(str).str.strip()
+
             active_status_map = active_centre_df.dropna(subset=["Centre Number", "Transaction Milestone Status"])\
                                                .set_index("Centre Number")["Transaction Milestone Status"].to_dict()
 
@@ -205,6 +226,7 @@ if input_address:
 
             data["Transaction Milestone Status"] = data.apply(replace_transaction_status, axis=1)
 
+            # Make sure City, State, Zipcode columns exist
             for col in ["City", "State", "Zipcode"]:
                 if col not in data.columns:
                     data[col] = ""
@@ -346,12 +368,21 @@ if input_address:
                     pptx_path = os.path.join(tempfile.gettempdir(), "ClosestCentres.pptx")
                     prs.save(pptx_path)
 
-                    with open(pptx_path, "rb") as pptx_file:
-                        st.download_button("Download PowerPoint", pptx_file, file_name="ClosestCentres.pptx")
-                except Exception as e:
-                    st.error(f"Failed to export: {str(e)}")
-                    st.text(traceback.format_exc())
+                    with open(pptx_path, "rb") as f:
+                        st.download_button(
+                            "\u2B07\uFE0F Download PowerPoint", 
+                            f, 
+                            file_name="ClosestCentres.pptx", 
+                            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                        )
+
+                except Exception as pptx_error:
+                    st.error("\u274C PowerPoint export failed.")
+                    st.text(str(pptx_error))
 
     except Exception as e:
-        st.error(f"Error: {str(e)}")
+        st.error("An error occurred:")
+        st.text(str(e))
         st.text(traceback.format_exc())
+else:
+    st.info("Please enter an address above to get started.")
