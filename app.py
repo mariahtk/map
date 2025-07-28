@@ -19,25 +19,16 @@ st.set_page_config(page_title="Closest Centres Map", layout="wide")
 # --- Hide Streamlit UI Chrome & Branding ---
 st.markdown("""
     <style>
-    /* Hide built-in Streamlit UI */
     #MainMenu {visibility: hidden !important;}
     footer {visibility: hidden !important;}
     header {visibility: hidden !important;}
-
-    /* Hide common floating buttons */
     [data-testid="stStatusWidget"] {display: none !important;}
     .stDeployButton {display: none !important;}
     iframe[src*="streamlit.io"] {display: none !important;}
-
-    /* Hide known footer and branding classes */
     .st-emotion-cache-13ln4jf,
     .st-emotion-cache-zq5wmm,
     .st-emotion-cache-1v0mbdj,
-    .st-emotion-cache-1dp5vir {
-        display: none !important;
-    }
-
-    /* Remove padding for clean look */
+    .st-emotion-cache-1dp5vir {display: none !important;}
     div.block-container {
         padding-top: 1rem !important;
         padding-bottom: 1rem !important;
@@ -50,16 +41,13 @@ components.html("""
 <script>
 const killFloaters = () => {
     const floaters = document.querySelectorAll('div[aria-label*="Manage"], div[role="complementary"], a[href*="streamlit.app"]');
-    floaters.forEach(el => {
-        el.style.display = "none";
-    });
+    floaters.forEach(el => { el.style.display = "none"; });
 };
-
 const interval = setInterval(() => {
     killFloaters();
     if (document.readyState === "complete") {
         clearInterval(interval);
-        killFloaters();  // just in case
+        killFloaters();
     }
 }, 500);
 </script>
@@ -81,10 +69,8 @@ components.html("""
 def login():
     st.image("IWG Logo.jpg", width=150)
     st.title("Internal Map Login")
-
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
-
     if st.button("Login"):
         if password == "IWG123" and email.endswith("@iwgplc.com"):
             st.session_state["authenticated"] = True
@@ -96,7 +82,6 @@ def login():
 
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
-
 if not st.session_state["authenticated"]:
     login()
     st.stop()
@@ -105,9 +90,7 @@ if not st.session_state["authenticated"]:
 def infer_area_type(location):
     components = location.get("components", {})
     formatted_str = location.get("formatted", "").lower()
-
     big_cities_keywords = [
-        # US
         "new york", "manhattan", "brooklyn", "queens", "bronx", "staten island",
         "los angeles", "chicago", "houston", "phoenix", "philadelphia",
         "san antonio", "san diego", "dallas", "san jose", "austin", "jacksonville",
@@ -120,28 +103,19 @@ def infer_area_type(location):
         "new orleans", "wichita", "cleveland", "tampa", "bakersfield", "aurora",
         "honolulu", "anaheim", "santa ana", "corpus christi", "riverside", "lexington",
         "stockton", "henderson", "saint paul", "st. louis", "cincinnati", "pittsburgh",
-        "greensboro", "anchorage", "plano", "lincoln", "orlando", "irvine",
-        "toledo", "jersey city", "chula vista", "durham", "fort wayne", "st. petersburg",
-        "laredo", "buffalo", "madison", "lubbock", "chandler", "scottsdale",
-        "glendale", "reno", "norfolk", "winston-salem", "north las vegas", "irving",
-        "chesapeake", "gilbert", "hialeah", "garland", "fremont", "richmond",
-        "boise", "baton rouge",
-
-        # Canada
-        "toronto", "scarborough", "etobicoke", "north york", "montreal", "vancouver", "calgary", 
-        "ottawa", "edmonton", "mississauga", "winnipeg", "quebec city", "hamilton", 
-        "kitchener", "london", "victoria", "halifax", "oshawa", "windsor", "saskatoon", 
-        "regina", "st. john's",
-
-        # Mexico
-        "mexico city", "guadalajara", "monterrey", "puebla", "tijuana", "leon",
-        "mexicali", "culiacan", "queretaro", "san luis potosi", "toluca", "morelia",
-
-        # LATAM
-        "buenos aires", "rio de janeiro", "sao paulo", "bogota", "lima", "santiago",
-        "caracas", "quito", "montevideo", "asuncion", "guayaquil", "cali",
+        "greensboro", "anchorage", "plano", "lincoln", "orlando", "irvine", "toledo",
+        "jersey city", "chula vista", "durham", "fort wayne", "st. petersburg", "laredo",
+        "buffalo", "madison", "lubbock", "chandler", "scottsdale", "glendale", "reno",
+        "norfolk", "winston-salem", "north las vegas", "irving", "chesapeake", "gilbert",
+        "hialeah", "garland", "fremont", "richmond", "boise", "baton rouge",
+        "toronto", "scarborough", "etobicoke", "north york", "montreal", "vancouver",
+        "calgary", "ottawa", "edmonton", "mississauga", "winnipeg", "quebec city",
+        "hamilton", "kitchener", "london", "victoria", "halifax", "oshawa", "windsor",
+        "saskatoon", "regina", "st. john's", "mexico city", "guadalajara", "monterrey",
+        "puebla", "tijuana", "leon", "mexicali", "culiacan", "queretaro", "san luis potosi",
+        "toluca", "morelia", "buenos aires", "rio de janeiro", "sao paulo", "bogota",
+        "lima", "santiago", "caracas", "quito", "montevideo", "asuncion", "guayaquil", "cali"
     ]
-
     if any(city in formatted_str for city in big_cities_keywords):
         return "CBD"
     if any(key in components for key in ["village", "hamlet", "town"]):
@@ -181,12 +155,10 @@ if input_address:
 
             # Clean Centre Number and drop rows missing important data
             combined_data["Centre Number"] = combined_data["Centre Number"].astype(str).str.strip()
+            combined_data = combined_data.dropna(subset=["Latitude", "Longitude", "Centre Number"])
 
-            # Drop rows missing latitude or longitude early
-            combined_data = combined_data.dropna(subset=["Latitude", "Longitude"])
-
-            # Fix: Drop duplicate Centre Number rows with missing/empty addresses BEFORE deduplication
             address_col = "Addresses"
+
             def has_valid_address(val):
                 if pd.isna(val):
                     return False
@@ -194,9 +166,21 @@ if input_address:
                     return False
                 return True
 
+            # --- FIX LEADING ZEROS ---
+            combined_data["Centre Number"] = combined_data["Centre Number"].str.lstrip("0")
+
+            # --- REMOVE DUPLICATES BUT KEEP "Comps" OVER OTHERS ---
             dupe_centre_nums = combined_data["Centre Number"][combined_data["Centre Number"].duplicated(keep=False)].unique()
-            condition = combined_data["Centre Number"].isin(dupe_centre_nums) & (~combined_data[address_col].apply(has_valid_address))
-            combined_data = combined_data[~condition]
+            combined_data = combined_data[~(
+                combined_data["Centre Number"].isin(dupe_centre_nums) &
+                (combined_data["Source Sheet"].isin(["Active Centre", "Centre Opened"])) &
+                (combined_data["Centre Number"].isin(
+                    combined_data.loc[combined_data["Source Sheet"] == "Comps", "Centre Number"]
+                ))
+            )]
+
+            # Remove rows with invalid addresses
+            combined_data = combined_data[combined_data[address_col].apply(has_valid_address)]
 
             # Assign priority to sheets
             priority_order = {"Comps": 0, "Active Centre": 1, "Centre Opened": 2}
@@ -209,29 +193,20 @@ if input_address:
                 .drop(columns=["Sheet Priority"])
             )
 
-            # --- NEW: Override Transaction Milestone Status with Active Centre values ---
+            # --- Override Transaction Milestone Status with Active Centre values ---
             active_centre_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
-            active_centre_df["Centre Number"] = active_centre_df["Centre Number"].astype(str).str.strip()
-
-            active_status_map = active_centre_df.dropna(subset=["Centre Number", "Transaction Milestone Status"])\
+            active_centre_df["Centre Number"] = active_centre_df["Centre Number"].astype(str).str.strip().str.lstrip("0")
+            active_status_map = active_centre_df.dropna(subset=["Centre Number", "Transaction Milestone Status"]) \
                                                .set_index("Centre Number")["Transaction Milestone Status"].to_dict()
-
             def replace_transaction_status(row):
                 cn = row["Centre Number"]
-                if cn in active_status_map:
-                    return active_status_map[cn]
-                else:
-                    return row["Transaction Milestone Status"]
-
+                return active_status_map.get(cn, row["Transaction Milestone Status"])
             data["Transaction Milestone Status"] = data.apply(replace_transaction_status, axis=1)
 
-            # Make sure City, State, Zipcode columns exist
+            # Ensure City, State, Zipcode exist
             for col in ["City", "State", "Zipcode"]:
                 if col not in data.columns:
                     data[col] = ""
-
-            # Ensure no missing lat/lon before distance calculation
-            data = data.dropna(subset=["Latitude", "Longitude"])
 
             # Calculate distances
             data["Distance (miles)"] = data.apply(
@@ -253,7 +228,7 @@ if input_address:
                     break
             closest = pd.DataFrame(selected_centres)
 
-            # Folium map
+            # Folium map creation
             m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
             folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
 
@@ -268,14 +243,14 @@ if input_address:
                 dest_coords = (row["Latitude"], row["Longitude"])
                 folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
                 color = get_marker_color(row["Format - Type of Centre"])
-                label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
+                label = f"#{row['Centre Number']} - ({row['Distance (miles)']:.2f} mi)"
                 folium.Marker(
                     location=dest_coords,
-                    popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
+                    popup=(f"#{row['Centre Number']} - {row['Addresses']} | {row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
                     tooltip=folium.Tooltip(f"<div style='font-size:16px;font-weight:bold'>{label}</div>", permanent=True, direction='right'),
                     icon=folium.Icon(color=color)
                 ).add_to(m)
-                distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+                distance_text += f"Centre #{row['Centre Number']} - {row['Addresses']}, {row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
             radius_miles = {"CBD": 1, "Suburb": 5, "Rural": 10}
             radius_meters = radius_miles.get(area_type, 5) * 1609.34
@@ -304,7 +279,6 @@ if input_address:
                 </div>
                 """
                 st.markdown(styled_text, unsafe_allow_html=True)
-
             with col2:
                 st.markdown(f"""<div style="background-color: white; padding: 10px; border: 2px solid grey;
                                     border-radius: 10px; width: 100%; margin-top: 20px;">
@@ -318,7 +292,6 @@ if input_address:
                                 </div>""", unsafe_allow_html=True)
 
             uploaded_image = st.file_uploader("\U0001F5BC\ufe0f Optional: Upload Map Screenshot for PowerPoint", type=["png", "jpg", "jpeg"])
-
             if st.button("\U0001F4E4 Export to PowerPoint"):
                 try:
                     prs = Presentation()
@@ -339,11 +312,9 @@ if input_address:
                         slide = prs.slides.add_slide(slide_layout)
                         if title_text:
                             slide.shapes.title.text = title_text
-
                         rows = len(centres_subset) + 1
                         cols = 6
                         table = slide.shapes.add_table(rows, cols, Inches(0.5), Inches(1), Inches(9), Inches(0.8 + 0.4 * rows)).table
-
                         headers = ["Centre #", "Address", "City, State, Zip", "Format", "Milestone", "Distance (miles)"]
                         for col_idx, header_text in enumerate(headers):
                             cell = table.cell(0, col_idx)
@@ -351,28 +322,22 @@ if input_address:
                             for p in cell.text_frame.paragraphs:
                                 p.font.bold = True
                                 p.font.size = Pt(14)
-
                         for i, row in enumerate(centres_subset, start=1):
-                            table.cell(i, 0).text = str(int(row["Centre Number"]))
-                            table.cell(i, 1).text = row["Addresses"] if pd.notna(row["Addresses"]) else ""
+                            table.cell(i, 0).text = str(row["Centre Number"])
+                            table.cell(i, 1).text = str(row["Addresses"])
                             table.cell(i, 2).text = f"{row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')}"
-                            table.cell(i, 3).text = row["Format - Type of Centre"]
-                            table.cell(i, 4).text = row["Transaction Milestone Status"]
+                            table.cell(i, 3).text = str(row["Format - Type of Centre"])
+                            table.cell(i, 4).text = str(row["Transaction Milestone Status"])
                             table.cell(i, 5).text = f"{row['Distance (miles)']:.2f}"
 
-                    add_centres_to_slide_table(selected_centres, title_text="5 Closest Centres")
-
-                    pptx_file = os.path.join(tempfile.gettempdir(), "Closest_Centres.pptx")
-                    prs.save(pptx_file)
-
-                    with open(pptx_file, "rb") as f:
-                        pptx_bytes = f.read()
-                    st.download_button(label="Download PowerPoint", data=pptx_bytes, file_name="Closest_Centres.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
-
+                    add_centres_to_slide_table(closest.to_dict(orient="records"), title_text="Details of 5 Closest Centres")
+                    pptx_path = os.path.join(tempfile.gettempdir(), "closest_centres.pptx")
+                    prs.save(pptx_path)
+                    with open(pptx_path, "rb") as pptx_file:
+                        st.download_button("Download PowerPoint", pptx_file, file_name="closest_centres.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
                 except Exception as e:
-                    st.error(f"Error exporting to PowerPoint: {e}")
+                    st.error(f"PowerPoint generation failed: {e}")
                     st.text(traceback.format_exc())
-
     except Exception as e:
-        st.error(f"Unexpected error: {e}")
+        st.error(f"\u274C Error: {e}")
         st.text(traceback.format_exc())
