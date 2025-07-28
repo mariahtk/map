@@ -128,9 +128,9 @@ def infer_area_type(location):
         "boise", "baton rouge",
 
         # Canada
-        "toronto", "scarborough", "etobicoke", "north york", "montreal", "vancouver", "calgary", 
-        "ottawa", "edmonton", "mississauga", "winnipeg", "quebec city", "hamilton", 
-        "kitchener", "london", "victoria", "halifax", "oshawa", "windsor", "saskatoon", 
+        "toronto", "scarborough", "etobicoke", "north york", "montreal", "vancouver", "calgary",
+        "ottawa", "edmonton", "mississauga", "winnipeg", "quebec city", "hamilton",
+        "kitchener", "london", "victoria", "halifax", "oshawa", "windsor", "saskatoon",
         "regina", "st. john's",
 
         # Mexico
@@ -179,58 +179,58 @@ if input_address:
                 all_data.append(df)
             combined_data = pd.concat(all_data)
 
-            # Clean Centre Number and drop rows missing important data
+            # --- CLEAN AND DEDUPLICATE CENTRE DATA ---
+
+            # Clean Centre Number
             combined_data["Centre Number"] = combined_data["Centre Number"].astype(str).str.strip()
-            combined_data = combined_data.dropna(subset=["Latitude", "Longitude", "Centre Number"])
 
-            address_col = "Addresses"
+            # Normalize Addresses: convert literal 'nan' string or empty strings to pd.NA
+            combined_data["Addresses"] = combined_data["Addresses"].replace(["nan", "NaN", "NAN", ""], pd.NA)
 
+            # Helper function: check if address is valid (not null after above replacement)
             def has_valid_address(val):
-                if pd.isna(val):
-                    return False
-                if isinstance(val, str) and val.strip() == "":
-                    return False
-                return True
+                return pd.notna(val) and str(val).strip() != ""
 
             # Remove duplicate Centre Number rows with missing/empty addresses BEFORE deduplication
             dupe_centre_nums = combined_data["Centre Number"][combined_data["Centre Number"].duplicated(keep=False)].unique()
-            condition = combined_data["Centre Number"].isin(dupe_centre_nums) & (~combined_data[address_col].apply(has_valid_address))
-            combined_data = combined_data[~condition]
+            condition_missing_addr = combined_data["Centre Number"].isin(dupe_centre_nums) & (~combined_data["Addresses"].apply(has_valid_address))
+            combined_data = combined_data[~condition_missing_addr]
 
-            # Assign priority to sheets
+            # Map sheet priority (lower is better)
             priority_order = {"Comps": 0, "Active Centre": 1, "Centre Opened": 2}
             combined_data["Sheet Priority"] = combined_data["Source Sheet"].map(priority_order)
 
-            # Assign priority to milestones for sorting
+            # Map milestone priority (lower is better)
             milestone_priority_map = {
                 "New 2025": 0,
                 "Not Paid But Contract Signed": 1,
                 "Under Construction": 2,
                 "Operational": 3,
-                # Add other statuses here if needed
             }
             combined_data["milestone_priority"] = combined_data["Transaction Milestone Status"].map(milestone_priority_map).fillna(99).astype(int)
 
-            # Create a helper column: 1 if address is present, 0 if missing
-            combined_data["AddressPresent"] = combined_data["Addresses"].notna().astype(int)
+            # Create flag for address presence (1 if valid address, else 0)
+            combined_data["AddressPresent"] = combined_data["Addresses"].apply(has_valid_address).astype(int)
 
-            # Sort by Centre Number ascending, AddressPresent descending, milestone_priority ascending
+            # Sort so that rows with valid address and best milestone come first for each Centre Number
             combined_data_sorted = combined_data.sort_values(
-                by=["Centre Number", "AddressPresent", "milestone_priority"],
-                ascending=[True, False, True]
+                by=["Centre Number", "AddressPresent", "milestone_priority", "Sheet Priority"],
+                ascending=[True, False, True, True]
             )
 
-            # Drop duplicates keeping first row per Centre Number (which will be the best due to sorting)
+            # Drop duplicates keeping first row per Centre Number (which now has valid address prioritized)
             data = combined_data_sorted.drop_duplicates(subset=["Centre Number"], keep="first").copy()
 
-            # Drop helper columns
+            # Drop helper columns used for sorting
             data.drop(columns=["milestone_priority", "AddressPresent", "Sheet Priority"], inplace=True)
 
-            # --- NEW: Override Transaction Milestone Status with Active Centre values ---
+            # --- OVERRIDE TRANSACTION MILESTONE STATUS FROM ACTIVE CENTRE SHEET ---
+
+            # Load Active Centre separately to get transaction milestone status mapping
             active_centre_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
             active_centre_df["Centre Number"] = active_centre_df["Centre Number"].astype(str).str.strip()
 
-            active_status_map = active_centre_df.dropna(subset=["Centre Number", "Transaction Milestone Status"]) \
+            active_status_map = active_centre_df.dropna(subset=["Centre Number", "Transaction Milestone Status"])\
                                                .set_index("Centre Number")["Transaction Milestone Status"].to_dict()
 
             def replace_transaction_status(row):
@@ -345,47 +345,26 @@ if input_address:
                         with open(image_path, "wb") as img_file:
                             img_file.write(uploaded_image.read())
                         slide.shapes.add_picture(image_path, Inches(0.5), Inches(1.5), height=Inches(3.5))
-                        top_text = Inches(5.2)
+                        top_text = slide.shapes.add_textbox(Inches(0.5), Inches(5), Inches(9), Inches(1))
                     else:
-                        top_text = Inches(1.5)
+                        top_text = slide.shapes.add_textbox(Inches(0.5), Inches(1.5), Inches(9), Inches(3.5))
 
-                    def add_centres_to_slide_table(centres_subset, title_text=None):
-                        slide = prs.slides.add_slide(slide_layout)
-                        if title_text:
-                            slide.shapes.title.text = title_text
-                        rows = len(centres_subset) + 1
-                        cols = 6
-                        left = Inches(0.5)
-                        top = Inches(1.0)
-                        width = Inches(9)
-                        height = Inches(0.8)
-                        table_shape = slide.shapes.add_table(rows, cols, left, top, width, height)
-                        table = table_shape.table
+                    tf = top_text.text_frame
+                    tf.word_wrap = True
+                    p = tf.add_paragraph()
+                    p.text = distance_text
+                    p.font.size = Pt(14)
 
-                        headers = ["Centre Number", "Address", "City", "State", "Format", "Milestone"]
-                        for col_idx, header in enumerate(headers):
-                            cell = table.cell(0, col_idx)
-                            cell.text = header
-                            cell.text_frame.paragraphs[0].font.bold = True
-                            cell.text_frame.paragraphs[0].font.size = Pt(11)
-
-                        for i, row_data in enumerate(centres_subset.itertuples(), start=1):
-                            table.cell(i, 0).text = str(row_data._asdict().get("Centre Number", ""))
-                            table.cell(i, 1).text = str(row_data._asdict().get("Addresses", ""))
-                            table.cell(i, 2).text = str(row_data._asdict().get("City", ""))
-                            table.cell(i, 3).text = str(row_data._asdict().get("State", ""))
-                            table.cell(i, 4).text = str(row_data._asdict().get("Format - Type of Centre", ""))
-                            table.cell(i, 5).text = str(row_data._asdict().get("Transaction Milestone Status", ""))
-
-                    # Add closest centres table slide
-                    add_centres_to_slide_table(closest, title_text=f"5 Closest Centres to:\n{input_address}")
-
-                    prs.save("closest_centres_presentation.pptx")
-                    st.success("PowerPoint presentation created: closest_centres_presentation.pptx")
+                    prs.save("Closest_Centres_Presentation.pptx")
+                    with open("Closest_Centres_Presentation.pptx", "rb") as f:
+                        btn = st.download_button(
+                            label="Download PowerPoint",
+                            data=f,
+                            file_name="Closest_Centres_Presentation.pptx",
+                            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                        )
                 except Exception as e:
-                    st.error(f"Error exporting PowerPoint: {e}")
-                    st.error(traceback.format_exc())
+                    st.error(f"Error creating PowerPoint: {e}\n{traceback.format_exc()}")
 
     except Exception as e:
-        st.error(f"Unexpected error: {e}")
-        st.error(traceback.format_exc())
+        st.error(f"Unexpected error: {e}\n{traceback.format_exc()}")
