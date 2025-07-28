@@ -185,6 +185,7 @@ if input_address:
 
             address_col = "Addresses"
 
+            # Define function to check valid address
             def has_valid_address(val):
                 if pd.isna(val):
                     return False
@@ -192,25 +193,30 @@ if input_address:
                     return False
                 return True
 
-            # Remove duplicate Centre Number rows with missing/empty addresses BEFORE deduplication
+            # Find duplicate Centre Numbers
             dupe_centre_nums = combined_data["Centre Number"][combined_data["Centre Number"].duplicated(keep=False)].unique()
-            condition = combined_data["Centre Number"].isin(dupe_centre_nums) & (~combined_data[address_col].apply(has_valid_address))
+
+            # Remove rows with missing addresses but ONLY if they are NOT from 'Comps' sheet
+            condition = (
+                combined_data["Centre Number"].isin(dupe_centre_nums)
+                & (~combined_data[address_col].apply(has_valid_address))
+                & (combined_data["Source Sheet"] != "Comps")
+            )
             combined_data = combined_data[~condition]
 
-            # Assign priority to sheets
+            # Assign priority to sheets for deduplication (Comps highest priority)
             priority_order = {"Comps": 0, "Active Centre": 1, "Centre Opened": 2}
             combined_data["Sheet Priority"] = combined_data["Source Sheet"].map(priority_order)
 
+            # Sort by Centre Number and Sheet Priority and drop duplicates keeping Comps first
             data = (
                 combined_data
-                .sort_values(by="Sheet Priority")
+                .sort_values(by=["Centre Number", "Sheet Priority"])
                 .drop_duplicates(subset=["Centre Number"], keep="first")
                 .drop(columns=["Sheet Priority"])
             )
 
             # --- NEW: Override Transaction Milestone Status with Active Centre values ---
-
-            # Load Active Centre separately to get transaction milestone status mapping
             active_centre_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
             active_centre_df["Centre Number"] = active_centre_df["Centre Number"].astype(str).str.strip()
 
@@ -346,43 +352,35 @@ if input_address:
                         for col_idx, header_text in enumerate(headers):
                             cell = table.cell(0, col_idx)
                             cell.text = header_text
-                            for p in cell.text_frame.paragraphs:
-                                p.font.bold = True
-                                p.font.size = Pt(14)
+                            cell.text_frame.paragraphs[0].font.bold = True
+                            cell.text_frame.paragraphs[0].font.size = Pt(11)
 
-                        for i, row in enumerate(centres_subset, start=1):
-                            table.cell(i, 0).text = str(int(row["Centre Number"]))
-                            table.cell(i, 1).text = row["Addresses"]
-                            table.cell(i, 2).text = f"{row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')}".strip(", ")
-                            table.cell(i, 3).text = row["Format - Type of Centre"]
-                            table.cell(i, 4).text = row["Transaction Milestone Status"]
+                        for i, (_, row) in enumerate(centres_subset.iterrows(), 1):
+                            table.cell(i, 0).text = str(row["Centre Number"])
+                            table.cell(i, 1).text = str(row["Addresses"])
+                            table.cell(i, 2).text = f"{row.get('City', '')}, {row.get('State', '')}, {row.get('Zipcode', '')}"
+                            table.cell(i, 3).text = str(row["Format - Type of Centre"])
+                            table.cell(i, 4).text = str(row["Transaction Milestone Status"])
                             table.cell(i, 5).text = f"{row['Distance (miles)']:.2f}"
-                            for col_idx in range(cols):
-                                for p in table.cell(i, col_idx).text_frame.paragraphs:
-                                    p.font.size = Pt(12)
 
-                    rows = closest.to_dict(orient="records")
-                    for i in range(0, len(rows), 4):
-                        add_centres_to_slide_table(rows[i:i+4])
+                        # Style table font size
+                        for row_i in range(rows):
+                            for col_i in range(cols):
+                                for paragraph in table.cell(row_i, col_i).text_frame.paragraphs:
+                                    paragraph.font.size = Pt(10)
 
-                    pptx_path = os.path.join(tempfile.gettempdir(), "ClosestCentres.pptx")
-                    prs.save(pptx_path)
+                    add_centres_to_slide_table(closest, title_text=f"5 Closest Centres to:\n{input_address}")
 
-                    with open(pptx_path, "rb") as f:
-                        st.download_button(
-                            "\u2B07\uFE0F Download PowerPoint", 
-                            f, 
-                            file_name="ClosestCentres.pptx", 
-                            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                        )
+                    ppt_filename = f"5 Closest Centres to {input_address.replace(' ', '_').replace(',', '')}.pptx"
+                    prs.save(ppt_filename)
 
-                except Exception as pptx_error:
-                    st.error("\u274C PowerPoint export failed.")
-                    st.text(str(pptx_error))
+                    st.success(f"PowerPoint exported: {ppt_filename}")
+                    with open(ppt_filename, "rb") as f:
+                        st.download_button("Download PowerPoint", f.read(), file_name=ppt_filename)
+                except Exception as e:
+                    st.error(f"\u274C Failed to export PowerPoint: {e}")
+                    st.text(traceback.format_exc())
 
     except Exception as e:
-        st.error("An error occurred:")
-        st.text(str(e))
+        st.error(f"\u274C Error during geocoding or processing: {e}")
         st.text(traceback.format_exc())
-else:
-    st.info("Please enter an address above to get started.")
