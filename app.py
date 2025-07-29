@@ -148,6 +148,30 @@ def infer_area_type(location):
         return "Rural"
     return "Suburb"
 
+def has_valid_address(val):
+    if pd.isna(val):
+        return False
+    if isinstance(val, str) and val.strip() == "":
+        return False
+    return True
+
+def filter_duplicates(df):
+    preferred_statuses = {
+        "Under Construction", "Contract Signed", "IC Approved", 
+        "Not Paid But Contract Signed", "Centre Open"
+    }
+
+    def pick_best(group):
+        preferred_rows = group[group["Transaction Milestone Status"].isin(preferred_statuses)]
+        if not preferred_rows.empty:
+            return preferred_rows.iloc[[0]]
+        else:
+            return group.iloc[[0]]
+
+    filtered_df = df.groupby(["Centre Number", "Addresses"], dropna=False).apply(pick_best)
+    filtered_df.index = filtered_df.index.droplevel([0,1])
+    return filtered_df.reset_index(drop=True)
+
 # --- MAIN APP ---
 st.title("\U0001F4CD Find 5 Closest Centres")
 api_key = "edd4cb8a639240daa178b4c6321a60e6"
@@ -176,52 +200,23 @@ if input_address:
             for sheet in sheets:
                 df = pd.read_excel(file_path, sheet_name=sheet, engine="openpyxl")
                 df["Source Sheet"] = sheet
+
+                # Set Address column depending on sheet name
+                if sheet == "Active Centre" or sheet == "Centre Opened":
+                    df["Addresses"] = df.get("Address Line 1", "")  # fetch address from "Address Line 1"
+                else:
+                    df["Addresses"] = df.get("Addresses", "")  # use existing "Addresses" for Comps
+
                 all_data.append(df)
+
             combined_data = pd.concat(all_data)
 
             # Clean Centre Number and drop rows missing important data
             combined_data["Centre Number"] = combined_data["Centre Number"].astype(str).str.strip()
             combined_data = combined_data.dropna(subset=["Latitude", "Longitude", "Centre Number"])
 
-            # Address selection based on Source Sheet
-            def choose_address(row):
-                if row["Source Sheet"] in ["Active Centre", "Centre Opened"]:
-                    return row.get("Address Line 1", "") if pd.notna(row.get("Address Line 1", None)) else ""
-                else:
-                    return row.get("Addresses", "") if pd.notna(row.get("Addresses", None)) else ""
-
-            combined_data["Addresses"] = combined_data.apply(choose_address, axis=1)
-
-            # --- NEW: Remove duplicates with same Centre Number and Address, preferring specific Transaction Milestone Status ---
-            preferred_statuses = [
-                "Under Construction", "Contract Signed", "IC Approved", 
-                "Not Paid But Contract Signed", "Centre Open"
-            ]
-
-            def filter_duplicates(df):
-                df["Status Priority"] = df["Transaction Milestone Status"].apply(
-                    lambda x: 0 if x in preferred_statuses else 1
-                )
-                df = df.sort_values("Status Priority")
-                filtered_df = df.drop_duplicates(subset=["Centre Number", "Addresses"], keep="first")
-                filtered_df = filtered_df.drop(columns=["Status Priority"])
-                return filtered_df
-
+            # Remove duplicate Centre Number & Address rows keeping preferred milestones only
             combined_data = filter_duplicates(combined_data)
-
-            # Remove duplicate Centre Number rows with missing/empty addresses BEFORE deduplication
-            address_col = "Addresses"
-
-            def has_valid_address(val):
-                if pd.isna(val):
-                    return False
-                if isinstance(val, str) and val.strip() == "":
-                    return False
-                return True
-
-            dupe_centre_nums = combined_data["Centre Number"][combined_data["Centre Number"].duplicated(keep=False)].unique()
-            condition = combined_data["Centre Number"].isin(dupe_centre_nums) & (~combined_data[address_col].apply(has_valid_address))
-            combined_data = combined_data[~condition]
 
             # Assign priority to sheets
             priority_order = {"Comps": 0, "Active Centre": 1, "Centre Opened": 2}
@@ -234,9 +229,7 @@ if input_address:
                 .drop(columns=["Sheet Priority"])
             )
 
-            # --- NEW: Override Transaction Milestone Status with Active Centre values ---
-
-            # Load Active Centre separately to get transaction milestone status mapping
+            # --- Override Transaction Milestone Status with Active Centre values ---
             active_centre_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
             active_centre_df["Centre Number"] = active_centre_df["Centre Number"].astype(str).str.strip()
 
@@ -359,23 +352,48 @@ if input_address:
                     else:
                         top_text = Inches(1.5)
 
-                    text_box = slide.shapes.add_textbox(Inches(0.5), top_text, Inches(9), Inches(3))
-                    tf = text_box.text_frame
-                    tf.word_wrap = True
-                    p = tf.add_paragraph()
-                    p.text = distance_text.strip()
-                    p.font.size = Pt(16)
-                    p.font.bold = True
+                    def add_centres_to_slide_table(centres_subset, title_text=None):
+                        slide = prs.slides.add_slide(slide_layout)
+                        if title_text:
+                            slide.shapes.title.text = title_text
 
-                    output_path = "closest_centres.pptx"
-                    prs.save(output_path)
-                    st.success(f"PowerPoint saved: {output_path}")
-                    with open(output_path, "rb") as file:
-                        st.download_button("Download PowerPoint", file, file_name=output_path)
-                except Exception:
-                    st.error("Failed to create PowerPoint. Please try again.")
+                        rows = len(centres_subset) + 1
+                        cols = 6
+                        table = slide.shapes.add_table(rows, cols, Inches(0.5), Inches(1), Inches(9), Inches(0.8 + 0.3 * rows)).table
+
+                        # Header row
+                        headers = ["Centre #", "Address", "City", "State", "Milestone", "Distance (miles)"]
+                        for i, header in enumerate(headers):
+                            table.cell(0, i).text = header
+                            cell = table.cell(0, i)
+                            for paragraph in cell.text_frame.paragraphs:
+                                for run in paragraph.runs:
+                                    run.font.bold = True
+                                    run.font.size = Pt(12)
+
+                        for i, (_, row) in enumerate(centres_subset.iterrows()):
+                            table.cell(i + 1, 0).text = str(int(row["Centre Number"]))
+                            table.cell(i + 1, 1).text = row["Addresses"]
+                            table.cell(i + 1, 2).text = str(row.get("City", ""))
+                            table.cell(i + 1, 3).text = str(row.get("State", ""))
+                            table.cell(i + 1, 4).text = str(row["Transaction Milestone Status"])
+                            table.cell(i + 1, 5).text = f"{row['Distance (miles)']:.2f}"
+
+                    add_centres_to_slide_table(closest, title_text="Closest 5 Centres")
+
+                    pptx_path = os.path.join(tempfile.gettempdir(), "Closest_Centres_Presentation.pptx")
+                    prs.save(pptx_path)
+                    with open(pptx_path, "rb") as f:
+                        btn = st.download_button(
+                            label="Download PowerPoint Presentation",
+                            data=f,
+                            file_name="Closest_Centres_Presentation.pptx",
+                            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                        )
+                except Exception as e:
+                    st.error(f"Error generating PowerPoint: {str(e)}")
                     st.error(traceback.format_exc())
 
-    except Exception:
-        st.error("Unexpected error occurred. Please try again.")
+    except Exception as e:
+        st.error(f"Unexpected error: {str(e)}")
         st.error(traceback.format_exc())
