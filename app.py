@@ -396,9 +396,12 @@ if input_address:
 
             uploaded_image = st.file_uploader("\U0001F5BC\ufe0f Optional: Upload Map Screenshot for PowerPoint", type=["png","jpg","jpeg"])
 
-            # PowerPoint generation button & code...    except Exception as e:
+           # PowerPoint generation button & code...
+
+            # (rest of your PPTX generation logic here if needed)
+
+    except Exception as e:
         st.error(f"\u274C Unexpected error: {e}")
         st.error(traceback.format_exc())
 else:
     st.info("Please enter an address above to begin.")
-
