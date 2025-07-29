@@ -101,46 +101,147 @@ if not st.session_state["authenticated"]:
     login()
     st.stop()
 
-# --- Area Type Inference ---
+# --- Area Type Inference with expanded city neighborhoods ---
 def infer_area_type(location):
     components = location.get("components", {})
     formatted_str = location.get("formatted", "").lower()
 
-    big_cities_keywords = [
-        # US
-        "new york", "manhattan", "brooklyn", "queens", "bronx", "staten island",
-        "los angeles", "chicago", "houston", "phoenix", "philadelphia",
-        "san antonio", "san diego", "dallas", "san jose", "austin", "jacksonville",
-        "fort worth", "columbus", "charlotte", "san francisco", "indianapolis",
-        "seattle", "denver", "washington", "boston", "el paso", "detroit",
-        "nashville", "memphis", "portland", "oklahoma city", "las vegas", "louisville",
-        "baltimore", "milwaukee", "albuquerque", "tucson", "fresno", "sacramento",
-        "mesa", "kansas city", "atlanta", "long beach", "colorado springs", "raleigh",
-        "miami", "virginia beach", "oakland", "minneapolis", "tulsa", "arlington",
-        "new orleans", "wichita", "cleveland", "tampa", "bakersfield", "aurora",
-        "honolulu", "anaheim", "santa ana", "corpus christi", "riverside", "lexington",
-        "stockton", "henderson", "saint paul", "st. louis", "cincinnati", "pittsburgh",
-        "greensboro", "anchorage", "plano", "lincoln", "orlando", "irvine",
-        "toledo", "jersey city", "chula vista", "durham", "fort wayne", "st. petersburg",
-        "laredo", "buffalo", "madison", "lubbock", "chandler", "scottsdale",
-        "glendale", "reno", "norfolk", "winston-salem", "north las vegas", "irving",
-        "chesapeake", "gilbert", "hialeah", "garland", "fremont", "richmond",
-        "boise", "baton rouge",
+    # Expanded neighborhoods dictionary for major North American cities
+    city_neighborhoods_cbd = {
+        # US Cities and neighborhoods
+        "new york": [
+            "manhattan", "financial district", "midtown", "harlem", "chelsea",
+            "tribeca", "soho", "upper east side", "upper west side", "lower east side",
+            "battery park city", "greenwich village", "east village", "nolita",
+            "meatpacking district", "little italy", "murray hill", "inwood",
+            "washington heights", "flatiron district", "gramercy"
+        ],
+        "los angeles": [
+            "downtown", "hollywood", "venice", "santa monica", "beverly hills",
+            "culver city", "west hollywood", "silver lake", "downtown long beach",
+            "pasadena", "studio city", "brentwood", "westwood"
+        ],
+        "chicago": [
+            "loop", "river north", "west loop", "south loop", "streeterville",
+            "gold coast", "hyde park", "lincoln park", "wicker park", "bucktown",
+            "logan square", "andersonville"
+        ],
+        "san francisco": [
+            "financial district", "soma", "mission district", "nob hill",
+            "chinatown", "castro", "north beach", "russian hill", "pacific heights",
+            "marina district", "presidio", "haight ashbury"
+        ],
+        "houston": [
+            "downtown", "midtown", "medical center", "galleria",
+            "river oaks", "montrose", "museum district", "west university"
+        ],
+        "miami": [
+            "downtown", "brickell", "wynwood", "little havana",
+            "coral gables", "south beach", "coconut grove"
+        ],
+        "seattle": [
+            "downtown", "capitol hill", "belltown", "queen anne", "fremont",
+            "ballard", "south lake union", "phinney ridge"
+        ],
+        "boston": [
+            "downtown", "back bay", "beacon hill", "south end",
+            "north end", "fenway", "cambridge", "dorchester", "jamaica plain"
+        ],
+        "washington": [
+            "downtown", "georgetown", "dupont circle", "adams morgan",
+            "capitol hill", "foggy bottom", "columbia heights"
+        ],
+        "atlanta": [
+            "midtown", "downtown", "buckhead", "old fourth ward",
+            "inman park", "virginia-highland", "east atlanta"
+        ],
+        "denver": [
+            "downtown", "lohi", "rino", "cap hill",
+            "wash park", "highlands", "five points"
+        ],
+        "philadelphia": [
+            "center city", "old city", "university city", "fitler square",
+            "fishtown", "rittenhouse square"
+        ],
+        "san antonio": [
+            "downtown", "king william", "southtown", "alamo heights"
+        ],
+        "dallas": [
+            "downtown", "deep ellum", "uptown", "bishop arts district", "design district"
+        ],
+        "austin": [
+            "downtown", "south congress", "riverside", "hyde park", "east austin"
+        ],
 
-        # Canada
-        "toronto", "scarborough", "etobicoke", "north york", "montreal", "vancouver", "calgary", 
-        "ottawa", "edmonton", "mississauga", "winnipeg", "quebec city", "hamilton", 
-        "kitchener", "london", "victoria", "halifax", "oshawa", "windsor", "saskatoon", 
-        "regina", "st. john's",
+        # Canada Cities
+        "toronto": [
+            "downtown", "financial district", "entertainment district",
+            "queen west", "distillery district", "harbourfront",
+            "chinatown", "kensington market", "king west", "liberty village",
+            "davenport", "roncesvalles"
+        ],
+        "montreal": [
+            "downtown", "plateau mont-royal", "griffintown", "old montreal",
+            "mile end", "little italy", "outremont", "verdun", "westmount", "rosemont"
+        ],
+        "vancouver": [
+            "downtown", "yaletown", "gastown", "kitsilano",
+            "west end", "mount pleasant", "commercial drive", "burnaby"
+        ],
+        "calgary": [
+            "downtown", "beltline", "inglewood", "mission",
+            "sunnyside", "bridgeland", "kensington"
+        ],
+        "quebec city": [
+            "old quebec", "saint-roch", "saint-joseph", "westmount", "saint-sauveur", "limoilou"
+        ],
+        "ottawa": [
+            "downtown", "the glebe", "westboro", "centretown", "byward market"
+        ],
+        "edmonton": [
+            "downtown", "whyte ave", "strathcona", "oliver", "garneau"
+        ],
+        "winnipeg": [
+            "exchange district", "downtown", "osborne village", "st. boniface"
+        ],
+        "hamilton": [
+            "downtown", "corktown", "durand", "westdale"
+        ],
 
-        # Mexico
-        "mexico city", "guadalajara", "monterrey", "puebla", "tijuana", "leon",
-        "mexicali", "culiacan", "queretaro", "san luis potosi", "toluca", "morelia",
+        # Mexico Cities
+        "mexico city": [
+            "cuauhtémoc", "polanco", "condesa", "roma", "coyoacán", "centro histórico",
+            "juárez", "narvarte", "san rafael", "del valle"
+        ],
+        "guadalajara": [
+            "centro", "chapultepec", "zapopan", "tlaquepaque", "tonalá"
+        ],
+        "monterrey": [
+            "centro", "san jerónimo", "valle", "cumbres", "obispado"
+        ],
+        "puebla": [
+            "centro histórico", "los fuertes", "la paz"
+        ],
+        "tijuana": [
+            "centro", "playas", "rio", "zona río"
+        ],
+        "leon": [
+            "centro", "las animas", "valladolid"
+        ],
+    }
 
-        # LATAM
-        "buenos aires", "rio de janeiro", "sao paulo", "bogota", "lima", "santiago",
-        "caracas", "quito", "montevideo", "asuncion", "guayaquil", "cali",
-    ]
+    # First, check if formatted address contains any city+neighborhood keyword:
+    for city, neighborhoods in city_neighborhoods_cbd.items():
+        if city in formatted_str:
+            # If city found, check if any neighborhood present
+            for nbhd in neighborhoods:
+                if nbhd in formatted_str:
+                    return "CBD"
+            # If city matched but no neighborhood found, still treat city as CBD
+            return "CBD"
+
+    # If none matched, fallback to keywords in formatted string
+    big_cities_keywords = list(city_neighborhoods_cbd.keys())
 
     if any(city in formatted_str for city in big_cities_keywords):
         return "CBD"
@@ -317,56 +418,49 @@ if input_address:
                     tooltip=folium.Tooltip(f"<div style='font-size:16px;font-weight:bold'>{label}</div>", permanent=True, direction='right'),
                     icon=folium.Icon(color=color)
                 ).add_to(m)
-                distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+                distance_text += f"#{int(row['Centre Number'])} - {row['Addresses']} - {row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')} - {row['Format - Type of Centre']} - {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
-            radius_miles = {"CBD": 1, "Suburb": 5, "Rural": 10}
-            radius_meters = radius_miles.get(area_type, 5) * 1609.34
-            folium.Circle(location=input_coords, radius=radius_meters, color="green", fill=True, fill_opacity=0.2).add_to(m)
+            st_data = st_folium(m, width=1200, height=800)
+            st.markdown(f"### 5 Closest Centres:\n```\n{distance_text}\n```")
 
-            legend_template = f"""
-                {{% macro html(this, kwargs) %}}
-                <div style='position: absolute; top: 10px; left: 10px; width: 170px; z-index: 9999;
-                            background-color: white; padding: 10px; border: 2px solid gray;
-                            border-radius: 5px; font-size: 14px;'>
-                    <b>Radius</b><br>
-                    <span style='color:green;'>&#x25CF;</span> {radius_miles.get(area_type, 5)}-mile Zone
-                </div>
-                {{% endmacro %}}
-            """
-            legend = MacroElement()
-            legend._template = Template(legend_template)
-            m.get_root().add_child(legend)
+            # PowerPoint export
+            if st.button("Export to PowerPoint"):
+                prs = Presentation()
+                blank_slide_layout = prs.slide_layouts[6]
+                slide = prs.slides.add_slide(blank_slide_layout)
 
-            col1, col2 = st.columns([5, 2])
-            with col1:
-                st_folium(m, width=950, height=650)
-                styled_text = f"""
-                <div class='distance-text' style='font-size:20px; line-height:1.6; padding: 10px 0; margin-top: -20px; font-weight: bold;'>
-                  <b>{distance_text.replace(chr(10), '<br>')}</b>
-                </div>
-                """
-                st.markdown(styled_text, unsafe_allow_html=True)
+                left = Inches(1)
+                top = Inches(0.5)
+                width = Inches(8)
+                height = Inches(5)
 
-            with col2:
-                st.markdown(f"""<div style="background-color: white; padding: 10px; border: 2px solid grey;
-                                    border-radius: 10px; width: 100%; margin-top: 20px;">
-                                    <b>Centre Type Legend</b><br>
-                                    <i style="background-color: lightgreen; padding: 5px;">&#9724;</i> Proposed Address<br>
-                                    <i style="background-color: lightblue; padding: 5px;">&#9724;</i> Regus<br>
-                                    <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
-                                    <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
-                                    <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
-                                    <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
-                                </div>""", unsafe_allow_html=True)
+                # Save folium map to html temporary file
+                tmpdir = tempfile.mkdtemp()
+                map_html_path = os.path.join(tmpdir, "map.html")
+                m.save(map_html_path)
 
-            uploaded_image = st.file_uploader("\U0001F5BC\ufe0f Optional: Upload Map Screenshot for PowerPoint", type=["png","jpg","jpeg"])
+                # For PowerPoint, use a static image (screenshot) or just text summary
+                # Here we add text for simplicity
+                txBox = slide.shapes.add_textbox(left, top, width, height)
+                tf = txBox.text_frame
+                tf.word_wrap = True
+                tf.margin_bottom = Pt(12)
+                p = tf.add_paragraph()
+                p.text = f"Input Address:\n{input_address}\n\n5 Closest Centres:\n{distance_text}"
+                p.font.size = Pt(14)
 
-            # PowerPoint generation button & code...
-
-            # (rest of your PPTX generation logic here if needed)
+                # Save PowerPoint
+                pptx_path = os.path.join(tmpdir, "Closest_Centres.pptx")
+                prs.save(pptx_path)
+                with open(pptx_path, "rb") as f:
+                    st.download_button(
+                        label="Download PowerPoint",
+                        data=f,
+                        file_name="Closest_Centres.pptx",
+                        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                    )
 
     except Exception as e:
-        st.error(f"\u274C Unexpected error: {e}")
+        st.error(f"\u274C Unexpected error: {str(e)}")
         st.error(traceback.format_exc())
-else:
-    st.info("Please enter an address above to begin.")
+
