@@ -106,129 +106,63 @@ def infer_area_type(location):
     components = location.get("components", {})
     formatted_str = location.get("formatted", "").lower()
 
-    # Expanded neighborhoods dictionary for major North American cities
-    city_neighborhoods_cbd = {
-        # US Cities and neighborhoods
-        "new york": [
-            "manhattan", "financial district", "midtown", "harlem", "chelsea",
-            "tribeca", "soho", "upper east side", "upper west side", "lower east side",
-            "battery park city", "greenwich village", "east village", "nolita",
-            "meatpacking district", "little italy", "murray hill", "inwood",
-            "washington heights", "flatiron district", "gramercy"
-        ],
-        "los angeles": [
-            "downtown", "hollywood", "venice", "santa monica", "beverly hills",
-            "culver city", "west hollywood", "silver lake", "downtown long beach",
-            "pasadena", "studio city", "brentwood", "westwood"
-        ],
-        "chicago": [
-            "loop", "river north", "west loop", "south loop", "streeterville",
-            "gold coast", "hyde park", "lincoln park", "wicker park", "bucktown",
-            "logan square", "andersonville"
-        ],
-        "san francisco": [
-            "financial district", "soma", "mission district", "nob hill",
-            "chinatown", "castro", "north beach", "russian hill", "pacific heights",
-            "marina district", "presidio", "haight ashbury"
-        ],
-        "houston": [
-            "downtown", "midtown", "medical center", "galleria",
-            "river oaks", "montrose", "museum district", "west university"
-        ],
-        "miami": [
-            "downtown", "brickell", "wynwood", "little havana",
-            "coral gables", "south beach", "coconut grove"
-        ],
-        "seattle": [
-            "downtown", "capitol hill", "belltown", "queen anne", "fremont",
-            "ballard", "south lake union", "phinney ridge"
-        ],
-        "boston": [
-            "downtown", "back bay", "beacon hill", "south end",
-            "north end", "fenway", "cambridge", "dorchester", "jamaica plain"
-        ],
-        "washington": [
-            "downtown", "georgetown", "dupont circle", "adams morgan",
-            "capitol hill", "foggy bottom", "columbia heights"
-        ],
-        "atlanta": [
-            "midtown", "downtown", "buckhead", "old fourth ward",
-            "inman park", "virginia-highland", "east atlanta"
-        ],
-        "denver": [
-            "downtown", "lohi", "rino", "cap hill",
-            "wash park", "highlands", "five points"
-        ],
-        "philadelphia": [
-            "center city", "old city", "university city", "fitler square",
-            "fishtown", "rittenhouse square"
-        ],
-        "san antonio": [
-            "downtown", "king william", "southtown", "alamo heights"
-        ],
-        "dallas": [
-            "downtown", "deep ellum", "uptown", "bishop arts district", "design district"
-        ],
-        "austin": [
-            "downtown", "south congress", "riverside", "hyde park", "east austin"
-        ],
+    # --- Major CBD cores ---
+    cbd_keywords = [
+        # US Major Downtowns
+        "new york", "manhattan", "brooklyn", "queens", "bronx", "staten island",
+        "chicago", "los angeles", "san francisco", "boston", "washington", 
+        "philadelphia", "houston", "seattle", "miami", "atlanta", "dallas",
+        "phoenix", "detroit", "san diego", "minneapolis", "denver", "austin",
+        "portland", "nashville", "new orleans", "las vegas",
+        # Canada Major Downtowns
+        "toronto", "montreal", "vancouver", "ottawa", "calgary", "edmonton",
+        "winnipeg", "halifax", "victoria", "quebec city",
+        # Mexico Major Downtowns
+        "mexico city", "guadalajara", "monterrey", "tijuana"
+    ]
 
-        # Canada Cities
-        "toronto": [
-            "downtown", "financial district", "entertainment district",
-            "queen west", "distillery district", "harbourfront",
-            "chinatown", "kensington market", "king west", "liberty village",
-            "davenport", "roncesvalles"
-        ],
-        "montreal": [
-            "downtown", "plateau mont-royal", "griffintown", "old montreal",
-            "mile end", "little italy", "outremont", "verdun", "westmount", "rosemont"
-        ],
-        "vancouver": [
-            "downtown", "yaletown", "gastown", "kitsilano",
-            "west end", "mount pleasant", "commercial drive", "burnaby"
-        ],
-        "calgary": [
-            "downtown", "beltline", "inglewood", "mission",
-            "sunnyside", "bridgeland", "kensington"
-        ],
-        "quebec city": [
-            "old quebec", "saint-roch", "saint-joseph", "westmount", "saint-sauveur", "limoilou"
-        ],
-        "ottawa": [
-            "downtown", "the glebe", "westboro", "centretown", "byward market"
-        ],
-        "edmonton": [
-            "downtown", "whyte ave", "strathcona", "oliver", "garneau"
-        ],
-        "winnipeg": [
-            "exchange district", "downtown", "osborne village", "st. boniface"
-        ],
-        "hamilton": [
-            "downtown", "corktown", "durand", "westdale"
-        ],
+    # --- Known Urban Suburbs & Neighbourhoods ---
+    suburb_keywords = [
+        # Greater Montreal
+        "westmount", "laval", "longueuil", "brossard", "côte-saint-luc", "ndg",
+        "saint-laurent", "west island",
+        # Greater Toronto
+        "mississauga", "brampton", "markham", "vaughan", "richmond hill",
+        "pickering", "ajax", "oshawa", "milton", "oakville", "burlington",
+        # Greater Vancouver
+        "burnaby", "surrey", "richmond bc", "coquitlam", "delta", "langley", 
+        "maple ridge", "north vancouver", "west vancouver",
+        # Greater Calgary/Edmonton
+        "okotoks", "airdrie", "sherwood park", "st. albert", 
+        # Greater Ottawa
+        "gatineau", "kanata", "orleans",
+        # Greater Boston
+        "cambridge", "brookline", "somerville", "newton", "quincy",
+        # Greater NYC
+        "jersey city", "hoboken", "newark", "yonkers", "staten island",
+        "flushing", "long island city", "bronxville", "white plains",
+        # Greater SF
+        "oakland", "berkeley", "san mateo", "redwood city", "palo alto",
+        # Greater LA
+        "pasadena", "burbank", "santa monica", "long beach", "anaheim",
+        # Greater Chicago
+        "evanston", "oak park", "naperville", "schaumburg",
+        # Greater Miami
+        "coral gables", "hialeah", "kendall", "aventura",
+        # Mexico
+        "zapopan", "tlajomulco", "santa catarina", "san nicolas de los garza"
+    ]
 
-        # Mexico Cities
-        "mexico city": [
-            "cuauhtémoc", "polanco", "condesa", "roma", "coyoacán", "centro histórico",
-            "juárez", "narvarte", "san rafael", "del valle"
-        ],
-        "guadalajara": [
-            "centro", "chapultepec", "zapopan", "tlaquepaque", "tonalá"
-        ],
-        "monterrey": [
-            "centro", "san jerónimo", "valle", "cumbres", "obispado"
-        ],
-        "puebla": [
-            "centro histórico", "los fuertes", "la paz"
-        ],
-        "tijuana": [
-            "centro", "playas", "rio", "zona río"
-        ],
-        "leon": [
-            "centro", "las animas", "valladolid"
-        ],
-    }
+    # --- Classification ---
+    if any(city in formatted_str for city in cbd_keywords):
+        return "CBD"
+    elif any(nhood in formatted_str for nhood in suburb_keywords):
+        return "Suburb"
+    elif any(key in components for key in ["village", "hamlet"]):
+        return "Rural"
+    else:
+        # default to Suburb if it's not explicitly rural
+        return "Suburb"
 
     # First, check if formatted address contains any city+neighborhood keyword:
     for city, neighborhoods in city_neighborhoods_cbd.items():
