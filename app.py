@@ -148,13 +148,13 @@ def infer_area_type(location):
         return "Rural"
     return "Suburb"
 
-def has_valid_address(val):
-    if pd.isna(val):
-        return False
-    if isinstance(val, str) and val.strip() == "":
-        return False
-    return True
+# --- Helper: Normalize address string ---
+def normalize_address(addr):
+    if pd.isna(addr):
+        return ""
+    return " ".join(addr.lower().strip().split())
 
+# --- Filter duplicates by preferred transaction milestone status ---
 def filter_duplicates(df):
     preferred_statuses = {
         "Under Construction", "Contract Signed", "IC Approved", 
@@ -168,7 +168,7 @@ def filter_duplicates(df):
         else:
             return group.iloc[[0]]
 
-    filtered_df = df.groupby(["Centre Number", "Addresses"], dropna=False).apply(pick_best)
+    filtered_df = df.groupby(["Centre Number", "Normalized Address"], dropna=False).apply(pick_best)
     filtered_df.index = filtered_df.index.droplevel([0,1])
     return filtered_df.reset_index(drop=True)
 
@@ -201,22 +201,32 @@ if input_address:
                 df = pd.read_excel(file_path, sheet_name=sheet, engine="openpyxl")
                 df["Source Sheet"] = sheet
 
-                # Set Address column depending on sheet name
-                if sheet == "Active Centre" or sheet == "Centre Opened":
-                    df["Addresses"] = df.get("Address Line 1", "")  # fetch address from "Address Line 1"
-                else:
-                    df["Addresses"] = df.get("Addresses", "")  # use existing "Addresses" for Comps
+                # Rename address columns for Active Centre & Centre Opened
+                if sheet == "Active Centre" and "Address Line 1" in df.columns:
+                    df["Addresses"] = df["Address Line 1"]
+                elif sheet == "Centre Opened" and "Address Line 1" in df.columns:
+                    df["Addresses"] = df["Address Line 1"]
+                elif "Addresses" not in df.columns:
+                    df["Addresses"] = ""
 
                 all_data.append(df)
-
             combined_data = pd.concat(all_data)
 
             # Clean Centre Number and drop rows missing important data
             combined_data["Centre Number"] = combined_data["Centre Number"].astype(str).str.strip()
             combined_data = combined_data.dropna(subset=["Latitude", "Longitude", "Centre Number"])
 
-            # Remove duplicate Centre Number & Address rows keeping preferred milestones only
-            combined_data = filter_duplicates(combined_data)
+            # Remove duplicates with missing/empty addresses before deduplication
+            def has_valid_address(val):
+                if pd.isna(val):
+                    return False
+                if isinstance(val, str) and val.strip() == "":
+                    return False
+                return True
+
+            dupe_centre_nums = combined_data["Centre Number"][combined_data["Centre Number"].duplicated(keep=False)].unique()
+            condition = combined_data["Centre Number"].isin(dupe_centre_nums) & (~combined_data["Addresses"].apply(has_valid_address))
+            combined_data = combined_data[~condition]
 
             # Assign priority to sheets
             priority_order = {"Comps": 0, "Active Centre": 1, "Centre Opened": 2}
@@ -229,7 +239,7 @@ if input_address:
                 .drop(columns=["Sheet Priority"])
             )
 
-            # --- Override Transaction Milestone Status with Active Centre values ---
+            # Override Transaction Milestone Status with Active Centre values
             active_centre_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
             active_centre_df["Centre Number"] = active_centre_df["Centre Number"].astype(str).str.strip()
 
@@ -244,6 +254,15 @@ if input_address:
                     return row["Transaction Milestone Status"]
 
             data["Transaction Milestone Status"] = data.apply(replace_transaction_status, axis=1)
+
+            # Normalize addresses for filtering
+            data["Normalized Address"] = data["Addresses"].apply(normalize_address)
+
+            # Filter duplicates with preferred milestone statuses
+            data = filter_duplicates(data)
+
+            # Drop the normalized address helper column
+            data = data.drop(columns=["Normalized Address"])
 
             # Make sure City, State, Zipcode columns exist
             for col in ["City", "State", "Zipcode"]:
@@ -345,55 +364,32 @@ if input_address:
 
                     if uploaded_image:
                         image_path = os.path.join(tempfile.gettempdir(), uploaded_image.name)
-                        with open(image_path, "wb") as img_file:
-                            img_file.write(uploaded_image.read())
-                        slide.shapes.add_picture(image_path, Inches(0.5), Inches(1.5), height=Inches(3.5))
-                        top_text = Inches(5.2)
-                    else:
-                        top_text = Inches(1.5)
+                        with open(image_path, "wb") as f:
+                            f.write(uploaded_image.getbuffer())
 
-                    def add_centres_to_slide_table(centres_subset, title_text=None):
-                        slide = prs.slides.add_slide(slide_layout)
-                        if title_text:
-                            slide.shapes.title.text = title_text
+                        slide.shapes.add_picture(image_path, Inches(0.5), Inches(1.5), width=Inches(9))
 
-                        rows = len(centres_subset) + 1
-                        cols = 6
-                        table = slide.shapes.add_table(rows, cols, Inches(0.5), Inches(1), Inches(9), Inches(0.8 + 0.3 * rows)).table
+                    left = Inches(0.5)
+                    top = Inches(5.0)
+                    width = Inches(9)
+                    height = Inches(2)
+                    txBox = slide.shapes.add_textbox(left, top, width, height)
+                    tf = txBox.text_frame
+                    tf.word_wrap = True
+                    p = tf.add_paragraph()
+                    p.text = distance_text
+                    p.font.size = Pt(12)
+                    p.font.bold = True
 
-                        # Header row
-                        headers = ["Centre #", "Address", "City", "State", "Milestone", "Distance (miles)"]
-                        for i, header in enumerate(headers):
-                            table.cell(0, i).text = header
-                            cell = table.cell(0, i)
-                            for paragraph in cell.text_frame.paragraphs:
-                                for run in paragraph.runs:
-                                    run.font.bold = True
-                                    run.font.size = Pt(12)
-
-                        for i, (_, row) in enumerate(centres_subset.iterrows()):
-                            table.cell(i + 1, 0).text = str(int(row["Centre Number"]))
-                            table.cell(i + 1, 1).text = row["Addresses"]
-                            table.cell(i + 1, 2).text = str(row.get("City", ""))
-                            table.cell(i + 1, 3).text = str(row.get("State", ""))
-                            table.cell(i + 1, 4).text = str(row["Transaction Milestone Status"])
-                            table.cell(i + 1, 5).text = f"{row['Distance (miles)']:.2f}"
-
-                    add_centres_to_slide_table(closest, title_text="Closest 5 Centres")
-
-                    pptx_path = os.path.join(tempfile.gettempdir(), "Closest_Centres_Presentation.pptx")
-                    prs.save(pptx_path)
-                    with open(pptx_path, "rb") as f:
-                        btn = st.download_button(
-                            label="Download PowerPoint Presentation",
-                            data=f,
-                            file_name="Closest_Centres_Presentation.pptx",
-                            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                        )
+                    pptx_filename = f"Closest_Centres_{input_address.replace(' ', '_')}.pptx"
+                    prs.save(pptx_filename)
+                    st.success(f"PowerPoint exported: {pptx_filename}")
                 except Exception as e:
-                    st.error(f"Error generating PowerPoint: {str(e)}")
+                    st.error(f"Error exporting to PowerPoint: {e}")
                     st.error(traceback.format_exc())
 
     except Exception as e:
-        st.error(f"Unexpected error: {str(e)}")
+        st.error(f"Unexpected error: {e}")
         st.error(traceback.format_exc())
+else:
+    st.info("Please enter an address above to find the closest centres.")
