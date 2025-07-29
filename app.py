@@ -397,73 +397,66 @@ if input_address:
             uploaded_image = st.file_uploader("\U0001F5BC\ufe0f Optional: Upload Map Screenshot for PowerPoint", type=["png","jpg","jpeg"])
 
             # PowerPoint generation button & code...
+# PowerPoint generation button & code...
+if st.button("\U0001F4E4 Export to PowerPoint"):
+    try:
+        prs = Presentation()
+        slide_layout = prs.slide_layouts[5]
+        slide = prs.slides.add_slide(slide_layout)
+        slide.shapes.title.text = f"5 Closest Centres to:\n{input_address}"
 
-                   if st.button("\U0001F4E4 Export to PowerPoint"):
-                try:
-                    prs = Presentation()
-                    slide_layout = prs.slide_layouts[5]
-                    slide = prs.slides.add_slide(slide_layout)
-                    slide.shapes.title.text = f"5 Closest Centres to:\n{input_address}"
+        if uploaded_image:
+            image_path = os.path.join(tempfile.gettempdir(), uploaded_image.name)
+            with open(image_path, "wb") as img_file:
+                img_file.write(uploaded_image.read())
+            slide.shapes.add_picture(image_path, Inches(0.5), Inches(1.5), height=Inches(3.5))
+            top_text = Inches(5.2)
+        else:
+            top_text = Inches(1.5)
 
-                    if uploaded_image:
-                        image_path = os.path.join(tempfile.gettempdir(), uploaded_image.name)
-                        with open(image_path, "wb") as img_file:
-                            img_file.write(uploaded_image.read())
-                        slide.shapes.add_picture(image_path, Inches(0.5), Inches(1.5), height=Inches(3.5))
-                        top_text = Inches(5.2)
-                    else:
-                        top_text = Inches(1.5)
+        def add_centres_to_slide_table(centres_subset, title_text=None):
+            slide = prs.slides.add_slide(slide_layout)
+            if title_text:
+                slide.shapes.title.text = title_text
 
-                    def add_centres_to_slide_table(centres_subset, title_text=None):
-                        slide = prs.slides.add_slide(slide_layout)
-                        if title_text:
-                            slide.shapes.title.text = title_text
+            rows = len(centres_subset) + 1
+            cols = 6
+            table = slide.shapes.add_table(rows, cols, Inches(0.5), Inches(1), Inches(9), Inches(0.8 + 0.4 * rows)).table
 
-                        rows = len(centres_subset) + 1
-                        cols = 6
-                        table = slide.shapes.add_table(rows, cols, Inches(0.5), Inches(1), Inches(9), Inches(0.8 + 0.4 * rows)).table
+            headers = ["Centre #", "Address", "City, State, Zip", "Format", "Milestone", "Distance (miles)"]
+            for col_idx, header_text in enumerate(headers):
+                cell = table.cell(0, col_idx)
+                cell.text = header_text
+                for p in cell.text_frame.paragraphs:
+                    p.font.bold = True
+                    p.font.size = Pt(14)
 
-                        headers = ["Centre #", "Address", "City, State, Zip", "Format", "Milestone", "Distance (miles)"]
-                        for col_idx, header_text in enumerate(headers):
-                            cell = table.cell(0, col_idx)
-                            cell.text = header_text
-                            for p in cell.text_frame.paragraphs:
-                                p.font.bold = True
-                                p.font.size = Pt(14)
+            for i, row in enumerate(centres_subset, start=1):
+                table.cell(i, 0).text = str(int(row["Centre Number"]))
+                table.cell(i, 1).text = row["Addresses"]
+                table.cell(i, 2).text = f"{row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')}".strip(", ")
+                table.cell(i, 3).text = row["Format - Type of Centre"]
+                table.cell(i, 4).text = row["Transaction Milestone Status"]
+                table.cell(i, 5).text = f"{row['Distance (miles)']:.2f}"
+                for col_idx in range(cols):
+                    for p in table.cell(i, col_idx).text_frame.paragraphs:
+                        p.font.size = Pt(12)
 
-                        for i, row in enumerate(centres_subset, start=1):
-                            table.cell(i, 0).text = str(int(row["Centre Number"]))
-                            table.cell(i, 1).text = row["Addresses"]
-                            table.cell(i, 2).text = f"{row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')}".strip(", ")
-                            table.cell(i, 3).text = row["Format - Type of Centre"]
-                            table.cell(i, 4).text = row["Transaction Milestone Status"]
-                            table.cell(i, 5).text = f"{row['Distance (miles)']:.2f}"
-                            for col_idx in range(cols):
-                                for p in table.cell(i, col_idx).text_frame.paragraphs:
-                                    p.font.size = Pt(12)
+        rows = closest.to_dict(orient="records")
+        for i in range(0, len(rows), 4):
+            add_centres_to_slide_table(rows[i:i+4])
 
-                    rows = closest.to_dict(orient="records")
-                    for i in range(0, len(rows), 4):
-                        add_centres_to_slide_table(rows[i:i+4])
+        pptx_path = os.path.join(tempfile.gettempdir(), "ClosestCentres.pptx")
+        prs.save(pptx_path)
 
-                    pptx_path = os.path.join(tempfile.gettempdir(), "ClosestCentres.pptx")
-                    prs.save(pptx_path)
+        with open(pptx_path, "rb") as f:
+            st.download_button(
+                "\u2B07\uFE0F Download PowerPoint", 
+                f, 
+                file_name="ClosestCentres.pptx", 
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            )
 
-                    with open(pptx_path, "rb") as f:
-                        st.download_button(
-                            "\u2B07\uFE0F Download PowerPoint", 
-                            f, 
-                            file_name="ClosestCentres.pptx", 
-                            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                        )
-
-                except Exception as pptx_error:
-                    st.error("\u274C PowerPoint export failed.")
-                    st.text(str(pptx_error))
-
-    except Exception as e:
-        st.error("An error occurred:")
-        st.text(str(e))
-        st.text(traceback.format_exc())
-else:
-    st.info("Please enter an address above to get started.")
+    except Exception as pptx_error:
+        st.error("\u274C PowerPoint export failed.")
+        st.text(str(pptx_error))
