@@ -179,28 +179,50 @@ if input_address:
                 all_data.append(df)
             combined_data = pd.concat(all_data)
 
-            # Clean Centre Number
+            # --- NEW: Set Addresses column based on Source Sheet ---
+            def choose_address(row):
+                if row["Source Sheet"] in ["Active Centre", "Centre Opened"]:
+                    # Use 'Address Line 1' if exists and not NaN
+                    return row.get("Address Line 1", "") if pd.notna(row.get("Address Line 1", None)) else ""
+                else:
+                    # Otherwise use 'Addresses'
+                    return row.get("Addresses", "") if pd.notna(row.get("Addresses", None)) else ""
+
+            combined_data["Addresses"] = combined_data.apply(choose_address, axis=1)
+
+            # Clean Centre Number and drop rows missing important data
             combined_data["Centre Number"] = combined_data["Centre Number"].astype(str).str.strip()
+            combined_data = combined_data.dropna(subset=["Latitude", "Longitude", "Centre Number"])
 
-            # Drop rows missing crucial coordinates
-            combined_data = combined_data.dropna(subset=["Latitude", "Longitude"])
+            address_col = "Addresses"
 
-            # Assign priority: Comps highest, so when sorted Comps rows come first
+            def has_valid_address(val):
+                if pd.isna(val):
+                    return False
+                if isinstance(val, str) and val.strip() == "":
+                    return False
+                return True
+
+            # Remove duplicate Centre Number rows with missing/empty addresses BEFORE deduplication
+            dupe_centre_nums = combined_data["Centre Number"][combined_data["Centre Number"].duplicated(keep=False)].unique()
+            condition = combined_data["Centre Number"].isin(dupe_centre_nums) & (~combined_data[address_col].apply(has_valid_address))
+            combined_data = combined_data[~condition]
+
+            # Assign priority to sheets
             priority_order = {"Comps": 0, "Active Centre": 1, "Centre Opened": 2}
             combined_data["Sheet Priority"] = combined_data["Source Sheet"].map(priority_order)
 
-            # Sort by Centre Number and Sheet Priority
-            combined_data = combined_data.sort_values(by=["Centre Number", "Sheet Priority"])
+            data = (
+                combined_data
+                .sort_values(by="Sheet Priority")
+                .drop_duplicates(subset=["Centre Number"], keep="first")
+                .drop(columns=["Sheet Priority"])
+            )
 
-            # Drop duplicates, keeping the first (Comps if exists)
-            combined_data = combined_data.drop_duplicates(subset=["Centre Number"], keep="first")
-
-            # Drop helper column
-            combined_data = combined_data.drop(columns=["Sheet Priority"])
-
-            # --- Override Transaction Milestone Status with Active Centre values ---
+            # --- NEW: Override Transaction Milestone Status with Active Centre values ---
             active_centre_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
             active_centre_df["Centre Number"] = active_centre_df["Centre Number"].astype(str).str.strip()
+
             active_status_map = active_centre_df.dropna(subset=["Centre Number", "Transaction Milestone Status"])\
                                                .set_index("Centre Number")["Transaction Milestone Status"].to_dict()
 
@@ -211,17 +233,17 @@ if input_address:
                 else:
                     return row["Transaction Milestone Status"]
 
-            combined_data["Transaction Milestone Status"] = combined_data.apply(replace_transaction_status, axis=1)
+            data["Transaction Milestone Status"] = data.apply(replace_transaction_status, axis=1)
 
             # Make sure City, State, Zipcode columns exist
             for col in ["City", "State", "Zipcode"]:
-                if col not in combined_data.columns:
-                    combined_data[col] = ""
+                if col not in data.columns:
+                    data[col] = ""
 
             # Calculate distances
-            combined_data["Distance (miles)"] = combined_data.apply(
+            data["Distance (miles)"] = data.apply(
                 lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1)
-            data_sorted = combined_data.sort_values("Distance (miles)").reset_index(drop=True)
+            data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
 
             selected_centres = []
             seen_distances, seen_centre_numbers = [], set()
@@ -337,22 +359,39 @@ if input_address:
                                 p.font.bold = True
                                 p.font.size = Pt(14)
 
-                        for i, row in enumerate(centres_subset.itertuples(index=False), start=1):
-                            table.cell(i, 0).text = str(int(row._asdict()["Centre Number"]))
-                            table.cell(i, 1).text = row._asdict()["Addresses"]
-                            table.cell(i, 2).text = f"{row._asdict().get('City', '')}, {row._asdict().get('State', '')} {row._asdict().get('Zipcode', '')}".strip(", ")
-                            table.cell(i, 3).text = row._asdict()["Format - Type of Centre"]
-                            table.cell(i, 4).text = row._asdict()["Transaction Milestone Status"]
-                            table.cell(i, 5).text = f"{row._asdict()['Distance (miles)']:.2f}"
+                        for i, row in enumerate(centres_subset, start=1):
+                            table.cell(i, 0).text = str(int(row["Centre Number"]))
+                            table.cell(i, 1).text = row["Addresses"]
+                            table.cell(i, 2).text = f"{row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')}".strip(", ")
+                            table.cell(i, 3).text = row["Format - Type of Centre"]
+                            table.cell(i, 4).text = row["Transaction Milestone Status"]
+                            table.cell(i, 5).text = f"{row['Distance (miles)']:.2f}"
+                            for col_idx in range(cols):
+                                for p in table.cell(i, col_idx).text_frame.paragraphs:
+                                    p.font.size = Pt(12)
 
-                        return slide
+                    rows = closest.to_dict(orient="records")
+                    for i in range(0, len(rows), 4):
+                        add_centres_to_slide_table(rows[i:i+4])
 
-                    add_centres_to_slide_table(closest, title_text="5 Closest Centres")
+                    pptx_path = os.path.join(tempfile.gettempdir(), "ClosestCentres.pptx")
+                    prs.save(pptx_path)
 
-                    prs.save("Closest_Centres.pptx")
-                    st.success("PowerPoint exported successfully as 'Closest_Centres.pptx'.")
-                except Exception as e:
-                    st.error(f"Export error: {e}\n{traceback.format_exc()}")
+                    with open(pptx_path, "rb") as f:
+                        st.download_button(
+                            "\u2B07\uFE0F Download PowerPoint", 
+                            f, 
+                            file_name="ClosestCentres.pptx", 
+                            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                        )
+
+                except Exception as pptx_error:
+                    st.error("\u274C PowerPoint export failed.")
+                    st.text(str(pptx_error))
 
     except Exception as e:
-        st.error(f"\u274C Unexpected error: {e}")
+        st.error("An error occurred:")
+        st.text(str(e))
+        st.text(traceback.format_exc())
+else:
+    st.info("Please enter an address above to get started.")
