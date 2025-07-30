@@ -8,10 +8,11 @@ from pptx.util import Inches, Pt
 import requests
 import urllib.parse
 import traceback
-from branca.element import Template, MacroElement, Element
+from branca.element import Template, MacroElement
 import os
 import tempfile
 import streamlit.components.v1 as components
+from folium.plugins import ZoomControl  # <-- import ZoomControl here
 
 # MUST BE FIRST Streamlit call
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
@@ -234,25 +235,14 @@ if input_address:
                     if len(selected_centres) == 5: break
                 closest = pd.DataFrame(selected_centres)
 
-                # Create folium map with zoom_control enabled (default) and then move it to top right with JS
+                # --- Map Creation with ZoomControl explicitly added ---
                 m = folium.Map(
                     location=input_coords,
                     zoom_start=14,
-                    zoom_control=True,
                     control_scale=True,
+                    zoom_control=False  # disable default zoom control
                 )
-
-                # Add zoom control position fix to top right
-                zoom_control_js = """
-                <script>
-                setTimeout(() => {
-                    if (window._last_folium_map) {
-                        window._last_folium_map.zoomControl.setPosition('topright');
-                    }
-                }, 500);
-                </script>
-                """
-                m.get_root().html.add_child(Element(zoom_control_js))
+                ZoomControl(position='topright').add_to(m)  # add classic + / - zoom buttons top right
 
                 folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
 
@@ -349,30 +339,35 @@ if input_address:
                             for i, row in enumerate(centres_subset, start=1):
                                 table.cell(i, 0).text = str(int(row["Centre Number"]))
                                 table.cell(i, 1).text = row["Addresses"]
-                                table.cell(i, 2).text = f"{row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')}"
+                                table.cell(i, 2).text = f"{row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')}".strip(", ")
                                 table.cell(i, 3).text = row["Format - Type of Centre"]
                                 table.cell(i, 4).text = row["Transaction Milestone Status"]
                                 table.cell(i, 5).text = f"{row['Distance (miles)']:.2f}"
+                                for col_idx in range(cols):
+                                    for p in table.cell(i, col_idx).text_frame.paragraphs:
+                                        p.font.size = Pt(12)
 
-                        # Add closest centres table slide
-                        add_centres_to_slide_table(selected_centres, title_text=f"5 Closest Centres to {input_address}")
+                        rows = closest.to_dict(orient="records")
+                        for i in range(0, len(rows), 4):
+                            add_centres_to_slide_table(rows[i:i+4])
 
-                        pptx_filename = f"ClosestCentres_{input_address.replace(' ','_')}.pptx"
-                        prs.save(pptx_filename)
+                        pptx_path = os.path.join(tempfile.gettempdir(), "ClosestCentres.pptx")
+                        prs.save(pptx_path)
 
-                        with open(pptx_filename, "rb") as f:
-                            btn = st.download_button(
-                                label="Download PowerPoint",
-                                data=f,
-                                file_name=pptx_filename,
+                        with open(pptx_path, "rb") as f:
+                            st.download_button(
+                                "\u2B07\uFE0F Download PowerPoint", 
+                                f, 
+                                file_name="ClosestCentres.pptx", 
                                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
                             )
-                    except Exception as e:
-                        st.error(f"Failed to export PPTX: {e}")
-                        st.error(traceback.format_exc())
+
+                    except Exception as pptx_error:
+                        st.error("\u274C PowerPoint export failed.")
+                        st.text(str(pptx_error))
 
     except Exception as e:
         st.error(f"\u274C Unexpected error: {e}")
         st.error(traceback.format_exc())
 else:
-    st.info("Please enter an address to find closest centres.")
+    st.info("Please enter an address above to begin.")
