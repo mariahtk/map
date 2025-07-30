@@ -8,7 +8,7 @@ from pptx.util import Inches, Pt
 import requests
 import urllib.parse
 import traceback
-from branca.element import Template, MacroElement
+from branca.element import Template, MacroElement, Element
 import os
 import tempfile
 import streamlit.components.v1 as components
@@ -238,6 +238,22 @@ if input_address:
 
                 m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
                 folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
+
+                # --- Move Zoom +/- to top-right ---
+                move_zoom_js = """
+                <script>
+                document.addEventListener("DOMContentLoaded", function() {
+                    var zc = document.querySelector(".leaflet-control-zoom");
+                    if (zc) {
+                        zc.style.top = "10px";
+                        zc.style.left = "auto";
+                        zc.style.right = "10px";
+                    }
+                });
+                </script>
+                """
+                m.get_root().html.add_child(Element(move_zoom_js))
+
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
                 distance_text = ""
