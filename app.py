@@ -2,7 +2,8 @@ import pandas as pd
 from geopy.distance import geodesic
 import streamlit as st
 import folium
-from folium import Map, Marker, Icon, PolyLine, Circle, Tooltip, ZoomControl
+from folium import Map, Marker, Icon, PolyLine, Circle, Tooltip
+from folium.plugins import ZoomControl
 from streamlit_folium import st_folium
 from pptx import Presentation
 from pptx.util import Inches, Pt
@@ -235,7 +236,7 @@ if input_address:
                     if len(selected_centres) == 5: break
                 closest = pd.DataFrame(selected_centres)
 
-                # Create the map WITHOUT default zoom control, then add ZoomControl on top right
+                # Create map with zoom control disabled, then add ZoomControl plugin explicitly
                 m = Map(location=input_coords, zoom_start=14, zoom_control=False, control_scale=True)
                 ZoomControl(position='topright').add_to(m)
 
@@ -339,19 +340,15 @@ if input_address:
                                 table.cell(i, 4).text = row["Transaction Milestone Status"]
                                 table.cell(i, 5).text = f"{row['Distance (miles)']:.2f}"
 
-                            for col_idx in range(cols):
-                                for row_idx in range(rows):
-                                    cell = table.cell(row_idx, col_idx)
-                                    cell.text_frame.paragraphs[0].font.size = Pt(12)
-
-                        add_centres_to_slide_table(selected_centres, title_text=f"5 Closest Centres to:\n{input_address}")
-
-                        prs_path = os.path.join(tempfile.gettempdir(), "Closest_Centres_Presentation.pptx")
-                        prs.save(prs_path)
-                        with open(prs_path, "rb") as f:
-                            btn = st.download_button(label="Download PowerPoint File", data=f, file_name="Closest_Centres_Presentation.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+                        add_centres_to_slide_table(selected_centres, title_text="Closest Centres")
+                        pptx_output = os.path.join(tempfile.gettempdir(), "Closest_Centres.pptx")
+                        prs.save(pptx_output)
+                        with open(pptx_output, "rb") as f:
+                            st.download_button("Download PowerPoint", f, file_name="Closest_Centres.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
                     except Exception as e:
-                        st.error(f"Error creating PowerPoint: {e}\n{traceback.format_exc()}")
+                        st.error(f"Error creating PowerPoint: {e}")
+                        st.error(traceback.format_exc())
 
-    except Exception as e:
-        st.error(f"Unexpected error: {e}")
+    except Exception as ex:
+        st.error(f"Unexpected error: {ex}")
+        st.error(traceback.format_exc())
