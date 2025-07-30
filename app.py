@@ -12,7 +12,6 @@ from branca.element import Template, MacroElement, Element
 import os
 import tempfile
 import streamlit.components.v1 as components
-from folium import plugins
 
 # MUST BE FIRST Streamlit call
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
@@ -235,22 +234,25 @@ if input_address:
                     if len(selected_centres) == 5: break
                 closest = pd.DataFrame(selected_centres)
 
-                # Create folium map WITHOUT default zoom control
-                m = folium.Map(location=input_coords, zoom_start=14, zoom_control=False, control_scale=True)
+                # Create folium map with zoom_control enabled (default) and then move it to top right with JS
+                m = folium.Map(
+                    location=input_coords,
+                    zoom_start=14,
+                    zoom_control=True,
+                    control_scale=True,
+                )
 
-                # Inject Leaflet JS to add zoom control at top right
-                zoom_js = """
+                # Add zoom control position fix to top right
+                zoom_control_js = """
                 <script>
-                  var map = window._last_folium_map || null;
-                  if(map){
-                    if (map.zoomControl) {
-                        map.zoomControl.remove();
+                setTimeout(() => {
+                    if (window._last_folium_map) {
+                        window._last_folium_map.zoomControl.setPosition('topright');
                     }
-                    L.control.zoom({position:'topright'}).addTo(map);
-                  }
+                }, 500);
                 </script>
                 """
-                m.get_root().html.add_child(Element(zoom_js))
+                m.get_root().html.add_child(Element(zoom_control_js))
 
                 folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
 
@@ -352,30 +354,25 @@ if input_address:
                                 table.cell(i, 4).text = row["Transaction Milestone Status"]
                                 table.cell(i, 5).text = f"{row['Distance (miles)']:.2f}"
 
-                            for row in table.rows:
-                                for cell in row.cells:
-                                    for p in cell.text_frame.paragraphs:
-                                        p.font.size = Pt(12)
+                        # Add closest centres table slide
+                        add_centres_to_slide_table(selected_centres, title_text=f"5 Closest Centres to {input_address}")
 
-                        add_centres_to_slide_table(selected_centres, f"5 Closest Centres to:\n{input_address}")
+                        pptx_filename = f"ClosestCentres_{input_address.replace(' ','_')}.pptx"
+                        prs.save(pptx_filename)
 
-                        output_file = f"Closest_Centres_{input_address.replace(' ','_').replace(',','')}.pptx"
-                        prs.save(output_file)
-
-                        with open(output_file, "rb") as f:
-                            st.download_button(label="\U0001F4E4 Download PowerPoint",
-                                               data=f,
-                                               file_name=output_file,
-                                               mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
-                        if os.path.exists(output_file):
-                            os.remove(output_file)
-
+                        with open(pptx_filename, "rb") as f:
+                            btn = st.download_button(
+                                label="Download PowerPoint",
+                                data=f,
+                                file_name=pptx_filename,
+                                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                            )
                     except Exception as e:
-                        st.error(f"\u274C PowerPoint export error: {e}")
+                        st.error(f"Failed to export PPTX: {e}")
                         st.error(traceback.format_exc())
 
     except Exception as e:
         st.error(f"\u274C Unexpected error: {e}")
         st.error(traceback.format_exc())
 else:
-    st.info("Please enter an address above to begin.")
+    st.info("Please enter an address to find closest centres.")
