@@ -237,7 +237,6 @@ if input_address:
                 closest = pd.DataFrame(selected_centres)
 
                 m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
-                plugins.ZoomControl(position='topright').add_to(m)
                 folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
