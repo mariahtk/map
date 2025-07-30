@@ -2,6 +2,7 @@ import pandas as pd
 from geopy.distance import geodesic
 import streamlit as st
 import folium
+from folium import Map, Marker, Icon, PolyLine, Circle, Tooltip, ZoomControl
 from streamlit_folium import st_folium
 from pptx import Presentation
 from pptx.util import Inches, Pt
@@ -12,7 +13,6 @@ from branca.element import Template, MacroElement
 import os
 import tempfile
 import streamlit.components.v1 as components
-from folium.plugins import ZoomControl  # <-- import ZoomControl here
 
 # MUST BE FIRST Streamlit call
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
@@ -235,16 +235,11 @@ if input_address:
                     if len(selected_centres) == 5: break
                 closest = pd.DataFrame(selected_centres)
 
-                # --- Map Creation with ZoomControl explicitly added ---
-                m = folium.Map(
-                    location=input_coords,
-                    zoom_start=14,
-                    control_scale=True,
-                    zoom_control=False  # disable default zoom control
-                )
-                ZoomControl(position='topright').add_to(m)  # add classic + / - zoom buttons top right
+                # Create the map WITHOUT default zoom control, then add ZoomControl on top right
+                m = Map(location=input_coords, zoom_start=14, zoom_control=False, control_scale=True)
+                ZoomControl(position='topright').add_to(m)
 
-                folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
+                Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=Icon(color="green")).add_to(m)
 
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
@@ -252,18 +247,18 @@ if input_address:
                 distance_text = ""
                 for _, row in closest.iterrows():
                     dest_coords = (row["Latitude"],row["Longitude"])
-                    folium.PolyLine([input_coords,dest_coords], color="blue", weight=2.5).add_to(m)
+                    PolyLine([input_coords,dest_coords], color="blue", weight=2.5).add_to(m)
                     color = get_marker_color(row["Format - Type of Centre"])
                     label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
-                    folium.Marker(location=dest_coords,
-                                  popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
-                                  tooltip=folium.Tooltip(f"<div style='font-size:16px;font-weight:bold'>{label}</div>", permanent=True, direction='right'),
-                                  icon=folium.Icon(color=color)).add_to(m)
+                    Marker(location=dest_coords,
+                           popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
+                           tooltip=Tooltip(f"<div style='font-size:16px;font-weight:bold'>{label}</div>", permanent=True, direction='right'),
+                           icon=Icon(color=color)).add_to(m)
                     distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
                 radius_meters = radius_miles.get(area_type,5) * 1609.34
-                folium.Circle(location=input_coords, radius=radius_meters, color="green", fill=True, fill_opacity=0.2).add_to(m)
+                Circle(location=input_coords, radius=radius_meters, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
                 legend_template = f"""
                     {{% macro html(this, kwargs) %}}
@@ -343,31 +338,20 @@ if input_address:
                                 table.cell(i, 3).text = row["Format - Type of Centre"]
                                 table.cell(i, 4).text = row["Transaction Milestone Status"]
                                 table.cell(i, 5).text = f"{row['Distance (miles)']:.2f}"
-                                for col_idx in range(cols):
-                                    for p in table.cell(i, col_idx).text_frame.paragraphs:
-                                        p.font.size = Pt(12)
 
-                        rows = closest.to_dict(orient="records")
-                        for i in range(0, len(rows), 4):
-                            add_centres_to_slide_table(rows[i:i+4])
+                            for col_idx in range(cols):
+                                for row_idx in range(rows):
+                                    cell = table.cell(row_idx, col_idx)
+                                    cell.text_frame.paragraphs[0].font.size = Pt(12)
 
-                        pptx_path = os.path.join(tempfile.gettempdir(), "ClosestCentres.pptx")
-                        prs.save(pptx_path)
+                        add_centres_to_slide_table(selected_centres, title_text=f"5 Closest Centres to:\n{input_address}")
 
-                        with open(pptx_path, "rb") as f:
-                            st.download_button(
-                                "\u2B07\uFE0F Download PowerPoint", 
-                                f, 
-                                file_name="ClosestCentres.pptx", 
-                                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                            )
-
-                    except Exception as pptx_error:
-                        st.error("\u274C PowerPoint export failed.")
-                        st.text(str(pptx_error))
+                        prs_path = os.path.join(tempfile.gettempdir(), "Closest_Centres_Presentation.pptx")
+                        prs.save(prs_path)
+                        with open(prs_path, "rb") as f:
+                            btn = st.download_button(label="Download PowerPoint File", data=f, file_name="Closest_Centres_Presentation.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+                    except Exception as e:
+                        st.error(f"Error creating PowerPoint: {e}\n{traceback.format_exc()}")
 
     except Exception as e:
-        st.error(f"\u274C Unexpected error: {e}")
-        st.error(traceback.format_exc())
-else:
-    st.info("Please enter an address above to begin.")
+        st.error(f"Unexpected error: {e}")
