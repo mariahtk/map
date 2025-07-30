@@ -8,12 +8,11 @@ from pptx.util import Inches, Pt
 import requests
 import urllib.parse
 import traceback
-from branca.element import Template, MacroElement
+from branca.element import Template, MacroElement, Element
 import os
 import tempfile
 import streamlit.components.v1 as components
 from folium import plugins
-
 
 # MUST BE FIRST Streamlit call
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
@@ -236,10 +235,28 @@ if input_address:
                     if len(selected_centres) == 5: break
                 closest = pd.DataFrame(selected_centres)
 
-                m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
+                # Create folium map WITHOUT default zoom control
+                m = folium.Map(location=input_coords, zoom_start=14, zoom_control=False, control_scale=True)
+
+                # Inject Leaflet JS to add zoom control at top right
+                zoom_js = """
+                <script>
+                  var map = window._last_folium_map || null;
+                  if(map){
+                    if (map.zoomControl) {
+                        map.zoomControl.remove();
+                    }
+                    L.control.zoom({position:'topright'}).addTo(map);
+                  }
+                </script>
+                """
+                m.get_root().html.add_child(Element(zoom_js))
+
                 folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
+
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
+
                 distance_text = ""
                 for _, row in closest.iterrows():
                     dest_coords = (row["Latitude"],row["Longitude"])
@@ -330,32 +347,32 @@ if input_address:
                             for i, row in enumerate(centres_subset, start=1):
                                 table.cell(i, 0).text = str(int(row["Centre Number"]))
                                 table.cell(i, 1).text = row["Addresses"]
-                                table.cell(i, 2).text = f"{row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')}".strip(", ")
+                                table.cell(i, 2).text = f"{row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')}"
                                 table.cell(i, 3).text = row["Format - Type of Centre"]
                                 table.cell(i, 4).text = row["Transaction Milestone Status"]
                                 table.cell(i, 5).text = f"{row['Distance (miles)']:.2f}"
-                                for col_idx in range(cols):
-                                    for p in table.cell(i, col_idx).text_frame.paragraphs:
+
+                            for row in table.rows:
+                                for cell in row.cells:
+                                    for p in cell.text_frame.paragraphs:
                                         p.font.size = Pt(12)
 
-                        rows = closest.to_dict(orient="records")
-                        for i in range(0, len(rows), 4):
-                            add_centres_to_slide_table(rows[i:i+4])
+                        add_centres_to_slide_table(selected_centres, f"5 Closest Centres to:\n{input_address}")
 
-                        pptx_path = os.path.join(tempfile.gettempdir(), "ClosestCentres.pptx")
-                        prs.save(pptx_path)
+                        output_file = f"Closest_Centres_{input_address.replace(' ','_').replace(',','')}.pptx"
+                        prs.save(output_file)
 
-                        with open(pptx_path, "rb") as f:
-                            st.download_button(
-                                "\u2B07\uFE0F Download PowerPoint", 
-                                f, 
-                                file_name="ClosestCentres.pptx", 
-                                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                            )
+                        with open(output_file, "rb") as f:
+                            st.download_button(label="\U0001F4E4 Download PowerPoint",
+                                               data=f,
+                                               file_name=output_file,
+                                               mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+                        if os.path.exists(output_file):
+                            os.remove(output_file)
 
-                    except Exception as pptx_error:
-                        st.error("\u274C PowerPoint export failed.")
-                        st.text(str(pptx_error))
+                    except Exception as e:
+                        st.error(f"\u274C PowerPoint export error: {e}")
+                        st.error(traceback.format_exc())
 
     except Exception as e:
         st.error(f"\u274C Unexpected error: {e}")
