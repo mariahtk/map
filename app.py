@@ -8,7 +8,7 @@ from pptx.util import Inches, Pt
 import requests
 import urllib.parse
 import traceback
-from branca.element import Template, MacroElement, Element
+from branca.element import Template, MacroElement
 import os
 import tempfile
 import streamlit.components.v1 as components
@@ -238,22 +238,6 @@ if input_address:
 
                 m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
                 folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
-
-                # --- Move Zoom +/- to top-right ---
-                move_zoom_js = """
-                <script>
-                document.addEventListener("DOMContentLoaded", function() {
-                    var zc = document.querySelector(".leaflet-control-zoom");
-                    if (zc) {
-                        zc.style.top = "10px";
-                        zc.style.left = "auto";
-                        zc.style.right = "10px";
-                    }
-                });
-                </script>
-                """
-                m.get_root().html.add_child(Element(move_zoom_js))
-
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
                 distance_text = ""
@@ -272,9 +256,10 @@ if input_address:
                 radius_meters = radius_miles.get(area_type,5) * 1609.34
                 folium.Circle(location=input_coords, radius=radius_meters, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
+                # --- Legend moved to top-right ---
                 legend_template = f"""
                     {{% macro html(this, kwargs) %}}
-                    <div style='position: absolute; top: 10px; left: 10px; width: 170px; z-index: 9999;
+                    <div style='position: absolute; top: 10px; right: 10px; width: 170px; z-index: 9999;
                                 background-color: white; padding: 10px; border: 2px solid gray;
                                 border-radius: 5px; font-size: 14px;'>
                         <b>Radius</b><br>
