@@ -16,7 +16,7 @@ import streamlit.components.v1 as components
 # MUST BE FIRST Streamlit call
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 
-# --- Hide Streamlit UI Chrome, Branding, & "Made by Streamlit" Badge ---
+# --- Hide Streamlit UI Chrome, Branding, "Made by Streamlit" Badge & GitHub Icon ---
 st.markdown("""
     <style>
     /* Hide built-in Streamlit UI */
@@ -24,20 +24,20 @@ st.markdown("""
     footer {visibility: hidden !important;}
     header {visibility: hidden !important;}
 
-    /* Hide Streamlit floating badge */
-    .viewerBadge_container__1QSob {display: none !important;}
-
-    /* Hide common floating buttons */
-    [data-testid="stStatusWidget"] {display: none !important;}
-    .stDeployButton {display: none !important;}
-    iframe[src*="streamlit.io"] {display: none !important;}
-
-    /* Hide known footer and branding classes */
-    .st-emotion-cache-13ln4jf,
-    .st-emotion-cache-zq5wmm,
-    .st-emotion-cache-1v0mbdj,
-    .st-emotion-cache-1dp5vir {
+    /* Hide Streamlit floating badges & GitHub icon */
+    .viewerBadge_container__1QSob,
+    .stAppViewerBadge,
+    .st-emotion-cache-1wbqy5l,
+    .st-emotion-cache-12fmjuu,
+    .st-emotion-cache-1gulkj5,
+    .stActionButton,
+    a[href*="github.com"] {
         display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        height: 0px !important;
+        width: 0px !important;
     }
 
     /* Remove padding for clean look */
@@ -48,23 +48,24 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- JavaScript to remove "Manage App" or other unknown floating elements ---
+# --- JavaScript backup removal for dynamically injected badges & GitHub icon ---
 components.html("""
 <script>
-const killFloaters = () => {
-    const floaters = document.querySelectorAll('div[aria-label*="Manage"], div[role="complementary"], a[href*="streamlit.app"]');
-    floaters.forEach(el => {
-        el.style.display = "none";
+const hideBadges = () => {
+    const selectors = [
+        'div.viewerBadge_container__1QSob',
+        'div.stAppViewerBadge',
+        'div.st-emotion-cache-1wbqy5l',
+        'div.st-emotion-cache-12fmjuu',
+        'div.st-emotion-cache-1gulkj5',
+        'a[href*="streamlit.io"]',
+        'a[href*="github.com"]'
+    ];
+    selectors.forEach(sel => {
+        document.querySelectorAll(sel).forEach(el => el.style.display = "none");
     });
 };
-
-const interval = setInterval(() => {
-    killFloaters();
-    if (document.readyState === "complete") {
-        clearInterval(interval);
-        killFloaters();  // just in case
-    }
-}, 500);
+setInterval(hideBadges, 500);
 </script>
 """, height=0)
 
