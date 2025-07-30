@@ -8,10 +8,12 @@ from pptx.util import Inches, Pt
 import requests
 import urllib.parse
 import traceback
-from branca.element import Template, MacroElement, Element
+from branca.element import Template, MacroElement
 import os
 import tempfile
 import streamlit.components.v1 as components
+from folium import plugins
+
 
 # MUST BE FIRST Streamlit call
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
@@ -234,23 +236,7 @@ if input_address:
                     if len(selected_centres) == 5: break
                 closest = pd.DataFrame(selected_centres)
 
-                # --- CREATE MAP ---
-                m = folium.Map(location=input_coords, zoom_start=14, zoom_control=False, control_scale=True)
-
-                # Explicitly add zoom control to top-right using JS
-                zoom_js = """
-                <script>
-                document.addEventListener('DOMContentLoaded', function() {
-                    var map = window._last_folium_map || null;
-                    if (map) {
-                        if (map.zoomControl) { map.removeControl(map.zoomControl); }
-                        L.control.zoom({position: 'topright'}).addTo(map);
-                    }
-                });
-                </script>
-                """
-                m.get_root().html.add_child(Element(zoom_js))
-
+                m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
                 folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
