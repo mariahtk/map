@@ -256,12 +256,12 @@ if input_address:
                 radius_meters = radius_miles.get(area_type,5) * 1609.34
                 folium.Circle(location=input_coords, radius=radius_meters, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
-                # --- Legend moved to top-right ---
+                # --- Legend inside map at top-right ---
                 legend_template = f"""
                     {{% macro html(this, kwargs) %}}
                     <div style='position: absolute; top: 10px; right: 10px; width: 170px; z-index: 9999;
-                                background-color: white; padding: 10px; border: 2px solid gray;
-                                border-radius: 5px; font-size: 14px;'>
+                                background-color: rgba(255, 255, 255, 0.9); padding: 10px; 
+                                border: 2px solid gray; border-radius: 5px; font-size: 14px;'>
                         <b>Radius</b><br>
                         <span style='color:green;'>&#x25CF;</span> {radius_miles.get(area_type,5)}-mile Zone
                     </div>
@@ -335,31 +335,18 @@ if input_address:
                                 table.cell(i, 3).text = row["Format - Type of Centre"]
                                 table.cell(i, 4).text = row["Transaction Milestone Status"]
                                 table.cell(i, 5).text = f"{row['Distance (miles)']:.2f}"
-                                for col_idx in range(cols):
-                                    for p in table.cell(i, col_idx).text_frame.paragraphs:
-                                        p.font.size = Pt(12)
 
-                        rows = closest.to_dict(orient="records")
-                        for i in range(0, len(rows), 4):
-                            add_centres_to_slide_table(rows[i:i+4])
+                        add_centres_to_slide_table(closest.to_dict("records"),
+                                                   title_text=f"5 Closest Centres to: {input_address}")
 
-                        pptx_path = os.path.join(tempfile.gettempdir(), "ClosestCentres.pptx")
+                        pptx_path = os.path.join(tempfile.gettempdir(), "5_Closest_Centres.pptx")
                         prs.save(pptx_path)
-
                         with open(pptx_path, "rb") as f:
-                            st.download_button(
-                                "\u2B07\uFE0F Download PowerPoint", 
-                                f, 
-                                file_name="ClosestCentres.pptx", 
-                                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                            )
-
-                    except Exception as pptx_error:
-                        st.error("\u274C PowerPoint export failed.")
-                        st.text(str(pptx_error))
+                            st.download_button(label="Download PowerPoint", data=f, file_name="5_Closest_Centres.pptx")
+                    except Exception as e:
+                        st.error(f"Error creating PowerPoint: {str(e)}")
+                        traceback.print_exc()
 
     except Exception as e:
-        st.error(f"\u274C Unexpected error: {e}")
-        st.error(traceback.format_exc())
-else:
-    st.info("Please enter an address above to begin.")
+        st.error(f"Unexpected error: {str(e)}")
+        traceback.print_exc()
