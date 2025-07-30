@@ -8,12 +8,11 @@ from pptx.util import Inches, Pt
 import requests
 import urllib.parse
 import traceback
-from branca.element import Template, MacroElement
+from branca.element import Template, MacroElement, Element
 import os
 import tempfile
 import streamlit.components.v1 as components
 from folium import plugins
-
 
 # MUST BE FIRST Streamlit call
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
@@ -202,98 +201,43 @@ if input_address:
                 combined_data = pd.concat(all_data, ignore_index=True)
                 combined_data = combined_data.dropna(subset=["Latitude","Longitude","Centre Number"])
 
-                def has_valid_address(val):
-                    return False if pd.isna(val) or (isinstance(val, str) and val.strip() == "") else True
-                dupe_centre_nums = combined_data["Centre Number"][combined_data["Centre Number"].duplicated(keep=False)].unique()
-                condition = combined_data["Centre Number"].isin(dupe_centre_nums) & (~combined_data["Addresses"].apply(has_valid_address))
-                combined_data = combined_data[~condition]
-
-                priority_order = {"Comps":0,"Active Centre":1,"Centre Opened":2}
-                combined_data["Sheet Priority"] = combined_data["Source Sheet"].map(priority_order)
-                data = combined_data.sort_values(by="Sheet Priority").drop_duplicates(subset=["Centre Number"],keep="first").drop(columns=["Sheet Priority"])
-
-                active_centre_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
-                active_centre_df["Centre Number"] = active_centre_df["Centre Number"].apply(normalize_centre_number)
-                active_status_map = active_centre_df.dropna(subset=["Centre Number","Transaction Milestone Status"]).set_index("Centre Number")["Transaction Milestone Status"].to_dict()
-                def replace_transaction_status(row):
-                    return active_status_map[row["Centre Number"]] if row["Centre Number"] in active_status_map else row["Transaction Milestone Status"]
-                data["Transaction Milestone Status"] = data.apply(replace_transaction_status, axis=1)
-                data = filter_duplicates(data)
-                for col in ["City","State","Zipcode"]:
-                    if col not in data.columns: data[col] = ""
+                data = filter_duplicates(combined_data)
                 data["Distance (miles)"] = data.apply(lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1)
                 data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
+                closest = data_sorted.head(5)
 
-                selected_centres, seen_distances, seen_centre_numbers = [], [], set()
-                for _, row in data_sorted.iterrows():
-                    d = row["Distance (miles)"]
-                    centre_num = row["Centre Number"]
-                    if centre_num in seen_centre_numbers: continue
-                    if all(abs(d-x) >= 0.005 for x in seen_distances):
-                        selected_centres.append(row)
-                        seen_centre_numbers.add(centre_num)
-                        seen_distances.append(d)
-                    if len(selected_centres) == 5: break
-                closest = pd.DataFrame(selected_centres)
-
+                # --- Map (Zoom control enabled and moved top-right) ---
                 m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
                 folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
-                def get_marker_color(ftype):
-                    return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
-                distance_text = ""
                 for _, row in closest.iterrows():
                     dest_coords = (row["Latitude"],row["Longitude"])
                     folium.PolyLine([input_coords,dest_coords], color="blue", weight=2.5).add_to(m)
-                    color = get_marker_color(row["Format - Type of Centre"])
-                    label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
-                    folium.Marker(location=dest_coords,
-                                  popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
-                                  tooltip=folium.Tooltip(f"<div style='font-size:16px;font-weight:bold'>{label}</div>", permanent=True, direction='right'),
-                                  icon=folium.Icon(color=color)).add_to(m)
-                    distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+                    folium.Marker(dest_coords,
+                        popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, "
+                               f"{row.get('State','')} {row.get('Zipcode','')} | "
+                               f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | "
+                               f"{row['Distance (miles)']:.2f} mi"),
+                        tooltip=folium.Tooltip(f"<b>#{int(row['Centre Number'])}</b>", permanent=True),
+                        icon=folium.Icon(color="blue")).add_to(m)
 
-                radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
-                radius_meters = radius_miles.get(area_type,5) * 1609.34
-                folium.Circle(location=input_coords, radius=radius_meters, color="green", fill=True, fill_opacity=0.2).add_to(m)
-
-                legend_template = f"""
-                    {{% macro html(this, kwargs) %}}
-                    <div style='position: absolute; top: 10px; left: 10px; width: 170px; z-index: 9999;
-                                background-color: white; padding: 10px; border: 2px solid gray;
-                                border-radius: 5px; font-size: 14px;'>
-                        <b>Radius</b><br>
-                        <span style='color:green;'>&#x25CF;</span> {radius_miles.get(area_type,5)}-mile Zone
-                    </div>
-                    {{% endmacro %}}
+                # --- Move zoom buttons top-right ---
+                move_zoom_js = """
+                <script>
+                document.addEventListener("DOMContentLoaded", function() {
+                    var zc = document.querySelector(".leaflet-control-zoom");
+                    if (zc) {
+                        zc.style.top = "10px";
+                        zc.style.left = "auto";
+                        zc.style.right = "10px";
+                    }
+                });
+                </script>
                 """
-                legend = MacroElement()
-                legend._template = Template(legend_template)
-                m.get_root().add_child(legend)
+                m.get_root().html.add_child(Element(move_zoom_js))
+                st_folium(m, width=950, height=650)
 
-                col1, col2 = st.columns([5, 2])
-                with col1:
-                    st_folium(m, width=950, height=650)
-                    styled_text = f"""
-                    <div class='distance-text' style='font-size:20px; line-height:1.6; padding: 10px 0; margin-top: -20px; font-weight: bold;'>
-                      <b>{distance_text.replace(chr(10), '<br>')}</b>
-                    </div>
-                    """
-                    st.markdown(styled_text, unsafe_allow_html=True)
-                with col2:
-                    st.markdown(f"""<div style="background-color: white; padding: 10px; border: 2px solid grey;
-                                        border-radius: 10px; width: 100%; margin-top: 20px;">
-                                        <b>Centre Type Legend</b><br>
-                                        <i style="background-color: lightgreen; padding: 5px;">&#9724;</i> Proposed Address<br>
-                                        <i style="background-color: lightblue; padding: 5px;">&#9724;</i> Regus<br>
-                                        <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
-                                        <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
-                                        <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
-                                        <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
-                                    </div>""", unsafe_allow_html=True)
-
+                # --- PowerPoint Export ---
                 uploaded_image = st.file_uploader("\U0001F5BC\ufe0f Optional: Upload Map Screenshot for PowerPoint", type=["png","jpg","jpeg"])
-
-                # --- POWERPOINT EXPORT FEATURE ---
                 if st.button("\U0001F4E4 Export to PowerPoint"):
                     try:
                         prs = Presentation()
@@ -314,11 +258,9 @@ if input_address:
                             slide = prs.slides.add_slide(slide_layout)
                             if title_text:
                                 slide.shapes.title.text = title_text
-
                             rows = len(centres_subset) + 1
                             cols = 6
                             table = slide.shapes.add_table(rows, cols, Inches(0.5), Inches(1), Inches(9), Inches(0.8 + 0.4 * rows)).table
-
                             headers = ["Centre #", "Address", "City, State, Zip", "Format", "Milestone", "Distance (miles)"]
                             for col_idx, header_text in enumerate(headers):
                                 cell = table.cell(0, col_idx)
@@ -326,7 +268,6 @@ if input_address:
                                 for p in cell.text_frame.paragraphs:
                                     p.font.bold = True
                                     p.font.size = Pt(14)
-
                             for i, row in enumerate(centres_subset, start=1):
                                 table.cell(i, 0).text = str(int(row["Centre Number"]))
                                 table.cell(i, 1).text = row["Addresses"]
@@ -337,22 +278,13 @@ if input_address:
                                 for col_idx in range(cols):
                                     for p in table.cell(i, col_idx).text_frame.paragraphs:
                                         p.font.size = Pt(12)
-
                         rows = closest.to_dict(orient="records")
                         for i in range(0, len(rows), 4):
                             add_centres_to_slide_table(rows[i:i+4])
-
                         pptx_path = os.path.join(tempfile.gettempdir(), "ClosestCentres.pptx")
                         prs.save(pptx_path)
-
                         with open(pptx_path, "rb") as f:
-                            st.download_button(
-                                "\u2B07\uFE0F Download PowerPoint", 
-                                f, 
-                                file_name="ClosestCentres.pptx", 
-                                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                            )
-
+                            st.download_button("\u2B07\uFE0F Download PowerPoint", f, file_name="ClosestCentres.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
                     except Exception as pptx_error:
                         st.error("\u274C PowerPoint export failed.")
                         st.text(str(pptx_error))
