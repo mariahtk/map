@@ -16,13 +16,16 @@ import streamlit.components.v1 as components
 # MUST BE FIRST Streamlit call
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 
-# --- Hide Streamlit UI Chrome & Branding ---
+# --- Hide Streamlit UI Chrome, Branding, & "Made by Streamlit" Badge ---
 st.markdown("""
     <style>
     /* Hide built-in Streamlit UI */
     #MainMenu {visibility: hidden !important;}
     footer {visibility: hidden !important;}
     header {visibility: hidden !important;}
+
+    /* Hide Streamlit floating badge */
+    .viewerBadge_container__1QSob {display: none !important;}
 
     /* Hide common floating buttons */
     [data-testid="stStatusWidget"] {display: none !important;}
@@ -100,6 +103,7 @@ if "authenticated" not in st.session_state:
 if not st.session_state["authenticated"]:
     login()
     st.stop()
+
 
 # --- Area Type Inference with expanded city neighborhoods ---
 def infer_area_type(location):
