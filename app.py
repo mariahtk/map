@@ -163,7 +163,6 @@ def filter_duplicates(df):
     return filtered_df.drop(columns=["Normalized Address"])
 
 # --- MAIN APP ---
-# --- MAIN APP ---
 st.title("\U0001F4CD Find 5 Closest Centres")
 api_key = "edd4cb8a639240daa178b4c6321a60e6"
 input_address = st.text_input("Enter an address:")
@@ -186,38 +185,65 @@ if input_address:
                 area_type = infer_area_type(location)
                 st.write(f"Area type detected: **{area_type}**")
 
-                # ... [your data loading and filtering logic unchanged] ...
+                file_path = "Database IC.xlsx"
+                sheets = ["Comps", "Active Centre", "Centre Opened"]
+                all_data = []
+                for sheet in sheets:
+                    df = pd.read_excel(file_path, sheet_name=sheet, engine="openpyxl")
+                    df["Centre Number"] = df["Centre Number"].apply(normalize_centre_number)
+                    if sheet == "Active Centre" or sheet == "Centre Opened":
+                        df["Addresses"] = df["Address Line 1"]
+                    else:
+                        if "Addresses" not in df.columns and "Address Line 1" in df.columns:
+                            df["Addresses"] = df["Address Line 1"]
+                    df["Source Sheet"] = sheet
+                    all_data.append(df)
 
+                combined_data = pd.concat(all_data, ignore_index=True)
+                combined_data = combined_data.dropna(subset=["Latitude","Longitude","Centre Number"])
+
+                def has_valid_address(val):
+                    return False if pd.isna(val) or (isinstance(val, str) and val.strip() == "") else True
+                dupe_centre_nums = combined_data["Centre Number"][combined_data["Centre Number"].duplicated(keep=False)].unique()
+                condition = combined_data["Centre Number"].isin(dupe_centre_nums) & (~combined_data["Addresses"].apply(has_valid_address))
+                combined_data = combined_data[~condition]
+
+                priority_order = {"Comps":0,"Active Centre":1,"Centre Opened":2}
+                combined_data["Sheet Priority"] = combined_data["Source Sheet"].map(priority_order)
+                data = combined_data.sort_values(by="Sheet Priority").drop_duplicates(subset=["Centre Number"],keep="first").drop(columns=["Sheet Priority"])
+
+                active_centre_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
+                active_centre_df["Centre Number"] = active_centre_df["Centre Number"].apply(normalize_centre_number)
+                active_status_map = active_centre_df.dropna(subset=["Centre Number","Transaction Milestone Status"]).set_index("Centre Number")["Transaction Milestone Status"].to_dict()
+                def replace_transaction_status(row):
+                    return active_status_map[row["Centre Number"]] if row["Centre Number"] in active_status_map else row["Transaction Milestone Status"]
+                data["Transaction Milestone Status"] = data.apply(replace_transaction_status, axis=1)
+                data = filter_duplicates(data)
+                for col in ["City","State","Zipcode"]:
+                    if col not in data.columns: data[col] = ""
+                data["Distance (miles)"] = data.apply(lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1)
+                data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
+
+                selected_centres, seen_distances, seen_centre_numbers = [], [], set()
+                for _, row in data_sorted.iterrows():
+                    d = row["Distance (miles)"]
+                    centre_num = row["Centre Number"]
+                    if centre_num in seen_centre_numbers: continue
+                    if all(abs(d-x) >= 0.005 for x in seen_distances):
+                        selected_centres.append(row)
+                        seen_centre_numbers.add(centre_num)
+                        seen_distances.append(d)
+                    if len(selected_centres) == 5: break
                 closest = pd.DataFrame(selected_centres)
 
-                # Create folium map WITHOUT default zoom control
-                m = folium.Map(location=input_coords, zoom_start=14, zoom_control=False, control_scale=True)
-
-                # Inject Leaflet JS to add zoom control at top right
-                from branca.element import Element
-                zoom_js = """
-                <script>
-                  var map = window._last_folium_map || null;
-                  if(map){
-                    if (map.zoomControl) {
-                        map.zoomControl.remove();
-                    }
-                    L.control.zoom({position:'topright'}).addTo(map);
-                  }
-                </script>
-                """
-                m.get_root().html.add_child(Element(zoom_js))
-
-                # Add your address marker
+                m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
                 folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
-
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
-
                 distance_text = ""
                 for _, row in closest.iterrows():
-                    dest_coords = (row["Latitude"], row["Longitude"])
-                    folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
+                    dest_coords = (row["Latitude"],row["Longitude"])
+                    folium.PolyLine([input_coords,dest_coords], color="blue", weight=2.5).add_to(m)
                     color = get_marker_color(row["Format - Type of Centre"])
                     label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
                     folium.Marker(location=dest_coords,
