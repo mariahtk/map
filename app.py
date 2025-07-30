@@ -14,7 +14,6 @@ import tempfile
 import streamlit.components.v1 as components
 from folium import plugins
 
-
 # MUST BE FIRST Streamlit call
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 
@@ -236,24 +235,9 @@ if input_address:
                     if len(selected_centres) == 5: break
                 closest = pd.DataFrame(selected_centres)
 
+                # Map with default zoom control
                 m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
                 folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
-
-                # --- Move Zoom +/- to top-right ---
-                move_zoom_js = """
-                <script>
-                document.addEventListener("DOMContentLoaded", function() {
-                    var zc = document.querySelector(".leaflet-control-zoom");
-                    if (zc) {
-                        zc.style.top = "10px";
-                        zc.style.left = "auto";
-                        zc.style.right = "10px";
-                    }
-                });
-                </script>
-                """
-                m.get_root().html.add_child(Element(move_zoom_js))
-
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
                 distance_text = ""
@@ -285,6 +269,25 @@ if input_address:
                 legend = MacroElement()
                 legend._template = Template(legend_template)
                 m.get_root().add_child(legend)
+
+                # --- Force Zoom Control Below Legend ---
+                custom_zoom_js = """
+                <script>
+                document.addEventListener("DOMContentLoaded", function() {
+                    var zoomControl = document.querySelector(".leaflet-control-zoom");
+                    if (zoomControl) {
+                        zoomControl.style.position = "absolute";
+                        zoomControl.style.top = "90px";   // just below legend
+                        zoomControl.style.left = "10px";  // align with legend
+                        zoomControl.style.zIndex = "1000";
+                        zoomControl.style.display = "block";
+                        zoomControl.style.visibility = "visible";
+                        zoomControl.style.opacity = "1";
+                    }
+                });
+                </script>
+                """
+                m.get_root().html.add_child(Element(custom_zoom_js))
 
                 col1, col2 = st.columns([5, 2])
                 with col1:
@@ -341,40 +344,24 @@ if input_address:
                                 cell.text = header_text
                                 for p in cell.text_frame.paragraphs:
                                     p.font.bold = True
-                                    p.font.size = Pt(14)
+                                    p.font.size = Pt(10)
 
-                            for i, row in enumerate(centres_subset, start=1):
-                                table.cell(i, 0).text = str(int(row["Centre Number"]))
-                                table.cell(i, 1).text = row["Addresses"]
-                                table.cell(i, 2).text = f"{row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')}".strip(", ")
-                                table.cell(i, 3).text = row["Format - Type of Centre"]
-                                table.cell(i, 4).text = row["Transaction Milestone Status"]
-                                table.cell(i, 5).text = f"{row['Distance (miles)']:.2f}"
-                                for col_idx in range(cols):
-                                    for p in table.cell(i, col_idx).text_frame.paragraphs:
-                                        p.font.size = Pt(12)
+                            for r_idx, (_, row) in enumerate(centres_subset.iterrows(), start=1):
+                                table.cell(r_idx, 0).text = str(row["Centre Number"])
+                                table.cell(r_idx, 1).text = row["Addresses"]
+                                table.cell(r_idx, 2).text = f"{row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')}"
+                                table.cell(r_idx, 3).text = row["Format - Type of Centre"]
+                                table.cell(r_idx, 4).text = row["Transaction Milestone Status"]
+                                table.cell(r_idx, 5).text = f"{row['Distance (miles)']:.2f}"
 
-                        rows = closest.to_dict(orient="records")
-                        for i in range(0, len(rows), 4):
-                            add_centres_to_slide_table(rows[i:i+4])
-
-                        pptx_path = os.path.join(tempfile.gettempdir(), "ClosestCentres.pptx")
+                        add_centres_to_slide_table(closest, "Closest Centres Summary")
+                        pptx_path = os.path.join(tempfile.gettempdir(), "closest_centres.pptx")
                         prs.save(pptx_path)
 
-                        with open(pptx_path, "rb") as f:
-                            st.download_button(
-                                "\u2B07\uFE0F Download PowerPoint", 
-                                f, 
-                                file_name="ClosestCentres.pptx", 
-                                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                            )
+                        with open(pptx_path, "rb") as file:
+                            st.download_button(label="Download PowerPoint", data=file, file_name="closest_centres.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+                        st.success("PowerPoint exported successfully!")
+                    except Exception as e:
+                        st.error(f"Error exporting PowerPoint: {str(e)}")
+                        traceback.print_exc()
 
-                    except Exception as pptx_error:
-                        st.error("\u274C PowerPoint export failed.")
-                        st.text(str(pptx_error))
-
-    except Exception as e:
-        st.error(f"\u274C Unexpected error: {e}")
-        st.error(traceback.format_exc())
-else:
-    st.info("Please enter an address above to begin.")
