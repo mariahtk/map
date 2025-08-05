@@ -7,84 +7,40 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 import requests
 import urllib.parse
-import traceback
 from branca.element import Template, MacroElement
 import os
 import tempfile
 import streamlit.components.v1 as components
-from folium import plugins
 
-# MUST BE FIRST Streamlit call
+# --- Streamlit page config ---
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 
-# --- Hide Streamlit UI Chrome, Branding, "Made by Streamlit" Badge & GitHub Icon ---
+# --- Hide Streamlit UI elements ---
 st.markdown("""
     <style>
-    #MainMenu {visibility: hidden !important;}
-    footer {visibility: hidden !important;}
-    header {visibility: hidden !important;}
-    .viewerBadge_container__1QSob,
-    .stAppViewerBadge,
-    .st-emotion-cache-1wbqy5l,
-    .st-emotion-cache-12fmjuu,
-    .st-emotion-cache-1gulkj5,
-    .stActionButton,
-    a[href*="github.com"] {
+    #MainMenu, footer, header, a[href*="github.com"], .viewerBadge_container__1QSob, .stAppViewerBadge {
         display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
-        height: 0px !important;
-        width: 0px !important;
-    }
-    div.block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 1rem !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- JavaScript backup removal for dynamically injected badges & GitHub icon ---
+# --- JS to hide dynamically injected badges ---
 components.html("""
 <script>
-const hideBadges = () => {
-    const selectors = [
-        'div.viewerBadge_container__1QSob',
-        'div.stAppViewerBadge',
-        'div.st-emotion-cache-1wbqy5l',
-        'div.st-emotion-cache-12fmjuu',
-        'div.st-emotion-cache-1gulkj5',
-        'a[href*="streamlit.io"]',
-        'a[href*="github.com"]'
-    ];
-    selectors.forEach(sel => {
-        document.querySelectorAll(sel).forEach(el => el.style.display = "none");
-    });
-};
-setInterval(hideBadges, 500);
+setInterval(() => {
+  const badges = document.querySelectorAll(
+    '.viewerBadge_container__1QSob, .stAppViewerBadge, a[href*="github.com"]');
+  badges.forEach(badge => badge.style.display = 'none');
+}, 500);
 </script>
 """, height=0)
 
-# --- Custom IWG Support Link ---
-components.html("""
-<div style="position: fixed; bottom: 12px; right: 16px; z-index: 10000;
-            background-color: white; padding: 8px 14px; border-radius: 8px;
-            border: 1px solid #ccc; font-size: 14px; font-family: sans-serif;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
-  💬 <a href="mailto:support@iwgplc.com" style="text-decoration: none; color: #004d99;" target="_blank">
-    Contact IWG Support
-  </a>
-</div>
-""", height=0)
-
-# --- LOGIN SYSTEM ---
+# --- Login system ---
 def login():
     st.image("IWG Logo.jpg", width=150)
     st.title("Internal Map Login")
-
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
-
     if st.button("Login"):
         if password == "IWG123" and email.endswith("@iwgplc.com"):
             st.session_state["authenticated"] = True
@@ -96,46 +52,37 @@ def login():
 
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
-
 if not st.session_state["authenticated"]:
     login()
     st.stop()
 
-# --- Area Type Inference ---
+# --- Helper functions ---
 def infer_area_type(location):
-    components = location.get("components", {})
     formatted_str = location.get("formatted", "").lower()
-    cbd_keywords = [
-        "new york","manhattan","brooklyn","queens","bronx","staten island",
-        "chicago","los angeles","san francisco","boston","washington",
-        "philadelphia","houston","seattle","miami","atlanta","dallas",
-        "phoenix","detroit","san diego","minneapolis","denver","austin",
-        "portland","nashville","new orleans","las vegas",
-        "toronto","montreal","vancouver","ottawa","calgary","edmonton",
-        "winnipeg","halifax","victoria","quebec city",
-        "mexico city","guadalajara","monterrey","tijuana"
-    ]
-    suburb_keywords = [
-        "westmount","laval","longueuil","brossard","côte-saint-luc","ndg",
-        "saint-laurent","west island","mississauga","brampton","markham",
-        "vaughan","richmond hill","pickering","ajax","oshawa","milton",
-        "oakville","burlington","burnaby","surrey","richmond bc","coquitlam",
-        "delta","langley","maple ridge","north vancouver","west vancouver",
-        "okotoks","airdrie","sherwood park","st. albert","gatineau","kanata",
-        "orleans","cambridge","brookline","somerville","newton","quincy",
-        "jersey city","hoboken","newark","yonkers","staten island","flushing",
-        "long island city","bronxville","white plains","oakland","berkeley",
-        "san mateo","redwood city","palo alto","pasadena","burbank",
-        "santa monica","long beach","anaheim","evanston","oak park",
-        "naperville","schaumburg","coral gables","hialeah","kendall","aventura",
-        "zapopan","tlajomulco","santa catarina","san nicolas de los garza"
-    ]
+    cbd_keywords = ["new york","manhattan","brooklyn","queens","bronx","staten island",
+                    "chicago","los angeles","san francisco","boston","washington","philadelphia",
+                    "houston","seattle","miami","atlanta","dallas","phoenix","detroit",
+                    "san diego","minneapolis","denver","austin","portland","nashville",
+                    "new orleans","las vegas","toronto","montreal","vancouver","ottawa",
+                    "calgary","edmonton","winnipeg","halifax","victoria","quebec city",
+                    "mexico city","guadalajara","monterrey","tijuana"]
+    suburb_keywords = ["westmount","laval","longueuil","brossard","côte-saint-luc","ndg",
+                      "saint-laurent","west island","mississauga","brampton","markham",
+                      "vaughan","richmond hill","pickering","ajax","oshawa","milton",
+                      "oakville","burlington","burnaby","surrey","richmond bc","coquitlam",
+                      "delta","langley","maple ridge","north vancouver","west vancouver",
+                      "okotoks","airdrie","sherwood park","st. albert","gatineau","kanata",
+                      "orleans","cambridge","brookline","somerville","newton","quincy",
+                      "jersey city","hoboken","newark","yonkers","staten island","flushing",
+                      "long island city","bronxville","white plains","oakland","berkeley",
+                      "san mateo","redwood city","palo alto","pasadena","burbank",
+                      "santa monica","long beach","anaheim","evanston","oak park",
+                      "naperville","schaumburg","coral gables","hialeah","kendall","aventura",
+                      "zapopan","tlajomulco","santa catarina","san nicolas de los garza"]
     if any(city in formatted_str for city in cbd_keywords):
         return "CBD"
     elif any(nhood in formatted_str for nhood in suburb_keywords):
         return "Suburb"
-    elif any(key in components for key in ["village", "hamlet"]):
-        return "Rural"
     else:
         return "Suburb"
 
@@ -161,7 +108,7 @@ def filter_duplicates(df):
     filtered_df = grouped.apply(select_preferred).reset_index(drop=True)
     return filtered_df.drop(columns=["Normalized Address"])
 
-# --- MAIN APP ---
+# --- Main UI ---
 st.title("\U0001F4CD Find 5 Closest Centres")
 api_key = "edd4cb8a639240daa178b4c6321a60e6"
 input_address = st.text_input("Enter an address:")
@@ -190,7 +137,7 @@ if input_address:
                 for sheet in sheets:
                     df = pd.read_excel(file_path, sheet_name=sheet, engine="openpyxl")
                     df["Centre Number"] = df["Centre Number"].apply(normalize_centre_number)
-                    if sheet == "Active Centre" or sheet == "Centre Opened":
+                    if sheet in ["Active Centre", "Centre Opened"]:
                         df["Addresses"] = df["Address Line 1"]
                     else:
                         if "Addresses" not in df.columns and "Address Line 1" in df.columns:
@@ -227,15 +174,16 @@ if input_address:
                 for _, row in data_sorted.iterrows():
                     d = row["Distance (miles)"]
                     centre_num = row["Centre Number"]
-                    if centre_num in seen_centre_numbers: continue
-                    if all(abs(d-x) >= 0.005 for x in seen_distances):
+                    if centre_num in seen_centre_numbers:
+                        continue
+                    if all(abs(d - x) >= 0.005 for x in seen_distances):
                         selected_centres.append(row)
                         seen_centre_numbers.add(centre_num)
                         seen_distances.append(d)
-                    if len(selected_centres) == 5: break
+                    if len(selected_centres) == 5:
+                        break
                 closest = pd.DataFrame(selected_centres)
 
-                # keep Leaflet's default +/- zoom control
                 m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
                 folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
 
@@ -244,60 +192,72 @@ if input_address:
 
                 distance_text = ""
                 for _, row in closest.iterrows():
-                    dest_coords = (row["Latitude"],row["Longitude"])
-                    folium.PolyLine([input_coords,dest_coords], color="blue", weight=2.5).add_to(m)
+                    dest_coords = (row["Latitude"], row["Longitude"])
+                    folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
                     color = get_marker_color(row["Format - Type of Centre"])
                     label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
                     folium.Marker(location=dest_coords,
-                                  popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
+                                  popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
+                                         f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
                                   tooltip=folium.Tooltip(f"<div style='font-size:16px;font-weight:bold'>{label}</div>", permanent=True, direction='right'),
                                   icon=folium.Icon(color=color)).add_to(m)
                     distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
-                radius_meters = radius_miles.get(area_type,5) * 1609.34
-                folium.Circle(location=input_coords, radius=radius_meters, color="green", fill=True, fill_opacity=0.2).add_to(m)
+                radius_m = radius_miles.get(area_type,5) * 1609.34
+                folium.Circle(location=input_coords, radius=radius_m, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
-                # moved legend slightly down (70px) so zoom control stays visible
-                legend_template = f"""
+                # Patched legend for radius (text visible)
+                legend_html = f"""
                     {{% macro html(this, kwargs) %}}
-                    <div style='position: absolute; top: 70px; left: 10px; width: 170px; z-index: 9999;
+                    <div style='position: absolute; top: 70px; left: 10px; width: 180px; z-index: 9999;
                                 background-color: white; padding: 10px; border: 2px solid gray;
-                                border-radius: 5px; font-size: 14px;'>
+                                border-radius: 5px; font-size: 14px; color: black; text-shadow: 1px 1px 2px white;'>
                         <b>Radius</b><br>
                         <span style='color:green;'>&#x25CF;</span> {radius_miles.get(area_type,5)}-mile Zone
                     </div>
                     {{% endmacro %}}
                 """
                 legend = MacroElement()
-                legend._template = Template(legend_template)
+                legend._template = Template(legend_html)
                 m.get_root().add_child(legend)
 
                 col1, col2 = st.columns([5, 2])
                 with col1:
                     st_folium(m, width=950, height=650)
-                    styled_text = f"""
-                    <div class='distance-text' style='font-size:20px; line-height:1.6; padding: 10px 0; margin-top: -20px; font-weight: bold;'>
-                      <b>{distance_text.replace(chr(10), '<br>')}</b>
-                    </div>
-                    """
-                    st.markdown(styled_text, unsafe_allow_html=True)
+                    st.markdown(f"""
+                        <div style="font-size:18px; line-height:1.5; font-weight:bold; padding-top: 8px;">
+                        {distance_text.replace(chr(10), "<br>")}
+                        </div>
+                    """, unsafe_allow_html=True)
                 with col2:
-                    st.markdown(f"""<div style="background-color: white; padding: 10px; border: 2px solid grey;
-                                        border-radius: 10px; width: 100%; margin-top: 20px;">
-                                        <b>Centre Type Legend</b><br>
-                                        <i style="background-color: lightgreen; padding: 5px;">&#9724;</i> Proposed Address<br>
-                                        <i style="background-color: lightblue; padding: 5px;">&#9724;</i> Regus<br>
-                                        <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
-                                        <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
-                                        <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
-                                        <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
-                                    </div>""", unsafe_allow_html=True)
+                    # Patched legend for centre types with visible black text and white text-shadow
+                    st.markdown("""
+                        <div style="
+                            background-color: white;
+                            padding: 10px;
+                            border: 2px solid grey;
+                            border-radius: 10px;
+                            width: 100%;
+                            margin-top: 20px;
+                            color: black;
+                            text-shadow: 1px 1px 2px white;
+                            font-weight: bold;
+                            font-size: 14px;
+                        ">
+                            Centre Type Legend<br>
+                            <i style="background-color: lightgreen; padding: 5px;">&#9724;</i> Proposed Address<br>
+                            <i style="background-color: lightblue; padding: 5px;">&#9724;</i> Regus<br>
+                            <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
+                            <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
+                            <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
+                            <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
+                        </div>
+                    """, unsafe_allow_html=True)
 
-                uploaded_image = st.file_uploader("\U0001F5BC\ufe0f Optional: Upload Map Screenshot for PowerPoint", type=["png","jpg","jpeg"])
+                uploaded_image = st.file_uploader("📼 Optional: Upload Map Screenshot for PowerPoint", type=["png","jpg","jpeg"])
 
-                # --- POWERPOINT EXPORT FEATURE ---
-                if st.button("\U0001F4E4 Export to PowerPoint"):
+                if st.button("📤 Export to PowerPoint"):
                     try:
                         prs = Presentation()
                         slide_layout = prs.slide_layouts[5]
@@ -309,14 +269,11 @@ if input_address:
                             with open(image_path, "wb") as img_file:
                                 img_file.write(uploaded_image.read())
                             slide.shapes.add_picture(image_path, Inches(0.5), Inches(1.5), height=Inches(3.5))
-                            top_text = Inches(5.2)
-                        else:
-                            top_text = Inches(1.5)
 
-                        def add_centres_to_slide_table(centres_subset, title_text=None):
+                        def add_centres_to_slide_table(centres_subset, title=None):
                             slide = prs.slides.add_slide(slide_layout)
-                            if title_text:
-                                slide.shapes.title.text = title_text
+                            if title:
+                                slide.shapes.title.text = title
 
                             rows = len(centres_subset) + 1
                             cols = 6
@@ -330,32 +287,29 @@ if input_address:
                                     p.font.bold = True
                                     p.font.size = Pt(14)
 
-                            for i, row in enumerate(centres_subset, start=1):
-                                table.cell(i, 0).text = str(int(row["Centre Number"]))
-                                table.cell(i, 1).text = row["Addresses"]
-                                table.cell(i, 2).text = f"{row.get('City', '')}, {row.get('State', '')} {row.get('Zipcode', '')}".strip(", ")
-                                table.cell(i, 3).text = row["Format - Type of Centre"]
-                                table.cell(i, 4).text = row["Transaction Milestone Status"]
-                                table.cell(i, 5).text = f"{row['Distance (miles)']:.2f}"
+                            for i, row in enumerate(centres_subset.itertuples(), start=1):
+                                table.cell(i, 0).text = str(int(row._asdict()["Centre Number"]))
+                                table.cell(i, 1).text = row._asdict()["Addresses"]
+                                city = row._asdict().get("City", "")
+                                state = row._asdict().get("State", "")
+                                zipc = row._asdict().get("Zipcode", "")
+                                table.cell(i, 2).text = f"{city}, {state} {zipc}".strip(", ")
+                                table.cell(i, 3).text = row._asdict()["Format - Type of Centre"]
+                                table.cell(i, 4).text = row._asdict()["Transaction Milestone Status"]
+                                table.cell(i, 5).text = f"{row._asdict()['Distance (miles)']:.2f}"
 
-                        add_centres_to_slide_table(selected_centres, title_text="Centre Details")
+                        add_centres_to_slide_table(closest, title="Closest Centres")
 
-                        ppt_path = os.path.join(tempfile.gettempdir(), "5_closest_centres.pptx")
-                        prs.save(ppt_path)
+                        pptx_path = os.path.join(tempfile.gettempdir(), "ClosestCentres.pptx")
+                        prs.save(pptx_path)
+                        with open(pptx_path, "rb") as f:
+                            pptx_bytes = f.read()
+                        st.success("PowerPoint file created!")
+                        st.download_button("⬇️ Download PowerPoint", pptx_bytes, file_name="ClosestCentres.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
 
-                        with open(ppt_path, "rb") as ppt_file:
-                            st.download_button(
-                                label="Download PowerPoint",
-                                data=ppt_file,
-                                file_name="5_closest_centres.pptx",
-                                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                            )
-
-                        st.success("PowerPoint exported successfully!")
                     except Exception as e:
-                        st.error(f"Failed to export PowerPoint: {str(e)}")
-                        st.text(traceback.format_exc())
+                        st.error(f"Error generating PowerPoint: {e}")
 
-    except Exception as e:
-        st.error(f"\u274C Error: {str(e)}")
-        st.text(traceback.format_exc())
+    except Exception as ex:
+        st.error(f"Unexpected error: {ex}")
+
