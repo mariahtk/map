@@ -46,13 +46,14 @@ def login():
             st.session_state["authenticated"] = True
             st.session_state["user_email"] = email
             st.success("Login successful!")
-            st.experimental_rerun()
-            return  # Immediately return after rerun to avoid running code further
+            st.rerun()  # <-- Fixed here
         else:
             st.error("Invalid email or password.")
 
+# --- Authentication state check ---
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
+
 if not st.session_state["authenticated"]:
     login()
     st.stop()
@@ -178,7 +179,7 @@ if input_address:
                 area_type = infer_area_type(location)
                 st.write(f"Area type detected: **{area_type}**")
 
-                # Load cached data once here
+                # Load cached data
                 data = load_data()
 
                 # Calculate distances
@@ -222,7 +223,7 @@ if input_address:
                 radius_m = radius_miles.get(area_type,5) * 1609.34
                 folium.Circle(location=input_coords, radius=radius_m, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
-                # Patched legend for radius (text visible)
+                # Patched legend for radius
                 legend_html = f"""
                     {{% macro html(this, kwargs) %}}
                     <div style='position: absolute; top: 70px; left: 10px; width: 180px; z-index: 9999;
@@ -246,7 +247,6 @@ if input_address:
                         </div>
                     """, unsafe_allow_html=True)
                 with col2:
-                    # Patched legend for centre types with visible black text and white text-shadow
                     st.markdown("""
                         <div style="
                             background-color: white;
@@ -269,6 +269,5 @@ if input_address:
                             <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                         </div>
                     """, unsafe_allow_html=True)
-
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
