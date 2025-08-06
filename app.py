@@ -8,6 +8,8 @@ from pptx.util import Inches, Pt
 import requests
 import urllib.parse
 from branca.element import Template, MacroElement
+import os
+import tempfile
 import streamlit.components.v1 as components
 
 # --- Streamlit page config ---
@@ -22,6 +24,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# --- JS to hide dynamically injected badges ---
 components.html("""
 <script>
 setInterval(() => {
@@ -105,9 +108,9 @@ def filter_duplicates(df):
     filtered_df = grouped.apply(select_preferred).reset_index(drop=True)
     return filtered_df.drop(columns=["Normalized Address"])
 
-# --- Cached data loader ---
+# --- Cached data loading function ---
 @st.cache(allow_output_mutation=True)
-def load_centre_data(file_path):
+def load_data(file_path="Database IC.xlsx"):
     sheets = ["Comps", "Active Centre", "Centre Opened"]
     all_data = []
     for sheet in sheets:
@@ -122,30 +125,33 @@ def load_centre_data(file_path):
         all_data.append(df)
 
     combined_data = pd.concat(all_data, ignore_index=True)
-    combined_data = combined_data.dropna(subset=["Latitude","Longitude","Centre Number"])
+    combined_data = combined_data.dropna(subset=["Latitude", "Longitude", "Centre Number"])
 
     def has_valid_address(val):
         return False if pd.isna(val) or (isinstance(val, str) and val.strip() == "") else True
+
     dupe_centre_nums = combined_data["Centre Number"][combined_data["Centre Number"].duplicated(keep=False)].unique()
     condition = combined_data["Centre Number"].isin(dupe_centre_nums) & (~combined_data["Addresses"].apply(has_valid_address))
     combined_data = combined_data[~condition]
 
-    priority_order = {"Comps":0,"Active Centre":1,"Centre Opened":2}
+    priority_order = {"Comps": 0, "Active Centre": 1, "Centre Opened": 2}
     combined_data["Sheet Priority"] = combined_data["Source Sheet"].map(priority_order)
     data = combined_data.sort_values(by="Sheet Priority").drop_duplicates(subset=["Centre Number"], keep="first").drop(columns=["Sheet Priority"])
 
     active_centre_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
     active_centre_df["Centre Number"] = active_centre_df["Centre Number"].apply(normalize_centre_number)
-    active_status_map = active_centre_df.dropna(subset=["Centre Number","Transaction Milestone Status"]).set_index("Centre Number")["Transaction Milestone Status"].to_dict()
+    active_status_map = active_centre_df.dropna(subset=["Centre Number", "Transaction Milestone Status"]).set_index("Centre Number")["Transaction Milestone Status"].to_dict()
 
     def replace_transaction_status(row):
         return active_status_map[row["Centre Number"]] if row["Centre Number"] in active_status_map else row["Transaction Milestone Status"]
 
     data["Transaction Milestone Status"] = data.apply(replace_transaction_status, axis=1)
     data = filter_duplicates(data)
-    for col in ["City","State","Zipcode"]:
-        if col not in data.columns: 
+
+    for col in ["City", "State", "Zipcode"]:
+        if col not in data.columns:
             data[col] = ""
+
     return data
 
 # --- Main UI ---
@@ -159,21 +165,22 @@ if input_address:
             encoded_address = urllib.parse.quote(input_address)
             url = f"https://api.opencagedata.com/geocode/v1/json?q={encoded_address}&key={api_key}"
             response = requests.get(url)
-            data = response.json()
+            data_geo = response.json()
 
             if response.status_code != 200:
                 st.error(f"\u274C API Error: {response.status_code}. Try again.")
-            elif not data.get('results'):
+            elif not data_geo.get('results'):
                 st.error("\u274C Address not found. Try again.")
             else:
-                location = data['results'][0]
+                location = data_geo['results'][0]
                 input_coords = (location['geometry']['lat'], location['geometry']['lng'])
                 area_type = infer_area_type(location)
                 st.write(f"Area type detected: **{area_type}**")
 
-                file_path = "Database IC.xlsx"
-                data = load_centre_data(file_path)
+                # Load cached data once here
+                data = load_data()
 
+                # Calculate distances
                 data["Distance (miles)"] = data.apply(lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1)
                 data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
 
@@ -203,24 +210,18 @@ if input_address:
                     folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
                     color = get_marker_color(row["Format - Type of Centre"])
                     label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
-                    folium.Marker(
-                        location=dest_coords,
-                        popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | "
-                               f"{row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
-                               f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | "
-                               f"{row['Distance (miles)']:.2f} mi"),
-                        tooltip=folium.Tooltip(f"<div style='font-size:16px;font-weight:bold'>{label}</div>", permanent=True, direction='right'),
-                        icon=folium.Icon(color=color)
-                    ).add_to(m)
-                    distance_text += (f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, "
-                                      f"{row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - "
-                                      f"Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} "
-                                      f"- {row['Distance (miles)']:.2f} miles\n")
+                    folium.Marker(location=dest_coords,
+                                  popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
+                                         f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
+                                  tooltip=folium.Tooltip(f"<div style='font-size:16px;font-weight:bold'>{label}</div>", permanent=True, direction='right'),
+                                  icon=folium.Icon(color=color)).add_to(m)
+                    distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
                 radius_m = radius_miles.get(area_type,5) * 1609.34
                 folium.Circle(location=input_coords, radius=radius_m, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
+                # Patched legend for radius (text visible)
                 legend_html = f"""
                     {{% macro html(this, kwargs) %}}
                     <div style='position: absolute; top: 70px; left: 10px; width: 180px; z-index: 9999;
@@ -244,6 +245,7 @@ if input_address:
                         </div>
                     """, unsafe_allow_html=True)
                 with col2:
+                    # Patched legend for centre types with visible black text and white text-shadow
                     st.markdown("""
                         <div style="
                             background-color: white;
@@ -266,5 +268,6 @@ if input_address:
                             <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                         </div>
                     """, unsafe_allow_html=True)
+
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
