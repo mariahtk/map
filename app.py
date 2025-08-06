@@ -46,13 +46,13 @@ def login():
             st.session_state["authenticated"] = True
             st.session_state["user_email"] = email
             st.success("Login successful!")
-            st.experimental_rerun()  # <-- Only here, inside button press
+            st.experimental_rerun()
+            return  # Immediately return after rerun to avoid running code further
         else:
             st.error("Invalid email or password.")
 
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
-
 if not st.session_state["authenticated"]:
     login()
     st.stop()
