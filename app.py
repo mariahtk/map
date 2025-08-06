@@ -108,6 +108,50 @@ def filter_duplicates(df):
     filtered_df = grouped.apply(select_preferred).reset_index(drop=True)
     return filtered_df.drop(columns=["Normalized Address"])
 
+# --- Cache Excel loading and processing ---
+@st.cache_data
+def load_centre_data():
+    file_path = "Database IC.xlsx"
+    sheets = ["Comps", "Active Centre", "Centre Opened"]
+    all_data = []
+    for sheet in sheets:
+        df = pd.read_excel(file_path, sheet_name=sheet, engine="openpyxl")
+        df["Centre Number"] = df["Centre Number"].apply(normalize_centre_number)
+        if sheet in ["Active Centre", "Centre Opened"]:
+            df["Addresses"] = df["Address Line 1"]
+        else:
+            if "Addresses" not in df.columns and "Address Line 1" in df.columns:
+                df["Addresses"] = df["Address Line 1"]
+        df["Source Sheet"] = sheet
+        all_data.append(df)
+
+    combined_data = pd.concat(all_data, ignore_index=True)
+    combined_data = combined_data.dropna(subset=["Latitude","Longitude","Centre Number"])
+
+    def has_valid_address(val):
+        return False if pd.isna(val) or (isinstance(val, str) and val.strip() == "") else True
+    dupe_centre_nums = combined_data["Centre Number"][combined_data["Centre Number"].duplicated(keep=False)].unique()
+    condition = combined_data["Centre Number"].isin(dupe_centre_nums) & (~combined_data["Addresses"].apply(has_valid_address))
+    combined_data = combined_data[~condition]
+
+    priority_order = {"Comps":0,"Active Centre":1,"Centre Opened":2}
+    combined_data["Sheet Priority"] = combined_data["Source Sheet"].map(priority_order)
+    data = combined_data.sort_values(by="Sheet Priority").drop_duplicates(subset=["Centre Number"],keep="first").drop(columns=["Sheet Priority"])
+
+    active_centre_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
+    active_centre_df["Centre Number"] = active_centre_df["Centre Number"].apply(normalize_centre_number)
+    active_status_map = active_centre_df.dropna(subset=["Centre Number","Transaction Milestone Status"]).set_index("Centre Number")["Transaction Milestone Status"].to_dict()
+
+    def replace_transaction_status(row):
+        return active_status_map[row["Centre Number"]] if row["Centre Number"] in active_status_map else row["Transaction Milestone Status"]
+    data["Transaction Milestone Status"] = data.apply(replace_transaction_status, axis=1)
+
+    data = filter_duplicates(data)
+    for col in ["City","State","Zipcode"]:
+        if col not in data.columns: data[col] = ""
+
+    return data
+
 # --- Main UI ---
 st.title("\U0001F4CD Find 5 Closest Centres")
 api_key = "edd4cb8a639240daa178b4c6321a60e6"
@@ -131,43 +175,13 @@ if input_address:
                 area_type = infer_area_type(location)
                 st.write(f"Area type detected: **{area_type}**")
 
-                file_path = "Database IC.xlsx"
-                sheets = ["Comps", "Active Centre", "Centre Opened"]
-                all_data = []
-                for sheet in sheets:
-                    df = pd.read_excel(file_path, sheet_name=sheet, engine="openpyxl")
-                    df["Centre Number"] = df["Centre Number"].apply(normalize_centre_number)
-                    if sheet in ["Active Centre", "Centre Opened"]:
-                        df["Addresses"] = df["Address Line 1"]
-                    else:
-                        if "Addresses" not in df.columns and "Address Line 1" in df.columns:
-                            df["Addresses"] = df["Address Line 1"]
-                    df["Source Sheet"] = sheet
-                    all_data.append(df)
+                # --- Use cached data ---
+                data = load_centre_data()
 
-                combined_data = pd.concat(all_data, ignore_index=True)
-                combined_data = combined_data.dropna(subset=["Latitude","Longitude","Centre Number"])
-
-                def has_valid_address(val):
-                    return False if pd.isna(val) or (isinstance(val, str) and val.strip() == "") else True
-                dupe_centre_nums = combined_data["Centre Number"][combined_data["Centre Number"].duplicated(keep=False)].unique()
-                condition = combined_data["Centre Number"].isin(dupe_centre_nums) & (~combined_data["Addresses"].apply(has_valid_address))
-                combined_data = combined_data[~condition]
-
-                priority_order = {"Comps":0,"Active Centre":1,"Centre Opened":2}
-                combined_data["Sheet Priority"] = combined_data["Source Sheet"].map(priority_order)
-                data = combined_data.sort_values(by="Sheet Priority").drop_duplicates(subset=["Centre Number"],keep="first").drop(columns=["Sheet Priority"])
-
-                active_centre_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
-                active_centre_df["Centre Number"] = active_centre_df["Centre Number"].apply(normalize_centre_number)
-                active_status_map = active_centre_df.dropna(subset=["Centre Number","Transaction Milestone Status"]).set_index("Centre Number")["Transaction Milestone Status"].to_dict()
-                def replace_transaction_status(row):
-                    return active_status_map[row["Centre Number"]] if row["Centre Number"] in active_status_map else row["Transaction Milestone Status"]
-                data["Transaction Milestone Status"] = data.apply(replace_transaction_status, axis=1)
-                data = filter_duplicates(data)
-                for col in ["City","State","Zipcode"]:
-                    if col not in data.columns: data[col] = ""
-                data["Distance (miles)"] = data.apply(lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1)
+                data["Distance (miles)"] = data.apply(
+                    lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles,
+                    axis=1
+                )
                 data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
 
                 selected_centres, seen_distances, seen_centre_numbers = [], [], set()
@@ -231,7 +245,6 @@ if input_address:
                         </div>
                     """, unsafe_allow_html=True)
                 with col2:
-                    # Patched legend for centre types with visible black text and white text-shadow
                     st.markdown("""
                         <div style="
                             background-color: white;
@@ -255,7 +268,5 @@ if input_address:
                         </div>
                     """, unsafe_allow_html=True)
 
-
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
-
