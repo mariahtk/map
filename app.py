@@ -46,7 +46,7 @@ def login():
             st.session_state["authenticated"] = True
             st.session_state["user_email"] = email
             st.success("Login successful!")
-            st.experimental_rerun()
+            st.experimental_rerun()  # <-- Only here inside the button click
         else:
             st.error("Invalid email or password.")
 
@@ -271,3 +271,5 @@ if input_address:
 
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
+
+
