@@ -8,8 +8,6 @@ from pptx.util import Inches, Pt
 import requests
 import urllib.parse
 from branca.element import Template, MacroElement
-import os
-import tempfile
 import streamlit.components.v1 as components
 
 # --- Streamlit page config ---
@@ -24,7 +22,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- JS to hide dynamically injected badges ---
 components.html("""
 <script>
 setInterval(() => {
@@ -108,10 +105,9 @@ def filter_duplicates(df):
     filtered_df = grouped.apply(select_preferred).reset_index(drop=True)
     return filtered_df.drop(columns=["Normalized Address"])
 
-# --- Cache Excel loading and processing ---
-@st.cache_data
-def load_centre_data():
-    file_path = "Database IC.xlsx"
+# --- Cached data loader ---
+@st.cache(allow_output_mutation=True)
+def load_centre_data(file_path):
     sheets = ["Comps", "Active Centre", "Centre Opened"]
     all_data = []
     for sheet in sheets:
@@ -136,7 +132,7 @@ def load_centre_data():
 
     priority_order = {"Comps":0,"Active Centre":1,"Centre Opened":2}
     combined_data["Sheet Priority"] = combined_data["Source Sheet"].map(priority_order)
-    data = combined_data.sort_values(by="Sheet Priority").drop_duplicates(subset=["Centre Number"],keep="first").drop(columns=["Sheet Priority"])
+    data = combined_data.sort_values(by="Sheet Priority").drop_duplicates(subset=["Centre Number"], keep="first").drop(columns=["Sheet Priority"])
 
     active_centre_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
     active_centre_df["Centre Number"] = active_centre_df["Centre Number"].apply(normalize_centre_number)
@@ -144,12 +140,12 @@ def load_centre_data():
 
     def replace_transaction_status(row):
         return active_status_map[row["Centre Number"]] if row["Centre Number"] in active_status_map else row["Transaction Milestone Status"]
-    data["Transaction Milestone Status"] = data.apply(replace_transaction_status, axis=1)
 
+    data["Transaction Milestone Status"] = data.apply(replace_transaction_status, axis=1)
     data = filter_duplicates(data)
     for col in ["City","State","Zipcode"]:
-        if col not in data.columns: data[col] = ""
-
+        if col not in data.columns: 
+            data[col] = ""
     return data
 
 # --- Main UI ---
@@ -175,13 +171,10 @@ if input_address:
                 area_type = infer_area_type(location)
                 st.write(f"Area type detected: **{area_type}**")
 
-                # --- Use cached data ---
-                data = load_centre_data()
+                file_path = "Database IC.xlsx"
+                data = load_centre_data(file_path)
 
-                data["Distance (miles)"] = data.apply(
-                    lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles,
-                    axis=1
-                )
+                data["Distance (miles)"] = data.apply(lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1)
                 data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
 
                 selected_centres, seen_distances, seen_centre_numbers = [], [], set()
@@ -210,18 +203,24 @@ if input_address:
                     folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
                     color = get_marker_color(row["Format - Type of Centre"])
                     label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
-                    folium.Marker(location=dest_coords,
-                                  popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
-                                         f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
-                                  tooltip=folium.Tooltip(f"<div style='font-size:16px;font-weight:bold'>{label}</div>", permanent=True, direction='right'),
-                                  icon=folium.Icon(color=color)).add_to(m)
-                    distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+                    folium.Marker(
+                        location=dest_coords,
+                        popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | "
+                               f"{row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
+                               f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | "
+                               f"{row['Distance (miles)']:.2f} mi"),
+                        tooltip=folium.Tooltip(f"<div style='font-size:16px;font-weight:bold'>{label}</div>", permanent=True, direction='right'),
+                        icon=folium.Icon(color=color)
+                    ).add_to(m)
+                    distance_text += (f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, "
+                                      f"{row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - "
+                                      f"Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} "
+                                      f"- {row['Distance (miles)']:.2f} miles\n")
 
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
                 radius_m = radius_miles.get(area_type,5) * 1609.34
                 folium.Circle(location=input_coords, radius=radius_m, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
-                # Patched legend for radius (text visible)
                 legend_html = f"""
                     {{% macro html(this, kwargs) %}}
                     <div style='position: absolute; top: 70px; left: 10px; width: 180px; z-index: 9999;
@@ -267,6 +266,5 @@ if input_address:
                             <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                         </div>
                     """, unsafe_allow_html=True)
-
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
