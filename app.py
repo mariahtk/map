@@ -46,7 +46,7 @@ def login():
             st.session_state["authenticated"] = True
             st.session_state["user_email"] = email
             st.success("Login successful!")
-            st.experimental_rerun()
+            st.session_state["rerun_needed"] = True  # Set flag for rerun outside function
         else:
             st.error("Invalid email or password.")
 
@@ -55,6 +55,9 @@ if "authenticated" not in st.session_state:
 
 if not st.session_state["authenticated"]:
     login()
+    if st.session_state.get("rerun_needed"):
+        st.session_state["rerun_needed"] = False
+        st.experimental_rerun()
     st.stop()
 
 # --- Helper functions ---
