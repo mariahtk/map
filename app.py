@@ -46,7 +46,7 @@ def login():
             st.session_state["authenticated"] = True
             st.session_state["user_email"] = email
             st.success("Login successful!")
-            st.experimental_rerun()  # <-- Only here inside the button click
+            st.experimental_rerun()
         else:
             st.error("Invalid email or password.")
 
@@ -109,7 +109,7 @@ def filter_duplicates(df):
     return filtered_df.drop(columns=["Normalized Address"])
 
 # --- Cached data loading function ---
-@st.cache(allow_output_mutation=True)
+@st.cache_data
 def load_data(file_path="Database IC.xlsx"):
     sheets = ["Comps", "Active Centre", "Centre Opened"]
     all_data = []
@@ -271,5 +271,3 @@ if input_address:
 
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
-
-
