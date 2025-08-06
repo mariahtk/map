@@ -1,5 +1,5 @@
 geopy==2.3.0
-streamlit==1.16.0
+streamlit>=1.18.0
 folium==0.12.1
 streamlit-folium==0.8.0
 openpyxl>=3.1.0
@@ -10,3 +10,4 @@ altair==4.2.2
 requests==2.28.2
 openpyxl
 python-dotenv
+
