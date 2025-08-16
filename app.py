@@ -24,7 +24,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- JS to hide dynamically injected badges ---
 components.html("""
 <script>
 setInterval(() => {
@@ -109,7 +108,6 @@ def filter_duplicates(df):
     filtered_df = grouped.apply(select_preferred).reset_index(drop=True)
     return filtered_df.drop(columns=["Normalized Address"])
 
-# --- Cached data loading function ---
 @st.cache_data
 def load_data(file_path="Database IC.xlsx"):
     sheets = ["Comps", "Active Centre", "Centre Opened"]
@@ -127,7 +125,6 @@ def load_data(file_path="Database IC.xlsx"):
 
     combined_data = pd.concat(all_data, ignore_index=True)
     combined_data = combined_data.dropna(subset=["Latitude", "Longitude", "Centre Number"])
-
     def has_valid_address(val):
         return False if pd.isna(val) or (isinstance(val, str) and val.strip() == "") else True
 
@@ -142,17 +139,13 @@ def load_data(file_path="Database IC.xlsx"):
     active_centre_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
     active_centre_df["Centre Number"] = active_centre_df["Centre Number"].apply(normalize_centre_number)
     active_status_map = active_centre_df.dropna(subset=["Centre Number", "Transaction Milestone Status"]).set_index("Centre Number")["Transaction Milestone Status"].to_dict()
-
     def replace_transaction_status(row):
         return active_status_map[row["Centre Number"]] if row["Centre Number"] in active_status_map else row["Transaction Milestone Status"]
-
     data["Transaction Milestone Status"] = data.apply(replace_transaction_status, axis=1)
     data = filter_duplicates(data)
-
     for col in ["City", "State", "Zipcode"]:
         if col not in data.columns:
             data[col] = ""
-
     return data
 
 # --- Main UI ---
@@ -178,10 +171,7 @@ if input_address:
                 area_type = infer_area_type(location)
                 st.write(f"Area type detected: **{area_type}**")
 
-                # Load cached data
                 data = load_data()
-
-                # Calculate distances
                 data["Distance (miles)"] = data.apply(lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1)
                 data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
 
@@ -199,14 +189,12 @@ if input_address:
                         break
                 closest = pd.DataFrame(selected_centres)
 
-                # --- Folium Map ---
                 m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
                 folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
 
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
-                # Add markers, lines, and tooltips with unique IDs
                 distance_text = ""
                 for idx, row in closest.iterrows():
                     dest_coords = (row["Latitude"], row["Longitude"])
@@ -226,12 +214,10 @@ if input_address:
                     ).add_to(m)
                     distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
-                # Circle radius
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
                 radius_m = radius_miles.get(area_type,5) * 1609.34
                 folium.Circle(location=input_coords, radius=radius_m, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
-                # Legend
                 legend_html = f"""
                     {{% macro html(this, kwargs) %}}
                     <div style='position: absolute; top: 70px; left: 10px; width: 180px; z-index: 9999;
@@ -246,20 +232,31 @@ if input_address:
                 legend._template = Template(legend_html)
                 m.get_root().add_child(legend)
 
-                # JS for collision avoidance of tooltips
+                # --- Robust JS collision avoidance ---
                 js = """
                 function avoidCollisions() {
+                    const padding = 5;
                     const tooltips = Array.from(document.querySelectorAll('.leaflet-tooltip'));
                     let moved = true;
-                    while(moved){
+                    let iteration = 0;
+                    const maxIterations = 50;
+
+                    while(moved && iteration < maxIterations){
                         moved = false;
+                        iteration++;
                         for(let i=0;i<tooltips.length;i++){
                             let a = tooltips[i].getBoundingClientRect();
                             for(let j=i+1;j<tooltips.length;j++){
                                 let b = tooltips[j].getBoundingClientRect();
-                                if(!(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom)){
-                                    let currentY = parseFloat(tooltips[j].style.transform.replace('translateY(','').replace('px)',''))||0;
-                                    tooltips[j].style.transform = `translateY(${currentY+20}px)`;
+                                if(!(a.right + padding < b.left || a.left > b.right + padding || 
+                                     a.bottom + padding < b.top || a.top > b.bottom + padding)) {
+                                    let transform = tooltips[j].style.transform || "translate(0px,0px)";
+                                    let match = transform.match(/translate\\((-?\\d+)px, (-?\\d+)px\\)/);
+                                    let x = 0, y = 0;
+                                    if(match){ x = parseInt(match[1]); y = parseInt(match[2]); }
+                                    x += (Math.random() < 0.5 ? 1 : -1) * (b.width + padding);
+                                    y += (Math.random() < 0.5 ? 1 : -1) * (b.height + padding);
+                                    tooltips[j].style.transform = `translate(${x}px, ${y}px)`;
                                     moved = true;
                                 }
                             }
