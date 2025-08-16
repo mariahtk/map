@@ -7,7 +7,7 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 import requests
 import urllib.parse
-from branca.element import Template, MacroElement, Element
+from branca.element import Template, MacroElement
 import os
 import tempfile
 import streamlit.components.v1 as components
@@ -24,6 +24,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# --- JS to hide dynamically injected badges ---
 components.html("""
 <script>
 setInterval(() => {
@@ -49,6 +50,7 @@ def login():
         else:
             st.error("Invalid email or password.")
 
+# --- Authentication state check ---
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
@@ -108,6 +110,7 @@ def filter_duplicates(df):
     filtered_df = grouped.apply(select_preferred).reset_index(drop=True)
     return filtered_df.drop(columns=["Normalized Address"])
 
+# --- Cached data loading function ---
 @st.cache_data
 def load_data(file_path="Database IC.xlsx"):
     sheets = ["Comps", "Active Centre", "Centre Opened"]
@@ -125,6 +128,7 @@ def load_data(file_path="Database IC.xlsx"):
 
     combined_data = pd.concat(all_data, ignore_index=True)
     combined_data = combined_data.dropna(subset=["Latitude", "Longitude", "Centre Number"])
+
     def has_valid_address(val):
         return False if pd.isna(val) or (isinstance(val, str) and val.strip() == "") else True
 
@@ -139,13 +143,17 @@ def load_data(file_path="Database IC.xlsx"):
     active_centre_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
     active_centre_df["Centre Number"] = active_centre_df["Centre Number"].apply(normalize_centre_number)
     active_status_map = active_centre_df.dropna(subset=["Centre Number", "Transaction Milestone Status"]).set_index("Centre Number")["Transaction Milestone Status"].to_dict()
+
     def replace_transaction_status(row):
         return active_status_map[row["Centre Number"]] if row["Centre Number"] in active_status_map else row["Transaction Milestone Status"]
+
     data["Transaction Milestone Status"] = data.apply(replace_transaction_status, axis=1)
     data = filter_duplicates(data)
+
     for col in ["City", "State", "Zipcode"]:
         if col not in data.columns:
             data[col] = ""
+
     return data
 
 # --- Main UI ---
@@ -171,7 +179,10 @@ if input_address:
                 area_type = infer_area_type(location)
                 st.write(f"Area type detected: **{area_type}**")
 
+                # Load cached data
                 data = load_data()
+
+                # Calculate distances
                 data["Distance (miles)"] = data.apply(lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1)
                 data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
 
@@ -195,28 +206,55 @@ if input_address:
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
+                # --- NEW: DivIcon labels with collision avoidance ---
                 distance_text = ""
+                label_offsets = {}  # track y-offsets per location to prevent overlaps
+
                 for idx, row in closest.iterrows():
                     dest_coords = (row["Latitude"], row["Longitude"])
                     folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
                     color = get_marker_color(row["Format - Type of Centre"])
-                    label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
-                    # Unique ID for each permanent label
-                    label_id = f"label_{idx}"
+                    label_text = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
+
+                    # collision avoidance: increment y offset for markers that are too close
+                    loc_key = (round(dest_coords[0],5), round(dest_coords[1],5))
+                    offset_y = label_offsets.get(loc_key, 0)
+                    label_offsets[loc_key] = offset_y + 25  # 25 pixels vertical spacing
+
+                    icon_html = f"""
+                        <div style="
+                            background:white;
+                            padding:3px 6px;
+                            border:1px solid black;
+                            border-radius:3px;
+                            font-weight:bold;
+                            font-size:14px;
+                            white-space: nowrap;
+                        ">
+                            {label_text}
+                        </div>
+                    """
+                    icon = folium.DivIcon(
+                        html=icon_html,
+                        icon_size=(150, 30),
+                        icon_anchor=(0, -offset_y)
+                    )
+
                     folium.Marker(
                         location=dest_coords,
+                        icon=icon,
                         popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
-                               f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
-                        tooltip=folium.Tooltip(f"<div id='{label_id}' style='font-size:16px;font-weight:bold;background:white;padding:3px;border-radius:3px'>{label}</div>", permanent=True, direction='right'),
-                        icon=folium.Icon(color=color)
+                               f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi")
                     ).add_to(m)
+
                     distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
+                # Draw radius circle
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
                 radius_m = radius_miles.get(area_type,5) * 1609.34
                 folium.Circle(location=input_coords, radius=radius_m, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
-                # Legend
+                # Patched legend for radius
                 legend_html = f"""
                     {{% macro html(this, kwargs) %}}
                     <div style='position: absolute; top: 70px; left: 10px; width: 180px; z-index: 9999;
@@ -231,50 +269,6 @@ if input_address:
                 legend._template = Template(legend_html)
                 m.get_root().add_child(legend)
 
-                # --- Force-directed collision avoidance JS ---
-                js_force = """
-                function forceLabelCollision() {
-                    const padding = 5;
-                    const labels = Array.from(document.querySelectorAll('.leaflet-tooltip div[style*="font-weight:bold"]'));
-                    const maxIter = 100;
-                    let iter = 0;
-                    let overlap = true;
-
-                    while(overlap && iter < maxIter){
-                        overlap = false;
-                        iter++;
-                        for(let i=0;i<labels.length;i++){
-                            let a = labels[i].getBoundingClientRect();
-                            for(let j=i+1;j<labels.length;j++){
-                                let b = labels[j].getBoundingClientRect();
-                                if(!(a.right+padding < b.left || a.left > b.right+padding || 
-                                     a.bottom+padding < b.top || a.top > b.bottom+padding)) {
-                                    overlap = true;
-                                    let transformA = labels[i].style.transform || "translate(0px,0px)";
-                                    let transformB = labels[j].style.transform || "translate(0px,0px)";
-                                    let matchA = transformA.match(/translate\\((-?\\d+)px, (-?\\d+)px\\)/);
-                                    let matchB = transformB.match(/translate\\((-?\\d+)px, (-?\\d+)px\\)/);
-                                    let ax = matchA ? parseInt(matchA[1]) : 0;
-                                    let ay = matchA ? parseInt(matchA[2]) : 0;
-                                    let bx = matchB ? parseInt(matchB[1]) : 0;
-                                    let by = matchB ? parseInt(matchB[2]) : 0;
-                                    // push B away from A
-                                    let dx = (bx - ax) || 1;
-                                    let dy = (by - ay) || 1;
-                                    let distance = Math.sqrt(dx*dx + dy*dy);
-                                    let pushX = (dx/distance)*(b.width + padding);
-                                    let pushY = (dy/distance)*(b.height + padding);
-                                    labels[j].style.transform = `translate(${bx + pushX}px, ${by + pushY}px)`;
-                                }
-                            }
-                        }
-                    }
-                }
-                setTimeout(forceLabelCollision, 500);
-                """
-                m.get_root().html.add_child(Element(f"<script>{js_force}</script>"))
-
-                # --- Streamlit layout ---
                 col1, col2 = st.columns([5, 2])
                 with col1:
                     st_folium(m, width=950, height=650)
