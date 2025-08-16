@@ -207,7 +207,6 @@ if input_address:
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
-                # Store initial label positions for reset
                 label_positions = []
 
                 for i, row in closest.iterrows():
@@ -216,46 +215,41 @@ if input_address:
                     color = get_marker_color(row["Format - Type of Centre"])
                     label_text = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
 
-                    # Use DivIcon with draggable label
+                    # Original marker with bold black tooltip (unchanged)
+                    folium.Marker(
+                        location=dest_coords,
+                        popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | "
+                               f"{row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
+                               f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | "
+                               f"{row['Distance (miles)']:.2f} mi"),
+                        tooltip=folium.Tooltip(
+                            f"<div style='font-size:16px;font-weight:bold'>{label_text}</div>", 
+                            permanent=True, direction='right'
+                        ),
+                        icon=folium.Icon(color=color)
+                    ).add_to(m)
+
+                    # Draggable white label DivIcon
                     icon = folium.DivIcon(
                         html=f"""
-                        <div id='label{i}' style='background:white;padding:4px;border:1px solid black;font-weight:bold;'>{label_text}</div>
+                        <div id='label{i}' style='background:white;padding:4px;border:1px solid black;
+                                                   font-weight:bold;font-size:14px;'>{label_text}</div>
                         """,
                         icon_size=(150, 36),
                         icon_anchor=(0, 0)
                     )
-                    marker = folium.Marker(location=dest_coords, icon=icon, draggable=True)
-                    marker.add_to(m)
+                    draggable_marker = folium.Marker(location=dest_coords, icon=icon, draggable=True)
+                    draggable_marker.add_to(m)
 
+                    # Save original positions for reset
                     label_positions.append({"id": f"label{i}", "lat": dest_coords[0], "lng": dest_coords[1]})
 
-                # Add Reset Button JS
-                reset_js = """
-                <script>
-                function resetLabels() {
-                    const positions = """ + str(label_positions) + """;
-                    positions.forEach(pos => {
-                        const el = document.getElementById(pos.id);
-                        if (el) {
-                            const marker = el.closest('.leaflet-marker-icon');
-                            if (marker) {
-                                marker._leaflet_pos = null;
-                                marker.style.transform = null;
-                            }
-                        }
-                    });
-                }
-                </script>
-                <button onclick="resetLabels()" style="position:absolute; top:10px; right:10px; z-index:9999; padding:5px 10px;">Reset Labels</button>
-                """
-                m.get_root().html.add_child(folium.Element(reset_js))
-
-                # --- Radius circle ---
+                # Circle radius
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
                 radius_m = radius_miles.get(area_type,5) * 1609.34
                 folium.Circle(location=input_coords, radius=radius_m, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
-                # --- Legend ---
+                # Patched legend for radius
                 legend_html = f"""
                     {{% macro html(this, kwargs) %}}
                     <div style='position: absolute; top: 70px; left: 10px; width: 180px; z-index: 9999;
@@ -270,19 +264,20 @@ if input_address:
                 legend._template = Template(legend_html)
                 m.get_root().add_child(legend)
 
-                # --- Display ---
+                # --- Streamlit layout ---
                 col1, col2 = st.columns([5, 2])
-                distance_text = ""
-                for _, row in closest.iterrows():
-                    distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
-
                 with col1:
                     st_folium(m, width=950, height=650)
+                    # Distance text
+                    distance_text = ""
+                    for _, row in closest.iterrows():
+                        distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
                     st.markdown(f"""
                         <div style="font-size:18px; line-height:1.5; font-weight:bold; padding-top: 8px;">
                         {distance_text.replace(chr(10), "<br>")}
                         </div>
                     """, unsafe_allow_html=True)
+
                 with col2:
                     st.markdown("""
                         <div style="
@@ -306,5 +301,14 @@ if input_address:
                             <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                         </div>
                     """, unsafe_allow_html=True)
+                    
+                    # Reset labels button
+                    if st.button("Reset Labels"):
+                        reset_js = "<script>"
+                        for lp in label_positions:
+                            reset_js += f"document.getElementById('{lp['id']}').style.transform='translate(0px,0px)';"
+                        reset_js += "</script>"
+                        st.components.v1.html(reset_js, height=0)
+
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
