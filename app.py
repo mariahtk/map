@@ -200,7 +200,6 @@ if input_address:
                     color = get_marker_color(row["Format - Type of Centre"])
                     label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
 
-                    # Apply a small offset if coordinates already used
                     lat, lng = dest_coords
                     if (lat, lng) in offsets:
                         offset_count = offsets[(lat, lng)]
@@ -210,10 +209,20 @@ if input_address:
                     else:
                         offsets[(lat, lng)] = 1
 
-                    # Add marker with DivIcon for permanent label
+                    # Updated DivIcon with wrapping
                     label_html = f"""
-                    <div style='background-color:white; padding:2px 4px; border:1px solid gray; 
-                                border-radius:3px; font-weight:bold;'>{label}</div>
+                    <div style='
+                        background-color:white; 
+                        padding:4px 6px; 
+                        border:1px solid gray; 
+                        border-radius:4px; 
+                        font-weight:bold; 
+                        font-size:14px;
+                        white-space: normal;
+                        max-width: 180px;
+                        word-break: break-word;
+                        text-align: center;
+                    '>{label}</div>
                     """
                     folium.Marker(
                         location=(lat, lng),
@@ -250,17 +259,5 @@ if input_address:
                         </div>
                     """, unsafe_allow_html=True)
 
-                    # --- Download Map as PNG ---
-                    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".html")
-                    m.save(tmp_file.name)
-
-                    try:
-                        import imgkit
-                        map_png_path = tmp_file.name.replace(".html", ".png")
-                        imgkit.from_file(tmp_file.name, map_png_path)
-                        with open(map_png_path, "rb") as f:
-                            st.download_button("📥 Download Map as PNG", f.read(), "map.png", "image/png")
-                    except Exception as e:
-                        st.warning("Download as image is not supported. Map labels and download may need local environment setup.")
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
