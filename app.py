@@ -215,21 +215,17 @@ if input_address:
                     color = get_marker_color(row["Format - Type of Centre"])
                     label_text = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
 
-                    # Original marker with bold black tooltip (unchanged)
+                    # Original marker (unchanged)
                     folium.Marker(
                         location=dest_coords,
                         popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | "
                                f"{row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
                                f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | "
                                f"{row['Distance (miles)']:.2f} mi"),
-                        tooltip=folium.Tooltip(
-                            f"<div style='font-size:16px;font-weight:bold'>{label_text}</div>", 
-                            permanent=True, direction='right'
-                        ),
                         icon=folium.Icon(color=color)
                     ).add_to(m)
 
-                    # Draggable white label DivIcon
+                    # Make the **existing label box draggable**
                     icon = folium.DivIcon(
                         html=f"""
                         <div id='label{i}' style='background:white;padding:4px;border:1px solid black;
@@ -301,7 +297,7 @@ if input_address:
                             <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                         </div>
                     """, unsafe_allow_html=True)
-                    
+
                     # Reset labels button
                     if st.button("Reset Labels"):
                         reset_js = "<script>"
