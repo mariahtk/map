@@ -196,20 +196,16 @@ if input_address:
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
                 distance_text = ""
-                for idx, row in closest.iterrows():
+                for _, row in closest.iterrows():
                     dest_coords = (row["Latitude"], row["Longitude"])
                     folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
                     color = get_marker_color(row["Format - Type of Centre"])
                     label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
-                    tooltip = folium.Tooltip(
-                        f"<div id='tooltip_{idx}' style='font-size:16px;font-weight:bold'>{label}</div>",
-                        permanent=True, direction='right'
-                    )
                     folium.Marker(
                         location=dest_coords,
                         popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
                                f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
-                        tooltip=tooltip,
+                        tooltip=folium.Tooltip(f"<div style='font-size:16px;font-weight:bold;background:white;padding:3px;border-radius:3px'>{label}</div>", permanent=True, direction='right'),
                         icon=folium.Icon(color=color)
                     ).add_to(m)
                     distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
@@ -218,52 +214,53 @@ if input_address:
                 radius_m = radius_miles.get(area_type,5) * 1609.34
                 folium.Circle(location=input_coords, radius=radius_m, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
-                legend_html = f"""
-                    {{% macro html(this, kwargs) %}}
+                # Legend
+                legend_html = """
+                    {% macro html(this, kwargs) %}
                     <div style='position: absolute; top: 70px; left: 10px; width: 180px; z-index: 9999;
                                 background-color: white; padding: 10px; border: 2px solid gray;
-                                border-radius: 5px; font-size: 14px; color: black; text-shadow: 1px 1px 2px white;'>{{
-                        &nbsp;<b>Radius</b><br>
-                        <span style='color:green;'>&#x25CF;</span> {radius_miles.get(area_type,5)}-mile Zone
-                    }}</div>
-                    {{% endmacro %}}
+                                border-radius: 5px; font-size: 14px; color: black; text-shadow: 1px 1px 2px white;'>
+                        <b>Radius</b><br>
+                        <span style='color:green;'>&#x25CF;</span> """ + f"{radius_miles.get(area_type,5)}-mile Zone" + """
+                    </div>
+                    {% endmacro %}
                 """
                 legend = MacroElement()
                 legend._template = Template(legend_html)
                 m.get_root().add_child(legend)
 
-                # --- Robust JS collision avoidance ---
+                # --- Collision avoidance JS for permanent labels ---
                 js = """
-                function avoidCollisions() {
+                function resolveLabelCollisions() {
                     const padding = 5;
-                    const tooltips = Array.from(document.querySelectorAll('.leaflet-tooltip'));
+                    const labels = Array.from(document.querySelectorAll('.leaflet-tooltip div[style*="font-weight:bold"]'));
                     let moved = true;
-                    let iteration = 0;
+                    let iterations = 0;
                     const maxIterations = 50;
 
-                    while(moved && iteration < maxIterations){
+                    while(moved && iterations < maxIterations) {
                         moved = false;
-                        iteration++;
-                        for(let i=0;i<tooltips.length;i++){
-                            let a = tooltips[i].getBoundingClientRect();
-                            for(let j=i+1;j<tooltips.length;j++){
-                                let b = tooltips[j].getBoundingClientRect();
-                                if(!(a.right + padding < b.left || a.left > b.right + padding || 
-                                     a.bottom + padding < b.top || a.top > b.bottom + padding)) {
-                                    let transform = tooltips[j].style.transform || "translate(0px,0px)";
+                        iterations++;
+                        for(let i=0;i<labels.length;i++){
+                            let a = labels[i].getBoundingClientRect();
+                            for(let j=i+1;j<labels.length;j++){
+                                let b = labels[j].getBoundingClientRect();
+                                if(!(a.right+padding < b.left || a.left > b.right+padding || 
+                                     a.bottom+padding < b.top || a.top > b.bottom+padding)) {
+                                    let transform = labels[j].style.transform || "translate(0px,0px)";
                                     let match = transform.match(/translate\\((-?\\d+)px, (-?\\d+)px\\)/);
                                     let x = 0, y = 0;
                                     if(match){ x = parseInt(match[1]); y = parseInt(match[2]); }
-                                    x += (Math.random() < 0.5 ? 1 : -1) * (b.width + padding);
-                                    y += (Math.random() < 0.5 ? 1 : -1) * (b.height + padding);
-                                    tooltips[j].style.transform = `translate(${x}px, ${y}px)`;
+                                    x += (Math.random()<0.5?1:-1)*(b.width + padding);
+                                    y += (Math.random()<0.5?1:-1)*(b.height + padding);
+                                    labels[j].style.transform = `translate(${x}px, ${y}px)`;
                                     moved = true;
                                 }
                             }
                         }
                     }
                 }
-                setTimeout(avoidCollisions, 500);
+                setTimeout(resolveLabelCollisions, 500);
                 """
                 m.get_root().html.add_child(Element(f"<script>{js}</script>"))
 
