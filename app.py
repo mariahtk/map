@@ -223,7 +223,7 @@ if input_address:
                     for existing_coords, existing_offset, existing_direction in placed_labels:
                         dist_miles = geodesic(dest_coords, existing_coords).miles
                         if dist_miles < proximity_threshold:
-                            offset_y = abs(existing_offset) + 25
+                            offset_y = abs(existing_offset) + 50
                             direction = -existing_direction
                             break
 
@@ -312,4 +312,5 @@ if input_address:
 
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
+
 
