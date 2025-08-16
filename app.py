@@ -3,10 +3,14 @@ from geopy.distance import geodesic
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
-from branca.element import Template, MacroElement
+from pptx import Presentation
+from pptx.util import Inches, Pt
 import requests
 import urllib.parse
+from branca.element import Template, MacroElement
+import os
 import tempfile
+import streamlit.components.v1 as components
 
 # --- Streamlit page config ---
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
@@ -20,6 +24,17 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# --- JS to hide dynamically injected badges ---
+components.html("""
+<script>
+setInterval(() => {
+  const badges = document.querySelectorAll(
+    '.viewerBadge_container__1QSob, .stAppViewerBadge, a[href*="github.com"]');
+  badges.forEach(badge => badge.style.display = 'none');
+}, 500);
+</script>
+""", height=0)
+
 # --- Login system ---
 def login():
     st.image("IWG Logo.jpg", width=150)
@@ -31,10 +46,11 @@ def login():
             st.session_state["authenticated"] = True
             st.session_state["user_email"] = email
             st.success("Login successful!")
-            st.rerun()
+            st.rerun()  # <-- Fixed here
         else:
             st.error("Invalid email or password.")
 
+# --- Authentication state check ---
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
@@ -94,6 +110,7 @@ def filter_duplicates(df):
     filtered_df = grouped.apply(select_preferred).reset_index(drop=True)
     return filtered_df.drop(columns=["Normalized Address"])
 
+# --- Cached data loading function ---
 @st.cache_data
 def load_data(file_path="Database IC.xlsx"):
     sheets = ["Comps", "Active Centre", "Centre Opened"]
@@ -162,7 +179,10 @@ if input_address:
                 area_type = infer_area_type(location)
                 st.write(f"Area type detected: **{area_type}**")
 
+                # Load cached data
                 data = load_data()
+
+                # Calculate distances
                 data["Distance (miles)"] = data.apply(lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1)
                 data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
 
@@ -186,49 +206,37 @@ if input_address:
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
-                # --- Vertical stacking offsets to prevent overlap ---
-                offsets = {}
                 distance_text = ""
-                for i, row in closest.iterrows():
-                    lat, lng = row["Latitude"], row["Longitude"]
+                for _, row in closest.iterrows():
+                    dest_coords = (row["Latitude"], row["Longitude"])
+                    folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
+                    color = get_marker_color(row["Format - Type of Centre"])
                     label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
-
-                    # Determine vertical offset for stacked labels
-                    key = (round(lat, 6), round(lng, 6))
-                    if key in offsets:
-                        offset_index = offsets[key]
-                        new_lat = lat + 0.00007 * offset_index  # small vertical step
-                        offsets[key] += 1
-                    else:
-                        new_lat = lat
-                        offsets[key] = 1
-
-                    label_html = f"""
-                    <div style='
-                        background-color:white; 
-                        color:black;
-                        padding:2px 4px; 
-                        border:1px solid gray; 
-                        border-radius:3px; 
-                        font-weight:bold; 
-                        font-size:14px;
-                        white-space: nowrap;
-                        display: inline-block;
-                    '>{label}</div>
-                    """
-
-                    folium.Marker(
-                        location=(new_lat, lng),
-                        popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
-                               f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
-                        icon=folium.DivIcon(html=label_html)
-                    ).add_to(m)
-
+                    folium.Marker(location=dest_coords,
+                                  popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
+                                         f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
+                                  tooltip=folium.Tooltip(f"<div style='font-size:16px;font-weight:bold'>{label}</div>", permanent=True, direction='right'),
+                                  icon=folium.Icon(color=color)).add_to(m)
                     distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
                 radius_m = radius_miles.get(area_type,5) * 1609.34
                 folium.Circle(location=input_coords, radius=radius_m, color="green", fill=True, fill_opacity=0.2).add_to(m)
+
+                # Patched legend for radius
+                legend_html = f"""
+                    {{% macro html(this, kwargs) %}}
+                    <div style='position: absolute; top: 70px; left: 10px; width: 180px; z-index: 9999;
+                                background-color: white; padding: 10px; border: 2px solid gray;
+                                border-radius: 5px; font-size: 14px; color: black; text-shadow: 1px 1px 2px white;'>
+                        <b>Radius</b><br>
+                        <span style='color:green;'>&#x25CF;</span> {radius_miles.get(area_type,5)}-mile Zone
+                    </div>
+                    {{% endmacro %}}
+                """
+                legend = MacroElement()
+                legend._template = Template(legend_html)
+                m.get_root().add_child(legend)
 
                 col1, col2 = st.columns([5, 2])
                 with col1:
@@ -248,6 +256,7 @@ if input_address:
                             width: 100%;
                             margin-top: 20px;
                             color: black;
+                            text-shadow: 1px 1px 2px white;
                             font-weight: bold;
                             font-size: 14px;
                         ">
@@ -260,6 +269,5 @@ if input_address:
                             <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                         </div>
                     """, unsafe_allow_html=True)
-
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
