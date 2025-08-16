@@ -193,7 +193,11 @@ if input_address:
                     folium.PolyLine([input_coords,dest_coords], color="blue", weight=2.5).add_to(m)
                     color = get_marker_color(row["Format - Type of Centre"])
                     label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
-                    # Draggable label marker
+
+                    # Original marker icon
+                    folium.Marker(location=dest_coords, icon=folium.Icon(color=color), popup=f"#{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')} {row.get('State','')} {row.get('Zipcode','')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi").add_to(m)
+
+                    # Draggable label beside marker
                     html_label = f"""
                     <div style="
                         background-color:white;
@@ -211,7 +215,7 @@ if input_address:
                     </div>
                     """
                     icon = folium.DivIcon(html=html_label)
-                    folium.Marker(location=dest_coords, icon=icon, draggable=True, popup=f"#{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')} {row.get('State','')} {row.get('Zipcode','')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi").add_to(m)
+                    folium.Marker(location=(dest_coords[0]+0.00005,dest_coords[1]+0.00005), icon=icon, draggable=True).add_to(m)
 
                     distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
@@ -236,7 +240,7 @@ if input_address:
 
                 col1,col2 = st.columns([5,2])
                 with col1:
-                    st_folium(m, width=950, height=650)
+                    st_folium(m,width=950,height=650)
                     st.markdown(f"<div style='font-size:18px;line-height:1.5;font-weight:bold;padding-top:8px;'>{distance_text.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
                 with col2:
                     st.markdown("""
@@ -261,14 +265,16 @@ if input_address:
                             <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                         </div>
                     """, unsafe_allow_html=True)
+
                     # Reset labels button
                     if st.button("Reset Labels"):
                         reset_script = "<script>\n"
                         reset_script += "const labelMarkers = document.querySelectorAll('.leaflet-marker-icon');\n"
                         for idx, pos in enumerate(label_positions):
+                            # offset by 1 because first marker is the green input address
                             reset_script += f"""
                             if(labelMarkers[{idx+1}] && labelMarkers[{idx+1}]._leaflet_pos){{
-                                labelMarkers[{idx+1}]._leaflet_pos = L.latLng({pos['lat']},{pos['lng']});
+                                labelMarkers[{idx+1}]._leaflet_pos = L.latLng({pos['lat']+0.00005},{pos['lng']+0.00005});
                                 labelMarkers[{idx+1}].style.transform = '';
                                 labelMarkers[{idx+1}].style.left = '';
                                 labelMarkers[{idx+1}].style.top = '';
