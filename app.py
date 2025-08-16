@@ -46,7 +46,7 @@ def login():
             st.session_state["authenticated"] = True
             st.session_state["user_email"] = email
             st.success("Login successful!")
-            st.rerun()  # <-- Fixed here
+            st.rerun()
         else:
             st.error("Invalid email or password.")
 
@@ -206,18 +206,48 @@ if input_address:
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
+                # --- Add markers with non-overlapping tooltips ---
+                added_offsets = []  # store previous label positions to prevent overlaps
+                step = 0.00012      # small vertical offset in degrees (adjust as needed)
+
                 distance_text = ""
+
                 for _, row in closest.iterrows():
                     dest_coords = (row["Latitude"], row["Longitude"])
                     folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
                     color = get_marker_color(row["Format - Type of Centre"])
                     label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
-                    folium.Marker(location=dest_coords,
-                                  popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
-                                         f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
-                                  tooltip=folium.Tooltip(f"<div style='font-size:16px;font-weight:bold'>{label}</div>", permanent=True, direction='right'),
-                                  icon=folium.Icon(color=color)).add_to(m)
-                    distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+
+                    # Calculate offset to prevent overlap
+                    offset_lat, offset_lng = 0, 0
+                    while any(
+                        abs(dest_coords[0] + offset_lat - lat) < step*2 and 
+                        abs(dest_coords[1] + offset_lng - lng) < step*2 
+                        for lat, lng in added_offsets
+                    ):
+                        offset_lat += step  # move new label slightly up until no overlap
+
+                    added_offsets.append((dest_coords[0] + offset_lat, dest_coords[1] + offset_lng))
+
+                    folium.Marker(
+                        location=(dest_coords[0] + offset_lat, dest_coords[1] + offset_lng),
+                        popup=(
+                            f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, "
+                            f"{row.get('State','')} {row.get('Zipcode','')} | {row['Format - Type of Centre']} | "
+                            f"{row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"
+                        ),
+                        tooltip=folium.Tooltip(
+                            f"<div style='font-size:16px;font-weight:bold'>{label}</div>", 
+                            permanent=True, direction='right'
+                        ),
+                        icon=folium.Icon(color=color)
+                    ).add_to(m)
+
+                    distance_text += (
+                        f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, "
+                        f"{row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - "
+                        f"Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+                    )
 
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
                 radius_m = radius_miles.get(area_type,5) * 1609.34
