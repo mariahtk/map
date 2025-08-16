@@ -6,10 +6,7 @@ from streamlit_folium import st_folium
 from branca.element import Template, MacroElement
 import requests
 import urllib.parse
-import io
-from PIL import Image
 import tempfile
-import os
 
 # --- Streamlit page config ---
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
@@ -190,9 +187,7 @@ if input_address:
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
-                # Track offsets to avoid overlap
                 offsets = {}
-
                 distance_text = ""
                 for i, row in closest.iterrows():
                     dest_coords = (row["Latitude"], row["Longitude"])
@@ -209,23 +204,24 @@ if input_address:
                     else:
                         offsets[(lat, lng)] = 1
 
-                    # Updated DivIcon with wrapping
+                    # Final compact horizontal black-label DivIcon
                     label_html = f"""
                     <div style='
                         background-color:white; 
-                        padding:4px 6px; 
+                        color:black;
+                        padding:2px 4px; 
                         border:1px solid gray; 
-                        border-radius:4px; 
+                        border-radius:3px; 
                         font-weight:bold; 
                         font-size:14px;
-                        white-space: normal;
-                        max-width: 180px;
-                        word-break: break-word;
-                        text-align: center;
+                        white-space: nowrap;
+                        display: inline-block;
                     '>{label}</div>
                     """
                     folium.Marker(
-                        location=(lat, lng),
+                        location=(lat,lng),
+                        popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
+                               f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
                         icon=folium.DivIcon(html=label_html)
                     ).add_to(m)
 
@@ -235,27 +231,34 @@ if input_address:
                 radius_m = radius_miles.get(area_type,5) * 1609.34
                 folium.Circle(location=input_coords, radius=radius_m, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
-                # Patched legend for radius
-                legend_html = f"""
-                    {{% macro html(this, kwargs) %}}
-                    <div style='position: absolute; top: 70px; left: 10px; width: 180px; z-index: 9999;
-                                background-color: white; padding: 10px; border: 2px solid gray;
-                                border-radius: 5px; font-size: 14px; color: black; text-shadow: 1px 1px 2px white;'>{{
-                        <b>Radius</b><br>
-                        <span style='color:green;'>&#x25CF;</span> {radius_miles.get(area_type,5)}-mile Zone
-                    </div>
-                    {{% endmacro %}}
-                """
-                legend = MacroElement()
-                legend._template = Template(legend_html)
-                m.get_root().add_child(legend)
-
                 col1, col2 = st.columns([5, 2])
                 with col1:
                     st_folium(m, width=950, height=650)
                     st.markdown(f"""
                         <div style="font-size:18px; line-height:1.5; font-weight:bold; padding-top: 8px;">
                         {distance_text.replace(chr(10), "<br>")}
+                        </div>
+                    """, unsafe_allow_html=True)
+                with col2:
+                    st.markdown("""
+                        <div style="
+                            background-color: white;
+                            padding: 10px;
+                            border: 2px solid grey;
+                            border-radius: 10px;
+                            width: 100%;
+                            margin-top: 20px;
+                            color: black;
+                            font-weight: bold;
+                            font-size: 14px;
+                        ">
+                            Centre Type Legend<br>
+                            <i style="background-color: lightgreen; padding: 5px;">&#9724;</i> Proposed Address<br>
+                            <i style="background-color: lightblue; padding: 5px;">&#9724;</i> Regus<br>
+                            <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
+                            <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
+                            <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
+                            <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                         </div>
                     """, unsafe_allow_html=True)
 
