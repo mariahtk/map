@@ -3,12 +3,9 @@ from geopy.distance import geodesic
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
-from pptx import Presentation
-from pptx.util import Inches, Pt
 import requests
 import urllib.parse
 from branca.element import Template, MacroElement
-import os
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
@@ -187,46 +184,47 @@ if input_address:
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
-                # Draggable labels and original positions
+                distance_text = ""
                 label_positions = []
-                label_js_array = "var draggable_markers = [];\n"
 
                 for idx, row in closest.iterrows():
                     dest_coords = (row["Latitude"], row["Longitude"])
+                    label_positions.append({"lat":dest_coords[0],"lng":dest_coords[1]})
                     folium.PolyLine([input_coords,dest_coords], color="blue", weight=2.5).add_to(m)
                     color = get_marker_color(row["Format - Type of Centre"])
-                    label_text = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
-
-                    # Marker (original)
-                    folium.Marker(location=dest_coords,
-                                  popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | "
-                                         f"{row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
-                                         f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | "
-                                         f"{row['Distance (miles)']:.2f} mi"),
-                                  icon=folium.Icon(color=color)).add_to(m)
-
+                    label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
                     # Draggable label marker
-                    icon = folium.DivIcon(html=f"""
-                        <div style='background:white;padding:4px;border:1px solid black;
-                                    font-weight:bold;font-size:14px;'>{label_text}</div>
-                        """)
-                    label_marker = folium.Marker(location=dest_coords, icon=icon, draggable=True)
-                    label_marker.add_to(m)
-                    # Store positions for JS reset
-                    label_positions.append({'lat': dest_coords[0], 'lng': dest_coords[1]})
-                    label_js_array += f"draggable_markers.push({{lat:{dest_coords[0]},lng:{dest_coords[1]}}});\n"
+                    html_label = f"""
+                    <div style="
+                        background-color:white;
+                        padding:4px 8px;
+                        border:1px solid gray;
+                        border-radius:4px;
+                        font-weight:bold;
+                        color:black;
+                        white-space:nowrap;
+                        font-size:14px;
+                        display:inline-block;
+                        text-align:left;
+                        ">
+                        {label}
+                    </div>
+                    """
+                    icon = folium.DivIcon(html=html_label)
+                    folium.Marker(location=dest_coords, icon=icon, draggable=True, popup=f"#{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')} {row.get('State','')} {row.get('Zipcode','')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi").add_to(m)
 
-                # Radius circle
+                    distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
-                radius_m = radius_miles.get(area_type,5) * 1609.34
-                folium.Circle(location=input_coords, radius=radius_m, color="green", fill=True, fill_opacity=0.2).add_to(m)
+                radius_m = radius_miles.get(area_type,5)*1609.34
+                folium.Circle(location=input_coords,radius=radius_m,color="green",fill=True,fill_opacity=0.2).add_to(m)
 
-                # Legend
+                # Radius legend
                 legend_html = f"""
                     {{% macro html(this, kwargs) %}}
-                    <div style='position: absolute; top: 70px; left: 10px; width: 180px; z-index: 9999;
-                                background-color: white; padding: 10px; border: 2px solid gray;
-                                border-radius: 5px; font-size: 14px; color: black; text-shadow: 1px 1px 2px white;'>
+                    <div style='position:absolute;top:70px;left:10px;width:180px;z-index:9999;
+                                background-color:white;padding:10px;border:2px solid gray;
+                                border-radius:5px;font-size:14px;color:black;text-shadow:1px 1px 2px white;'>
                         <b>Radius</b><br>
                         <span style='color:green;'>&#x25CF;</span> {radius_miles.get(area_type,5)}-mile Zone
                     </div>
@@ -239,29 +237,20 @@ if input_address:
                 col1,col2 = st.columns([5,2])
                 with col1:
                     st_folium(m, width=950, height=650)
-                    # Distance text
-                    distance_text = ""
-                    for _, row in closest.iterrows():
-                        distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
-                    st.markdown(f"""
-                        <div style="font-size:18px; line-height:1.5; font-weight:bold; padding-top: 8px;">
-                        {distance_text.replace(chr(10), "<br>")}
-                        </div>
-                    """, unsafe_allow_html=True)
-
+                    st.markdown(f"<div style='font-size:18px;line-height:1.5;font-weight:bold;padding-top:8px;'>{distance_text.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
                 with col2:
                     st.markdown("""
                         <div style="
-                            background-color: white;
-                            padding: 10px;
-                            border: 2px solid grey;
-                            border-radius: 10px;
-                            width: 100%;
-                            margin-top: 20px;
-                            color: black;
-                            text-shadow: 1px 1px 2px white;
-                            font-weight: bold;
-                            font-size: 14px;
+                            background-color:white;
+                            padding:10px;
+                            border:2px solid grey;
+                            border-radius:10px;
+                            width:100%;
+                            margin-top:20px;
+                            color:black;
+                            text-shadow:1px 1px 2px white;
+                            font-weight:bold;
+                            font-size:14px;
                         ">
                             Centre Type Legend<br>
                             <i style="background-color: lightgreen; padding: 5px;">&#9724;</i> Proposed Address<br>
@@ -272,20 +261,21 @@ if input_address:
                             <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                         </div>
                     """, unsafe_allow_html=True)
-
                     # Reset labels button
                     if st.button("Reset Labels"):
-                        reset_js = "<script>\n"
-                        reset_js += "var markerElems = document.querySelectorAll('.leaflet-marker-icon');\n"
+                        reset_script = "<script>\n"
+                        reset_script += "const labelMarkers = document.querySelectorAll('.leaflet-marker-icon');\n"
                         for idx, pos in enumerate(label_positions):
-                            reset_js += f"""
-                            if(markerElems[{idx+1}] && markerElems[{idx+1}]._leaflet_pos){{
-                                markerElems[{idx+1}]._leaflet_pos = L.point({pos['lng']},{pos['lat']});
-                                markerElems[{idx+1}].style.transform = "translate3d(0px,0px,0px)";
+                            reset_script += f"""
+                            if(labelMarkers[{idx+1}] && labelMarkers[{idx+1}]._leaflet_pos){{
+                                labelMarkers[{idx+1}]._leaflet_pos = L.latLng({pos['lat']},{pos['lng']});
+                                labelMarkers[{idx+1}].style.transform = '';
+                                labelMarkers[{idx+1}].style.left = '';
+                                labelMarkers[{idx+1}].style.top = '';
                             }}
                             """
-                        reset_js += "</script>"
-                        st.components.v1.html(reset_js,height=0)
+                        reset_script += "</script>"
+                        st.components.v1.html(reset_script,height=0)
 
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
