@@ -50,7 +50,6 @@ def login():
         else:
             st.error("Invalid email or password.")
 
-# --- Authentication state check ---
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
@@ -200,104 +199,78 @@ if input_address:
                         break
                 closest = pd.DataFrame(selected_centres)
 
+                # --- Folium Map ---
                 m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
                 folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
 
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
-                # --- Prepare marker data for smart labels ---
-                marker_data = []
+                # Add markers, lines, and tooltips with unique IDs
                 distance_text = ""
                 for idx, row in closest.iterrows():
                     dest_coords = (row["Latitude"], row["Longitude"])
+                    folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
                     color = get_marker_color(row["Format - Type of Centre"])
                     label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
-                    marker_data.append({
-                        "id": f"marker_{idx}",
-                        "lat": dest_coords[0],
-                        "lng": dest_coords[1],
-                        "label": label,
-                        "popup": f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
-                                 f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi",
-                        "color": color
-                    })
+                    tooltip = folium.Tooltip(
+                        f"<div id='tooltip_{idx}' style='font-size:16px;font-weight:bold'>{label}</div>",
+                        permanent=True, direction='right'
+                    )
+                    folium.Marker(
+                        location=dest_coords,
+                        popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
+                               f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
+                        tooltip=tooltip,
+                        icon=folium.Icon(color=color)
+                    ).add_to(m)
                     distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
-                # --- Add JS for smart label placement ---
-                js = f"""
-                function placeLabels(markerData){{
-                    let map = window.map;
-                    let labels = [];
-                    markerData.forEach(data => {{
-                        let marker = L.marker([data.lat, data.lng], {{
-                            icon: L.icon({{
-                                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-{{}}.png'.replace('{{}}', data.color),
-                                iconSize: [25,41],
-                                iconAnchor: [12,41]
-                            }})
-                        }}).addTo(map);
-                        marker.bindPopup(data.popup);
-                        let tooltip = L.tooltip({{
-                            permanent: true,
-                            direction: 'right',
-                            className: 'smart-tooltip',
-                            offset: [0,0]
-                        }}).setContent('<div style="font-size:16px;font-weight:bold;">' + data.label + '</div>').addTo(map);
-                        marker.bindTooltip(tooltip);
-                        labels.push(tooltip);
-                    }});
-
-                    function getBounds(el){{
-                        let rect = el._container.getBoundingClientRect();
-                        return {{left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom}};
-                    }}
-
-                    function overlaps(a, b){{
-                        return !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom);
-                    }}
-
-                    for(let i=0;i<labels.length;i++){{
-                        let moved = true;
-                        while(moved){{
-                            moved = false;
-                            let aBounds = getBounds(labels[i]);
-                            for(let j=0;j<labels.length;j++){{
-                                if(i===j) continue;
-                                let bBounds = getBounds(labels[j]);
-                                if(overlaps(aBounds,bBounds)){{
-                                    let offset = labels[i].options.offset;
-                                    labels[i].setOffset([offset[0], offset[1]+20]);
-                                    moved = true;
-                                    break;
-                                }}
-                            }}
-                        }}
-                    }}
-                }}
-                placeLabels({marker_data});
-                """
-                m.get_root().html.add_child(Element(f"<script>{js}</script>"))
-
+                # Circle radius
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
                 radius_m = radius_miles.get(area_type,5) * 1609.34
                 folium.Circle(location=input_coords, radius=radius_m, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
-                # Patched legend for radius
+                # Legend
                 legend_html = f"""
                     {{% macro html(this, kwargs) %}}
                     <div style='position: absolute; top: 70px; left: 10px; width: 180px; z-index: 9999;
                                 background-color: white; padding: 10px; border: 2px solid gray;
-                                border-radius: 5px; font-size: 14px; color: black; text-shadow: 1px 1px 2px white;'>
-                        <b>Radius</b><br>
+                                border-radius: 5px; font-size: 14px; color: black; text-shadow: 1px 1px 2px white;'>{{
+                        &nbsp;<b>Radius</b><br>
                         <span style='color:green;'>&#x25CF;</span> {radius_miles.get(area_type,5)}-mile Zone
-                    </div>
+                    }}</div>
                     {{% endmacro %}}
                 """
                 legend = MacroElement()
                 legend._template = Template(legend_html)
                 m.get_root().add_child(legend)
 
+                # JS for collision avoidance of tooltips
+                js = """
+                function avoidCollisions() {
+                    const tooltips = Array.from(document.querySelectorAll('.leaflet-tooltip'));
+                    let moved = true;
+                    while(moved){
+                        moved = false;
+                        for(let i=0;i<tooltips.length;i++){
+                            let a = tooltips[i].getBoundingClientRect();
+                            for(let j=i+1;j<tooltips.length;j++){
+                                let b = tooltips[j].getBoundingClientRect();
+                                if(!(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom)){
+                                    let currentY = parseFloat(tooltips[j].style.transform.replace('translateY(','').replace('px)',''))||0;
+                                    tooltips[j].style.transform = `translateY(${currentY+20}px)`;
+                                    moved = true;
+                                }
+                            }
+                        }
+                    }
+                }
+                setTimeout(avoidCollisions, 500);
+                """
+                m.get_root().html.add_child(Element(f"<script>{js}</script>"))
+
+                # --- Streamlit layout ---
                 col1, col2 = st.columns([5, 2])
                 with col1:
                     st_folium(m, width=950, height=650)
