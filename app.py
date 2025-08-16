@@ -206,7 +206,7 @@ if input_address:
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
-                # --- Proximity-based DivIcon labels ---
+                # --- Label placement with alternating offsets ---
                 distance_text = ""
                 placed_labels = []
                 proximity_threshold = 0.2  # miles
@@ -217,14 +217,18 @@ if input_address:
                     color = get_marker_color(row["Format - Type of Centre"])
                     label_text = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
 
-                    # Check proximity and stack vertically
+                    # --- Alternate label placement above/below ---
                     offset_y = 0
-                    for existing_coords, existing_offset in placed_labels:
+                    direction = 1  # 1=above, -1=below
+                    for existing_coords, existing_offset, existing_direction in placed_labels:
                         dist_miles = geodesic(dest_coords, existing_coords).miles
                         if dist_miles < proximity_threshold:
-                            offset_y = max(offset_y, existing_offset + 25)
+                            offset_y = abs(existing_offset) + 25
+                            direction = -existing_direction
+                            break
 
-                    placed_labels.append((dest_coords, offset_y))
+                    offset_y *= direction
+                    placed_labels.append((dest_coords, offset_y, direction))
 
                     icon_html = f"""
                         <div style="
@@ -305,5 +309,6 @@ if input_address:
                             <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                         </div>
                     """, unsafe_allow_html=True)
+
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
