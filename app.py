@@ -196,16 +196,18 @@ if input_address:
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
                 distance_text = ""
-                for _, row in closest.iterrows():
+                for idx, row in closest.iterrows():
                     dest_coords = (row["Latitude"], row["Longitude"])
                     folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
                     color = get_marker_color(row["Format - Type of Centre"])
                     label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
+                    # Unique ID for each permanent label
+                    label_id = f"label_{idx}"
                     folium.Marker(
                         location=dest_coords,
                         popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
                                f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
-                        tooltip=folium.Tooltip(f"<div style='font-size:16px;font-weight:bold;background:white;padding:3px;border-radius:3px'>{label}</div>", permanent=True, direction='right'),
+                        tooltip=folium.Tooltip(f"<div id='{label_id}' style='font-size:16px;font-weight:bold;background:white;padding:3px;border-radius:3px'>{label}</div>", permanent=True, direction='right'),
                         icon=folium.Icon(color=color)
                     ).add_to(m)
                     distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
@@ -215,54 +217,62 @@ if input_address:
                 folium.Circle(location=input_coords, radius=radius_m, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
                 # Legend
-                legend_html = """
-                    {% macro html(this, kwargs) %}
+                legend_html = f"""
+                    {{% macro html(this, kwargs) %}}
                     <div style='position: absolute; top: 70px; left: 10px; width: 180px; z-index: 9999;
                                 background-color: white; padding: 10px; border: 2px solid gray;
                                 border-radius: 5px; font-size: 14px; color: black; text-shadow: 1px 1px 2px white;'>
                         <b>Radius</b><br>
-                        <span style='color:green;'>&#x25CF;</span> """ + f"{radius_miles.get(area_type,5)}-mile Zone" + """
+                        <span style='color:green;'>&#x25CF;</span> {radius_miles.get(area_type,5)}-mile Zone
                     </div>
-                    {% endmacro %}
+                    {{% endmacro %}}
                 """
                 legend = MacroElement()
                 legend._template = Template(legend_html)
                 m.get_root().add_child(legend)
 
-                # --- Collision avoidance JS for permanent labels ---
-                js = """
-                function resolveLabelCollisions() {
+                # --- Force-directed collision avoidance JS ---
+                js_force = """
+                function forceLabelCollision() {
                     const padding = 5;
                     const labels = Array.from(document.querySelectorAll('.leaflet-tooltip div[style*="font-weight:bold"]'));
-                    let moved = true;
-                    let iterations = 0;
-                    const maxIterations = 50;
+                    const maxIter = 100;
+                    let iter = 0;
+                    let overlap = true;
 
-                    while(moved && iterations < maxIterations) {
-                        moved = false;
-                        iterations++;
+                    while(overlap && iter < maxIter){
+                        overlap = false;
+                        iter++;
                         for(let i=0;i<labels.length;i++){
                             let a = labels[i].getBoundingClientRect();
                             for(let j=i+1;j<labels.length;j++){
                                 let b = labels[j].getBoundingClientRect();
                                 if(!(a.right+padding < b.left || a.left > b.right+padding || 
                                      a.bottom+padding < b.top || a.top > b.bottom+padding)) {
-                                    let transform = labels[j].style.transform || "translate(0px,0px)";
-                                    let match = transform.match(/translate\\((-?\\d+)px, (-?\\d+)px\\)/);
-                                    let x = 0, y = 0;
-                                    if(match){ x = parseInt(match[1]); y = parseInt(match[2]); }
-                                    x += (Math.random()<0.5?1:-1)*(b.width + padding);
-                                    y += (Math.random()<0.5?1:-1)*(b.height + padding);
-                                    labels[j].style.transform = `translate(${x}px, ${y}px)`;
-                                    moved = true;
+                                    overlap = true;
+                                    let transformA = labels[i].style.transform || "translate(0px,0px)";
+                                    let transformB = labels[j].style.transform || "translate(0px,0px)";
+                                    let matchA = transformA.match(/translate\\((-?\\d+)px, (-?\\d+)px\\)/);
+                                    let matchB = transformB.match(/translate\\((-?\\d+)px, (-?\\d+)px\\)/);
+                                    let ax = matchA ? parseInt(matchA[1]) : 0;
+                                    let ay = matchA ? parseInt(matchA[2]) : 0;
+                                    let bx = matchB ? parseInt(matchB[1]) : 0;
+                                    let by = matchB ? parseInt(matchB[2]) : 0;
+                                    // push B away from A
+                                    let dx = (bx - ax) || 1;
+                                    let dy = (by - ay) || 1;
+                                    let distance = Math.sqrt(dx*dx + dy*dy);
+                                    let pushX = (dx/distance)*(b.width + padding);
+                                    let pushY = (dy/distance)*(b.height + padding);
+                                    labels[j].style.transform = `translate(${bx + pushX}px, ${by + pushY}px)`;
                                 }
                             }
                         }
                     }
                 }
-                setTimeout(resolveLabelCollisions, 500);
+                setTimeout(forceLabelCollision, 500);
                 """
-                m.get_root().html.add_child(Element(f"<script>{js}</script>"))
+                m.get_root().html.add_child(Element(f"<script>{js_force}</script>"))
 
                 # --- Streamlit layout ---
                 col1, col2 = st.columns([5, 2])
