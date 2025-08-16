@@ -200,62 +200,62 @@ if input_address:
                         break
                 closest = pd.DataFrame(selected_centres)
 
+                # --- Map creation ---
                 m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
                 folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
 
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
-                # --- Add markers with symmetric non-overlapping tooltips ---
-                added_offsets = []  # store previous label positions
-                step = 0.00012      # small vertical offset in degrees (~11m)
-                distance_text = ""
+                # Store initial label positions for reset
+                label_positions = []
 
-                for i, row in enumerate(closest.itertuples()):
-                    dest_coords = (row.Latitude, row.Longitude)
+                for i, row in closest.iterrows():
+                    dest_coords = (row["Latitude"], row["Longitude"])
                     folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
-                    color = get_marker_color(row._asdict().get("Format - Type of Centre"))
-                    label = f"#{int(row._asdict().get('Centre Number'))} - ({row._asdict().get('Distance (miles)'):.2f} mi)"
+                    color = get_marker_color(row["Format - Type of Centre"])
+                    label_text = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
 
-                    # --- Calculate symmetric offset ---
-                    offset_lat = 0
-                    n = 0
-                    while any(abs(dest_coords[0] + offset_lat - lat) < step*2 for lat, _ in added_offsets):
-                        n += 1
-                        # Alternate stacking above (+) and below (-) the marker
-                        offset_lat = step * ((n + 1) // 2) * (-1 if n % 2 == 0 else 1)
-
-                    added_offsets.append((dest_coords[0] + offset_lat, dest_coords[1]))
-
-                    folium.Marker(
-                        location=(dest_coords[0] + offset_lat, dest_coords[1]),
-                        popup=(
-                            f"#{int(row._asdict().get('Centre Number'))} - {row._asdict().get('Addresses')} | "
-                            f"{row._asdict().get('City','')}, {row._asdict().get('State','')} "
-                            f"{row._asdict().get('Zipcode','')} | {row._asdict().get('Format - Type of Centre')} | "
-                            f"{row._asdict().get('Transaction Milestone Status')} | "
-                            f"{row._asdict().get('Distance (miles)'):.2f} mi"
-                        ),
-                        tooltip=folium.Tooltip(
-                            f"<div style='font-size:16px;font-weight:bold'>{label}</div>", 
-                            permanent=True, direction='right'
-                        ),
-                        icon=folium.Icon(color=color)
-                    ).add_to(m)
-
-                    distance_text += (
-                        f"Centre #{int(row._asdict().get('Centre Number'))} - {row._asdict().get('Addresses')}, "
-                        f"{row._asdict().get('City','')}, {row._asdict().get('State','')} "
-                        f"{row._asdict().get('Zipcode','')} - Format: {row._asdict().get('Format - Type of Centre')} - "
-                        f"Milestone: {row._asdict().get('Transaction Milestone Status')} - "
-                        f"{row._asdict().get('Distance (miles)'):.2f} miles\n"
+                    # Use DivIcon with draggable label
+                    icon = folium.DivIcon(
+                        html=f"""
+                        <div id='label{i}' style='background:white;padding:4px;border:1px solid black;font-weight:bold;'>{label_text}</div>
+                        """,
+                        icon_size=(150, 36),
+                        icon_anchor=(0, 0)
                     )
+                    marker = folium.Marker(location=dest_coords, icon=icon, draggable=True)
+                    marker.add_to(m)
 
+                    label_positions.append({"id": f"label{i}", "lat": dest_coords[0], "lng": dest_coords[1]})
+
+                # Add Reset Button JS
+                reset_js = """
+                <script>
+                function resetLabels() {
+                    const positions = """ + str(label_positions) + """;
+                    positions.forEach(pos => {
+                        const el = document.getElementById(pos.id);
+                        if (el) {
+                            const marker = el.closest('.leaflet-marker-icon');
+                            if (marker) {
+                                marker._leaflet_pos = null;
+                                marker.style.transform = null;
+                            }
+                        }
+                    });
+                }
+                </script>
+                <button onclick="resetLabels()" style="position:absolute; top:10px; right:10px; z-index:9999; padding:5px 10px;">Reset Labels</button>
+                """
+                m.get_root().html.add_child(folium.Element(reset_js))
+
+                # --- Radius circle ---
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
                 radius_m = radius_miles.get(area_type,5) * 1609.34
                 folium.Circle(location=input_coords, radius=radius_m, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
-                # Patched legend for radius
+                # --- Legend ---
                 legend_html = f"""
                     {{% macro html(this, kwargs) %}}
                     <div style='position: absolute; top: 70px; left: 10px; width: 180px; z-index: 9999;
@@ -270,7 +270,12 @@ if input_address:
                 legend._template = Template(legend_html)
                 m.get_root().add_child(legend)
 
+                # --- Display ---
                 col1, col2 = st.columns([5, 2])
+                distance_text = ""
+                for _, row in closest.iterrows():
+                    distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+
                 with col1:
                     st_folium(m, width=950, height=650)
                     st.markdown(f"""
