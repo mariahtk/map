@@ -46,7 +46,7 @@ def login():
             st.session_state["authenticated"] = True
             st.session_state["user_email"] = email
             st.success("Login successful!")
-            st.rerun()  # <-- Fixed here
+            st.rerun()
         else:
             st.error("Invalid email or password.")
 
@@ -238,6 +238,7 @@ if input_address:
                 legend._template = Template(legend_html)
                 m.get_root().add_child(legend)
 
+                # --- Streamlit layout ---
                 col1, col2 = st.columns([5, 2])
                 with col1:
                     st_folium(m, width=950, height=650)
@@ -246,6 +247,36 @@ if input_address:
                         {distance_text.replace(chr(10), "<br>")}
                         </div>
                     """, unsafe_allow_html=True)
+
+                    # --- JS to prevent overlapping tooltip labels ---
+                    components.html("""
+                    <script>
+                    function adjustLabels() {
+                        const labels = document.querySelectorAll('.leaflet-tooltip');
+                        if (!labels) return;
+
+                        const padding = 5; // space between labels
+                        let changed;
+
+                        do {
+                            changed = false;
+                            for (let i = 0; i < labels.length; i++) {
+                                const a = labels[i].getBoundingClientRect();
+                                for (let j = i+1; j < labels.length; j++) {
+                                    const b = labels[j].getBoundingClientRect();
+                                    if (!(a.right + padding < b.left || a.left - padding > b.right || a.bottom + padding < b.top || a.top - padding > b.bottom)) {
+                                        labels[j].style.transform = `translate(${(j+1)*5}px, ${(j+1)*20}px)`;
+                                        changed = true;
+                                    }
+                                }
+                            }
+                        } while(changed);
+                    }
+
+                    setTimeout(adjustLabels, 1000);
+                    </script>
+                    """, height=0)
+
                 with col2:
                     st.markdown("""
                         <div style="
@@ -269,5 +300,6 @@ if input_address:
                             <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                         </div>
                     """, unsafe_allow_html=True)
+
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
