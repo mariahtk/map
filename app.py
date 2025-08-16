@@ -46,7 +46,7 @@ def login():
             st.session_state["authenticated"] = True
             st.session_state["user_email"] = email
             st.success("Login successful!")
-            st.rerun()
+            st.rerun()  # <-- Fixed here
         else:
             st.error("Invalid email or password.")
 
@@ -206,50 +206,19 @@ if input_address:
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
-                # --- NEW: DivIcon labels with collision avoidance ---
                 distance_text = ""
-                label_offsets = {}  # track y-offsets per location to prevent overlaps
-
-                for idx, row in closest.iterrows():
+                for _, row in closest.iterrows():
                     dest_coords = (row["Latitude"], row["Longitude"])
                     folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
                     color = get_marker_color(row["Format - Type of Centre"])
-                    label_text = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
-
-                    # collision avoidance: increment y offset for markers that are too close
-                    loc_key = (round(dest_coords[0],5), round(dest_coords[1],5))
-                    offset_y = label_offsets.get(loc_key, 0)
-                    label_offsets[loc_key] = offset_y + 25  # 25 pixels vertical spacing
-
-                    icon_html = f"""
-                        <div style="
-                            background:white;
-                            padding:3px 6px;
-                            border:1px solid black;
-                            border-radius:3px;
-                            font-weight:bold;
-                            font-size:14px;
-                            white-space: nowrap;
-                        ">
-                            {label_text}
-                        </div>
-                    """
-                    icon = folium.DivIcon(
-                        html=icon_html,
-                        icon_size=(150, 30),
-                        icon_anchor=(0, -offset_y)
-                    )
-
-                    folium.Marker(
-                        location=dest_coords,
-                        icon=icon,
-                        popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
-                               f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi")
-                    ).add_to(m)
-
+                    label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
+                    folium.Marker(location=dest_coords,
+                                  popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
+                                         f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
+                                  tooltip=folium.Tooltip(f"<div style='font-size:16px;font-weight:bold'>{label}</div>", permanent=True, direction='right'),
+                                  icon=folium.Icon(color=color)).add_to(m)
                     distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
-                # Draw radius circle
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
                 radius_m = radius_miles.get(area_type,5) * 1609.34
                 folium.Circle(location=input_coords, radius=radius_m, color="green", fill=True, fill_opacity=0.2).add_to(m)
