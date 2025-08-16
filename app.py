@@ -187,17 +187,17 @@ if input_address:
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
-                # Add markers and draggable labels
+                # Draggable labels and original positions
                 label_positions = []
-                js_marker_reset = ""
+                label_js_array = "var draggable_markers = [];\n"
 
-                for i, row in closest.iterrows():
+                for idx, row in closest.iterrows():
                     dest_coords = (row["Latitude"], row["Longitude"])
                     folium.PolyLine([input_coords,dest_coords], color="blue", weight=2.5).add_to(m)
                     color = get_marker_color(row["Format - Type of Centre"])
                     label_text = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
 
-                    # Marker
+                    # Marker (original)
                     folium.Marker(location=dest_coords,
                                   popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | "
                                          f"{row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
@@ -210,12 +210,11 @@ if input_address:
                         <div style='background:white;padding:4px;border:1px solid black;
                                     font-weight:bold;font-size:14px;'>{label_text}</div>
                         """)
-                    marker = folium.Marker(location=dest_coords, icon=icon, draggable=True)
-                    marker.add_to(m)
-
-                    # Store original positions for reset
+                    label_marker = folium.Marker(location=dest_coords, icon=icon, draggable=True)
+                    label_marker.add_to(m)
+                    # Store positions for JS reset
                     label_positions.append({'lat': dest_coords[0], 'lng': dest_coords[1]})
-                    js_marker_reset += f"markers[{i}].setLatLng([{dest_coords[0]},{dest_coords[1]}]);"
+                    label_js_array += f"draggable_markers.push({{lat:{dest_coords[0]},lng:{dest_coords[1]}}});\n"
 
                 # Radius circle
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
@@ -276,20 +275,13 @@ if input_address:
 
                     # Reset labels button
                     if st.button("Reset Labels"):
-                        reset_js = f"""
-                        <script>
-                        var markers = [];
-                        for (var i=0; i<{len(label_positions)}; i++) {{
-                            markers.push(document.querySelectorAll('.leaflet-marker-icon')[i+1]._leaflet_pos);
-                        }}
-                        """
+                        reset_js = "<script>\n"
+                        reset_js += "var markerElems = document.querySelectorAll('.leaflet-marker-icon');\n"
                         for idx, pos in enumerate(label_positions):
                             reset_js += f"""
-                            var marker_el = document.querySelectorAll('.leaflet-marker-icon')[{idx+1}];
-                            var marker = marker_el._leaflet_pos ? marker_el : null;
-                            if(marker_el){{
-                                var marker_obj = marker_el._leaflet_marker;
-                                if(marker_obj) marker_obj.setLatLng([{pos['lat']},{pos['lng']}]);
+                            if(markerElems[{idx+1}] && markerElems[{idx+1}]._leaflet_pos){{
+                                markerElems[{idx+1}]._leaflet_pos = L.point({pos['lng']},{pos['lat']});
+                                markerElems[{idx+1}].style.transform = "translate3d(0px,0px,0px)";
                             }}
                             """
                         reset_js += "</script>"
