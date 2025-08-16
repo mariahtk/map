@@ -206,56 +206,60 @@ if input_address:
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
-                # --- Add markers with symmetric non-overlapping tooltips ---
-                added_offsets = []  # store previous label positions
-                step = 0.00012      # small vertical offset in degrees (~11m)
+                # --- Proximity-based DivIcon labels ---
                 distance_text = ""
+                placed_labels = []
+                proximity_threshold = 0.2  # miles
 
-                for i, row in enumerate(closest.itertuples()):
-                    dest_coords = (row.Latitude, row.Longitude)
+                for idx, row in closest.iterrows():
+                    dest_coords = (row["Latitude"], row["Longitude"])
                     folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
-                    color = get_marker_color(row._asdict().get("Format - Type of Centre"))
-                    label = f"#{int(row._asdict().get('Centre Number'))} - ({row._asdict().get('Distance (miles)'):.2f} mi)"
+                    color = get_marker_color(row["Format - Type of Centre"])
+                    label_text = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
 
-                    # --- Calculate symmetric offset ---
-                    offset_lat = 0
-                    n = 0
-                    while any(abs(dest_coords[0] + offset_lat - lat) < step*2 for lat, _ in added_offsets):
-                        n += 1
-                        # Alternate stacking above (+) and below (-) the marker
-                        offset_lat = step * ((n + 1) // 2) * (-1 if n % 2 == 0 else 1)
+                    # Check proximity and stack vertically
+                    offset_y = 0
+                    for existing_coords, existing_offset in placed_labels:
+                        dist_miles = geodesic(dest_coords, existing_coords).miles
+                        if dist_miles < proximity_threshold:
+                            offset_y = max(offset_y, existing_offset + 25)
 
-                    added_offsets.append((dest_coords[0] + offset_lat, dest_coords[1]))
+                    placed_labels.append((dest_coords, offset_y))
 
-                    folium.Marker(
-                        location=(dest_coords[0] + offset_lat, dest_coords[1]),
-                        popup=(
-                            f"#{int(row._asdict().get('Centre Number'))} - {row._asdict().get('Addresses')} | "
-                            f"{row._asdict().get('City','')}, {row._asdict().get('State','')} "
-                            f"{row._asdict().get('Zipcode','')} | {row._asdict().get('Format - Type of Centre')} | "
-                            f"{row._asdict().get('Transaction Milestone Status')} | "
-                            f"{row._asdict().get('Distance (miles)'):.2f} mi"
-                        ),
-                        tooltip=folium.Tooltip(
-                            f"<div style='font-size:16px;font-weight:bold'>{label}</div>", 
-                            permanent=True, direction='right'
-                        ),
-                        icon=folium.Icon(color=color)
-                    ).add_to(m)
-
-                    distance_text += (
-                        f"Centre #{int(row._asdict().get('Centre Number'))} - {row._asdict().get('Addresses')}, "
-                        f"{row._asdict().get('City','')}, {row._asdict().get('State','')} "
-                        f"{row._asdict().get('Zipcode','')} - Format: {row._asdict().get('Format - Type of Centre')} - "
-                        f"Milestone: {row._asdict().get('Transaction Milestone Status')} - "
-                        f"{row._asdict().get('Distance (miles)'):.2f} miles\n"
+                    icon_html = f"""
+                        <div style="
+                            background:white;
+                            padding:3px 6px;
+                            border:1px solid black;
+                            border-radius:3px;
+                            font-weight:bold;
+                            font-size:14px;
+                            white-space: nowrap;
+                        ">
+                            {label_text}
+                        </div>
+                    """
+                    icon = folium.DivIcon(
+                        html=icon_html,
+                        icon_size=(150, 30),
+                        icon_anchor=(0, -offset_y)
                     )
 
+                    folium.Marker(
+                        location=dest_coords,
+                        icon=icon,
+                        popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
+                               f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi")
+                    ).add_to(m)
+
+                    distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+
+                # --- Radius Circle ---
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
                 radius_m = radius_miles.get(area_type,5) * 1609.34
                 folium.Circle(location=input_coords, radius=radius_m, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
-                # Patched legend for radius
+                # --- Legend ---
                 legend_html = f"""
                     {{% macro html(this, kwargs) %}}
                     <div style='position: absolute; top: 70px; left: 10px; width: 180px; z-index: 9999;
