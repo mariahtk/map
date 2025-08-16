@@ -9,13 +9,11 @@ import requests
 import urllib.parse
 from branca.element import Template, MacroElement
 import os
-import tempfile
 import streamlit.components.v1 as components
 
-# --- Streamlit page config ---
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 
-# --- Hide Streamlit UI elements ---
+# Hide Streamlit UI elements
 st.markdown("""
     <style>
     #MainMenu, footer, header, a[href*="github.com"], .viewerBadge_container__1QSob, .stAppViewerBadge {
@@ -24,7 +22,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- JS to hide dynamically injected badges ---
 components.html("""
 <script>
 setInterval(() => {
@@ -50,7 +47,6 @@ def login():
         else:
             st.error("Invalid email or password.")
 
-# --- Authentication state check ---
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
@@ -110,7 +106,6 @@ def filter_duplicates(df):
     filtered_df = grouped.apply(select_preferred).reset_index(drop=True)
     return filtered_df.drop(columns=["Normalized Address"])
 
-# --- Cached data loading function ---
 @st.cache_data
 def load_data(file_path="Database IC.xlsx"):
     sheets = ["Comps", "Active Centre", "Centre Opened"]
@@ -125,38 +120,28 @@ def load_data(file_path="Database IC.xlsx"):
                 df["Addresses"] = df["Address Line 1"]
         df["Source Sheet"] = sheet
         all_data.append(df)
-
     combined_data = pd.concat(all_data, ignore_index=True)
-    combined_data = combined_data.dropna(subset=["Latitude", "Longitude", "Centre Number"])
-
+    combined_data = combined_data.dropna(subset=["Latitude","Longitude","Centre Number"])
     def has_valid_address(val):
         return False if pd.isna(val) or (isinstance(val, str) and val.strip() == "") else True
-
     dupe_centre_nums = combined_data["Centre Number"][combined_data["Centre Number"].duplicated(keep=False)].unique()
     condition = combined_data["Centre Number"].isin(dupe_centre_nums) & (~combined_data["Addresses"].apply(has_valid_address))
     combined_data = combined_data[~condition]
-
     priority_order = {"Comps": 0, "Active Centre": 1, "Centre Opened": 2}
     combined_data["Sheet Priority"] = combined_data["Source Sheet"].map(priority_order)
     data = combined_data.sort_values(by="Sheet Priority").drop_duplicates(subset=["Centre Number"], keep="first").drop(columns=["Sheet Priority"])
-
     active_centre_df = pd.read_excel(file_path, sheet_name="Active Centre", engine="openpyxl")
     active_centre_df["Centre Number"] = active_centre_df["Centre Number"].apply(normalize_centre_number)
-    active_status_map = active_centre_df.dropna(subset=["Centre Number", "Transaction Milestone Status"]).set_index("Centre Number")["Transaction Milestone Status"].to_dict()
-
+    active_status_map = active_centre_df.dropna(subset=["Centre Number","Transaction Milestone Status"]).set_index("Centre Number")["Transaction Milestone Status"].to_dict()
     def replace_transaction_status(row):
         return active_status_map[row["Centre Number"]] if row["Centre Number"] in active_status_map else row["Transaction Milestone Status"]
-
     data["Transaction Milestone Status"] = data.apply(replace_transaction_status, axis=1)
     data = filter_duplicates(data)
-
-    for col in ["City", "State", "Zipcode"]:
+    for col in ["City","State","Zipcode"]:
         if col not in data.columns:
             data[col] = ""
-
     return data
 
-# --- Main UI ---
 st.title("\U0001F4CD Find 5 Closest Centres")
 api_key = "edd4cb8a639240daa178b4c6321a60e6"
 input_address = st.text_input("Enter an address:")
@@ -168,7 +153,6 @@ if input_address:
             url = f"https://api.opencagedata.com/geocode/v1/json?q={encoded_address}&key={api_key}"
             response = requests.get(url)
             data_geo = response.json()
-
             if response.status_code != 200:
                 st.error(f"\u274C API Error: {response.status_code}. Try again.")
             elif not data_geo.get('results'):
@@ -179,11 +163,8 @@ if input_address:
                 area_type = infer_area_type(location)
                 st.write(f"Area type detected: **{area_type}**")
 
-                # Load cached data
                 data = load_data()
-
-                # Calculate distances
-                data["Distance (miles)"] = data.apply(lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1)
+                data["Distance (miles)"] = data.apply(lambda row: geodesic(input_coords,(row["Latitude"],row["Longitude"])).miles, axis=1)
                 data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
 
                 selected_centres, seen_distances, seen_centre_numbers = [], [], set()
@@ -192,7 +173,7 @@ if input_address:
                     centre_num = row["Centre Number"]
                     if centre_num in seen_centre_numbers:
                         continue
-                    if all(abs(d - x) >= 0.005 for x in seen_distances):
+                    if all(abs(d-x)>=0.005 for x in seen_distances):
                         selected_centres.append(row)
                         seen_centre_numbers.add(centre_num)
                         seen_distances.append(d)
@@ -200,52 +181,48 @@ if input_address:
                         break
                 closest = pd.DataFrame(selected_centres)
 
-                # --- Map creation ---
                 m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
                 folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
 
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
+                # Add markers and draggable labels
                 label_positions = []
+                js_marker_reset = ""
 
                 for i, row in closest.iterrows():
                     dest_coords = (row["Latitude"], row["Longitude"])
-                    folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
+                    folium.PolyLine([input_coords,dest_coords], color="blue", weight=2.5).add_to(m)
                     color = get_marker_color(row["Format - Type of Centre"])
                     label_text = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
 
-                    # Original marker (unchanged)
-                    folium.Marker(
-                        location=dest_coords,
-                        popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | "
-                               f"{row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
-                               f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | "
-                               f"{row['Distance (miles)']:.2f} mi"),
-                        icon=folium.Icon(color=color)
-                    ).add_to(m)
+                    # Marker
+                    folium.Marker(location=dest_coords,
+                                  popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | "
+                                         f"{row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
+                                         f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | "
+                                         f"{row['Distance (miles)']:.2f} mi"),
+                                  icon=folium.Icon(color=color)).add_to(m)
 
-                    # Make the **existing label box draggable**
-                    icon = folium.DivIcon(
-                        html=f"""
-                        <div id='label{i}' style='background:white;padding:4px;border:1px solid black;
-                                                   font-weight:bold;font-size:14px;'>{label_text}</div>
-                        """,
-                        icon_size=(150, 36),
-                        icon_anchor=(0, 0)
-                    )
-                    draggable_marker = folium.Marker(location=dest_coords, icon=icon, draggable=True)
-                    draggable_marker.add_to(m)
+                    # Draggable label marker
+                    icon = folium.DivIcon(html=f"""
+                        <div style='background:white;padding:4px;border:1px solid black;
+                                    font-weight:bold;font-size:14px;'>{label_text}</div>
+                        """)
+                    marker = folium.Marker(location=dest_coords, icon=icon, draggable=True)
+                    marker.add_to(m)
 
-                    # Save original positions for reset
-                    label_positions.append({"id": f"label{i}", "lat": dest_coords[0], "lng": dest_coords[1]})
+                    # Store original positions for reset
+                    label_positions.append({'lat': dest_coords[0], 'lng': dest_coords[1]})
+                    js_marker_reset += f"markers[{i}].setLatLng([{dest_coords[0]},{dest_coords[1]}]);"
 
-                # Circle radius
+                # Radius circle
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
                 radius_m = radius_miles.get(area_type,5) * 1609.34
                 folium.Circle(location=input_coords, radius=radius_m, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
-                # Patched legend for radius
+                # Legend
                 legend_html = f"""
                     {{% macro html(this, kwargs) %}}
                     <div style='position: absolute; top: 70px; left: 10px; width: 180px; z-index: 9999;
@@ -260,8 +237,7 @@ if input_address:
                 legend._template = Template(legend_html)
                 m.get_root().add_child(legend)
 
-                # --- Streamlit layout ---
-                col1, col2 = st.columns([5, 2])
+                col1,col2 = st.columns([5,2])
                 with col1:
                     st_folium(m, width=950, height=650)
                     # Distance text
@@ -300,11 +276,24 @@ if input_address:
 
                     # Reset labels button
                     if st.button("Reset Labels"):
-                        reset_js = "<script>"
-                        for lp in label_positions:
-                            reset_js += f"document.getElementById('{lp['id']}').style.transform='translate(0px,0px)';"
+                        reset_js = f"""
+                        <script>
+                        var markers = [];
+                        for (var i=0; i<{len(label_positions)}; i++) {{
+                            markers.push(document.querySelectorAll('.leaflet-marker-icon')[i+1]._leaflet_pos);
+                        }}
+                        """
+                        for idx, pos in enumerate(label_positions):
+                            reset_js += f"""
+                            var marker_el = document.querySelectorAll('.leaflet-marker-icon')[{idx+1}];
+                            var marker = marker_el._leaflet_pos ? marker_el : null;
+                            if(marker_el){{
+                                var marker_obj = marker_el._leaflet_marker;
+                                if(marker_obj) marker_obj.setLatLng([{pos['lat']},{pos['lng']}]);
+                            }}
+                            """
                         reset_js += "</script>"
-                        st.components.v1.html(reset_js, height=0)
+                        st.components.v1.html(reset_js,height=0)
 
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
