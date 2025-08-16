@@ -3,14 +3,13 @@ from geopy.distance import geodesic
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
-from pptx import Presentation
-from pptx.util import Inches, Pt
+from branca.element import Template, MacroElement
 import requests
 import urllib.parse
-from branca.element import Template, MacroElement
-import os
+import io
+from PIL import Image
 import tempfile
-import streamlit.components.v1 as components
+import os
 
 # --- Streamlit page config ---
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
@@ -23,17 +22,6 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
-
-# --- JS to hide dynamically injected badges ---
-components.html("""
-<script>
-setInterval(() => {
-  const badges = document.querySelectorAll(
-    '.viewerBadge_container__1QSob, .stAppViewerBadge, a[href*="github.com"]');
-  badges.forEach(badge => badge.style.display = 'none');
-}, 500);
-</script>
-""", height=0)
 
 # --- Login system ---
 def login():
@@ -50,7 +38,6 @@ def login():
         else:
             st.error("Invalid email or password.")
 
-# --- Authentication state check ---
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
@@ -110,7 +97,6 @@ def filter_duplicates(df):
     filtered_df = grouped.apply(select_preferred).reset_index(drop=True)
     return filtered_df.drop(columns=["Normalized Address"])
 
-# --- Cached data loading function ---
 @st.cache_data
 def load_data(file_path="Database IC.xlsx"):
     sheets = ["Comps", "Active Centre", "Centre Opened"]
@@ -179,10 +165,8 @@ if input_address:
                 area_type = infer_area_type(location)
                 st.write(f"Area type detected: **{area_type}**")
 
-                # Load cached data
                 data = load_data()
 
-                # Calculate distances
                 data["Distance (miles)"] = data.apply(lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1)
                 data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
 
@@ -206,17 +190,36 @@ if input_address:
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
+                # Track offsets to avoid overlap
+                offsets = {}
+
                 distance_text = ""
-                for _, row in closest.iterrows():
+                for i, row in closest.iterrows():
                     dest_coords = (row["Latitude"], row["Longitude"])
                     folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
                     color = get_marker_color(row["Format - Type of Centre"])
                     label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
-                    folium.Marker(location=dest_coords,
-                                  popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
-                                         f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
-                                  tooltip=folium.Tooltip(f"<div style='font-size:16px;font-weight:bold'>{label}</div>", permanent=True, direction='right'),
-                                  icon=folium.Icon(color=color)).add_to(m)
+
+                    # Apply a small offset if coordinates already used
+                    lat, lng = dest_coords
+                    if (lat, lng) in offsets:
+                        offset_count = offsets[(lat, lng)]
+                        lat += 0.00005 * offset_count
+                        lng += 0.00005 * offset_count
+                        offsets[(row["Latitude"], row["Longitude"])] += 1
+                    else:
+                        offsets[(lat, lng)] = 1
+
+                    # Add marker with DivIcon for permanent label
+                    label_html = f"""
+                    <div style='background-color:white; padding:2px 4px; border:1px solid gray; 
+                                border-radius:3px; font-weight:bold;'>{label}</div>
+                    """
+                    folium.Marker(
+                        location=(lat, lng),
+                        icon=folium.DivIcon(html=label_html)
+                    ).add_to(m)
+
                     distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
@@ -228,7 +231,7 @@ if input_address:
                     {{% macro html(this, kwargs) %}}
                     <div style='position: absolute; top: 70px; left: 10px; width: 180px; z-index: 9999;
                                 background-color: white; padding: 10px; border: 2px solid gray;
-                                border-radius: 5px; font-size: 14px; color: black; text-shadow: 1px 1px 2px white;'>
+                                border-radius: 5px; font-size: 14px; color: black; text-shadow: 1px 1px 2px white;'>{{
                         <b>Radius</b><br>
                         <span style='color:green;'>&#x25CF;</span> {radius_miles.get(area_type,5)}-mile Zone
                     </div>
@@ -246,84 +249,18 @@ if input_address:
                         {distance_text.replace(chr(10), "<br>")}
                         </div>
                     """, unsafe_allow_html=True)
-                    
-                    # --- JS for permanent labels that auto-adjust and download ---
-                    components.html(f"""
-                    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-                    <script>
-                    var mapEl = document.querySelector('.folium-map');
-                    var map = mapEl ? mapEl._leaflet_map : null;
 
-                    if(map) {{
-                        var labels = [];
-                        map.eachLayer(function(layer) {{
-                            if(layer instanceof L.Marker && layer.getTooltip()) {{
-                                layer.getTooltip().options.permanent = true;
-                                labels.push(layer.getTooltip()._container);
-                            }}
-                        }});
+                    # --- Download Map as PNG ---
+                    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".html")
+                    m.save(tmp_file.name)
 
-                        function avoidOverlap() {{
-                            for(var i=0; i<labels.length; i++) {{
-                                var rect1 = labels[i].getBoundingClientRect();
-                                for(var j=i+1; j<labels.length; j++) {{
-                                    var rect2 = labels[j].getBoundingClientRect();
-                                    if(!(rect1.right < rect2.left || rect1.left > rect2.right ||
-                                         rect1.bottom < rect2.top || rect1.top > rect2.bottom)) {{
-                                        labels[j].style.transform = "translateY(" + (rect1.height + 5) + "px)";
-                                    }}
-                                }}
-                            }}
-                        }}
-                        setTimeout(avoidOverlap, 500);
-                    }}
-
-                    var btn = document.createElement("button");
-                    btn.innerHTML = "Download Map";
-                    btn.style.position = "absolute";
-                    btn.style.top = "10px";
-                    btn.style.right = "10px";
-                    btn.style.zIndex = "9999";
-                    btn.style.padding = "8px";
-                    btn.style.background = "white";
-                    btn.style.border = "2px solid gray";
-                    btn.style.borderRadius = "5px";
-                    btn.style.cursor = "pointer";
-                    document.body.appendChild(btn);
-
-                    btn.onclick = function() {{
-                        html2canvas(document.querySelector('.folium-map')).then(canvas => {{
-                            var link = document.createElement('a');
-                            link.download = 'map_screenshot.png';
-                            link.href = canvas.toDataURL();
-                            link.click();
-                        }});
-                    }};
-                    </script>
-                    """, height=0)
-                    
-                with col2:
-                    st.markdown("""
-                        <div style="
-                            background-color: white;
-                            padding: 10px;
-                            border: 2px solid grey;
-                            border-radius: 10px;
-                            width: 100%;
-                            margin-top: 20px;
-                            color: black;
-                            text-shadow: 1px 1px 2px white;
-                            font-weight: bold;
-                            font-size: 14px;
-                        ">
-                            Centre Type Legend<br>
-                            <i style="background-color: lightgreen; padding: 5px;">&#9724;</i> Proposed Address<br>
-                            <i style="background-color: lightblue; padding: 5px;">&#9724;</i> Regus<br>
-                            <i style="background-color: darkblue; padding: 5px;">&#9724;</i> HQ<br>
-                            <i style="background-color: purple; padding: 5px;">&#9724;</i> Signature<br>
-                            <i style="background-color: black; padding: 5px;">&#9724;</i> Spaces<br>
-                            <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
-                        </div>
-                    """, unsafe_allow_html=True)
+                    try:
+                        import imgkit
+                        map_png_path = tmp_file.name.replace(".html", ".png")
+                        imgkit.from_file(tmp_file.name, map_png_path)
+                        with open(map_png_path, "rb") as f:
+                            st.download_button("📥 Download Map as PNG", f.read(), "map.png", "image/png")
+                    except Exception as e:
+                        st.warning("Download as image is not supported. Map labels and download may need local environment setup.")
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
