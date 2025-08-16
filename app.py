@@ -46,7 +46,7 @@ def login():
             st.session_state["authenticated"] = True
             st.session_state["user_email"] = email
             st.success("Login successful!")
-            st.rerun()  # <-- Fixed here
+            st.rerun()
         else:
             st.error("Invalid email or password.")
 
@@ -246,6 +246,62 @@ if input_address:
                         {distance_text.replace(chr(10), "<br>")}
                         </div>
                     """, unsafe_allow_html=True)
+                    
+                    # --- JS for permanent labels that auto-adjust and download ---
+                    components.html(f"""
+                    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+                    <script>
+                    var mapEl = document.querySelector('.folium-map');
+                    var map = mapEl ? mapEl._leaflet_map : null;
+
+                    if(map) {{
+                        var labels = [];
+                        map.eachLayer(function(layer) {{
+                            if(layer instanceof L.Marker && layer.getTooltip()) {{
+                                layer.getTooltip().options.permanent = true;
+                                labels.push(layer.getTooltip()._container);
+                            }}
+                        }});
+
+                        function avoidOverlap() {{
+                            for(var i=0; i<labels.length; i++) {{
+                                var rect1 = labels[i].getBoundingClientRect();
+                                for(var j=i+1; j<labels.length; j++) {{
+                                    var rect2 = labels[j].getBoundingClientRect();
+                                    if(!(rect1.right < rect2.left || rect1.left > rect2.right ||
+                                         rect1.bottom < rect2.top || rect1.top > rect2.bottom)) {{
+                                        labels[j].style.transform = "translateY(" + (rect1.height + 5) + "px)";
+                                    }}
+                                }}
+                            }}
+                        }}
+                        setTimeout(avoidOverlap, 500);
+                    }}
+
+                    var btn = document.createElement("button");
+                    btn.innerHTML = "Download Map";
+                    btn.style.position = "absolute";
+                    btn.style.top = "10px";
+                    btn.style.right = "10px";
+                    btn.style.zIndex = "9999";
+                    btn.style.padding = "8px";
+                    btn.style.background = "white";
+                    btn.style.border = "2px solid gray";
+                    btn.style.borderRadius = "5px";
+                    btn.style.cursor = "pointer";
+                    document.body.appendChild(btn);
+
+                    btn.onclick = function() {{
+                        html2canvas(document.querySelector('.folium-map')).then(canvas => {{
+                            var link = document.createElement('a');
+                            link.download = 'map_screenshot.png';
+                            link.href = canvas.toDataURL();
+                            link.click();
+                        }});
+                    }};
+                    </script>
+                    """, height=0)
+                    
                 with col2:
                     st.markdown("""
                         <div style="
