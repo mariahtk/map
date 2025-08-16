@@ -209,7 +209,7 @@ if input_address:
                 # --- Label placement with alternating offsets ---
                 distance_text = ""
                 placed_labels = []
-                proximity_threshold = 0.2  # miles
+                proximity_threshold = 0.50  # miles
 
                 for idx, row in closest.iterrows():
                     dest_coords = (row["Latitude"], row["Longitude"])
@@ -312,3 +312,4 @@ if input_address:
 
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
+
