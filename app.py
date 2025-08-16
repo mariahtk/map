@@ -207,7 +207,7 @@ if input_address:
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
                 distance_text = ""
-                for _, row in closest.iterrows():
+                for idx, row in closest.iterrows():
                     dest_coords = (row["Latitude"], row["Longitude"])
                     folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
                     color = get_marker_color(row["Format - Type of Centre"])
@@ -215,7 +215,7 @@ if input_address:
                     folium.Marker(location=dest_coords,
                                   popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
                                          f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
-                                  tooltip=folium.Tooltip(f"<div style='font-size:16px;font-weight:bold'>{label}</div>", permanent=True, direction='right'),
+                                  tooltip=folium.Tooltip(f"<div style='font-size:14px;font-weight:bold;background:white;padding:3px;border:1px solid black'>{label}</div>", permanent=True, direction='right'),
                                   icon=folium.Icon(color=color)).add_to(m)
                     distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
@@ -223,20 +223,31 @@ if input_address:
                 radius_m = radius_miles.get(area_type,5) * 1609.34
                 folium.Circle(location=input_coords, radius=radius_m, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
-                # Patched legend for radius
-                legend_html = f"""
-                    {{% macro html(this, kwargs) %}}
-                    <div style='position: absolute; top: 70px; left: 10px; width: 180px; z-index: 9999;
-                                background-color: white; padding: 10px; border: 2px solid gray;
-                                border-radius: 5px; font-size: 14px; color: black; text-shadow: 1px 1px 2px white;'>
-                        <b>Radius</b><br>
-                        <span style='color:green;'>&#x25CF;</span> {radius_miles.get(area_type,5)}-mile Zone
-                    </div>
-                    {{% endmacro %}}
-                """
-                legend = MacroElement()
-                legend._template = Template(legend_html)
-                m.get_root().add_child(legend)
+                # --- Adjust permanent tooltip labels to prevent overlap ---
+                components.html("""
+                <script>
+                function adjustLabels() {
+                    const labels = Array.from(document.querySelectorAll('.leaflet-tooltip'));
+                    if (!labels.length) return;
+                    const spacing = 5;
+                    let changed;
+                    do {
+                        changed = false;
+                        for (let i = 0; i < labels.length; i++) {
+                            const a = labels[i].getBoundingClientRect();
+                            for (let j = i + 1; j < labels.length; j++) {
+                                const b = labels[j].getBoundingClientRect();
+                                if (!(a.right + spacing < b.left || a.left - spacing > b.right || a.bottom + spacing < b.top || a.top - spacing > b.bottom)) {
+                                    labels[j].style.transform = `translate(${(j+1)*5}px, ${(j+1)*20}px)`;
+                                    changed = true;
+                                }
+                            }
+                        }
+                    } while (changed);
+                }
+                setTimeout(adjustLabels, 1000);
+                </script>
+                """, height=0)
 
                 # --- Streamlit layout ---
                 col1, col2 = st.columns([5, 2])
@@ -247,35 +258,6 @@ if input_address:
                         {distance_text.replace(chr(10), "<br>")}
                         </div>
                     """, unsafe_allow_html=True)
-
-                    # --- JS to prevent overlapping tooltip labels ---
-                    components.html("""
-                    <script>
-                    function adjustLabels() {
-                        const labels = document.querySelectorAll('.leaflet-tooltip');
-                        if (!labels) return;
-
-                        const padding = 5; // space between labels
-                        let changed;
-
-                        do {
-                            changed = false;
-                            for (let i = 0; i < labels.length; i++) {
-                                const a = labels[i].getBoundingClientRect();
-                                for (let j = i+1; j < labels.length; j++) {
-                                    const b = labels[j].getBoundingClientRect();
-                                    if (!(a.right + padding < b.left || a.left - padding > b.right || a.bottom + padding < b.top || a.top - padding > b.bottom)) {
-                                        labels[j].style.transform = `translate(${(j+1)*5}px, ${(j+1)*20}px)`;
-                                        changed = true;
-                                    }
-                                }
-                            }
-                        } while(changed);
-                    }
-
-                    setTimeout(adjustLabels, 1000);
-                    </script>
-                    """, height=0)
 
                 with col2:
                     st.markdown("""
