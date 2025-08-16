@@ -206,35 +206,35 @@ if input_address:
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
-                # --- Add markers with non-overlapping tooltips ---
-                added_offsets = []  # store previous label positions to prevent overlaps
-                step = 0.00012      # small vertical offset in degrees (adjust as needed)
-
+                # --- Add markers with symmetric non-overlapping tooltips ---
+                added_offsets = []  # store previous label positions
+                step = 0.00012      # small vertical offset in degrees (~11m)
                 distance_text = ""
 
-                for _, row in closest.iterrows():
-                    dest_coords = (row["Latitude"], row["Longitude"])
+                for i, row in enumerate(closest.itertuples()):
+                    dest_coords = (row.Latitude, row.Longitude)
                     folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
-                    color = get_marker_color(row["Format - Type of Centre"])
-                    label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
+                    color = get_marker_color(row._asdict().get("Format - Type of Centre"))
+                    label = f"#{int(row._asdict().get('Centre Number'))} - ({row._asdict().get('Distance (miles)'):.2f} mi)"
 
-                    # Calculate offset to prevent overlap
-                    offset_lat, offset_lng = 0, 0
-                    while any(
-                        abs(dest_coords[0] + offset_lat - lat) < step*2 and 
-                        abs(dest_coords[1] + offset_lng - lng) < step*2 
-                        for lat, lng in added_offsets
-                    ):
-                        offset_lat += step  # move new label slightly up until no overlap
+                    # --- Calculate symmetric offset ---
+                    offset_lat = 0
+                    n = 0
+                    while any(abs(dest_coords[0] + offset_lat - lat) < step*2 for lat, _ in added_offsets):
+                        n += 1
+                        # Alternate stacking above (+) and below (-) the marker
+                        offset_lat = step * ((n + 1) // 2) * (-1 if n % 2 == 0 else 1)
 
-                    added_offsets.append((dest_coords[0] + offset_lat, dest_coords[1] + offset_lng))
+                    added_offsets.append((dest_coords[0] + offset_lat, dest_coords[1]))
 
                     folium.Marker(
-                        location=(dest_coords[0] + offset_lat, dest_coords[1] + offset_lng),
+                        location=(dest_coords[0] + offset_lat, dest_coords[1]),
                         popup=(
-                            f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, "
-                            f"{row.get('State','')} {row.get('Zipcode','')} | {row['Format - Type of Centre']} | "
-                            f"{row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"
+                            f"#{int(row._asdict().get('Centre Number'))} - {row._asdict().get('Addresses')} | "
+                            f"{row._asdict().get('City','')}, {row._asdict().get('State','')} "
+                            f"{row._asdict().get('Zipcode','')} | {row._asdict().get('Format - Type of Centre')} | "
+                            f"{row._asdict().get('Transaction Milestone Status')} | "
+                            f"{row._asdict().get('Distance (miles)'):.2f} mi"
                         ),
                         tooltip=folium.Tooltip(
                             f"<div style='font-size:16px;font-weight:bold'>{label}</div>", 
@@ -244,9 +244,11 @@ if input_address:
                     ).add_to(m)
 
                     distance_text += (
-                        f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, "
-                        f"{row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - "
-                        f"Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+                        f"Centre #{int(row._asdict().get('Centre Number'))} - {row._asdict().get('Addresses')}, "
+                        f"{row._asdict().get('City','')}, {row._asdict().get('State','')} "
+                        f"{row._asdict().get('Zipcode','')} - Format: {row._asdict().get('Format - Type of Centre')} - "
+                        f"Milestone: {row._asdict().get('Transaction Milestone Status')} - "
+                        f"{row._asdict().get('Distance (miles)'):.2f} miles\n"
                     )
 
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
