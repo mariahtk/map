@@ -7,7 +7,7 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 import requests
 import urllib.parse
-from branca.element import Template, MacroElement
+from branca.element import Template, MacroElement, Element
 import os
 import tempfile
 import streamlit.components.v1 as components
@@ -206,50 +206,98 @@ if input_address:
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
+                # --- Prepare marker data for smart labels ---
+                marker_data = []
                 distance_text = ""
                 for idx, row in closest.iterrows():
                     dest_coords = (row["Latitude"], row["Longitude"])
-                    folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
                     color = get_marker_color(row["Format - Type of Centre"])
                     label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
-                    folium.Marker(location=dest_coords,
-                                  popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
-                                         f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
-                                  tooltip=folium.Tooltip(f"<div style='font-size:14px;font-weight:bold;background:white;padding:3px;border:1px solid black'>{label}</div>", permanent=True, direction='right'),
-                                  icon=folium.Icon(color=color)).add_to(m)
+                    marker_data.append({
+                        "id": f"marker_{idx}",
+                        "lat": dest_coords[0],
+                        "lng": dest_coords[1],
+                        "label": label,
+                        "popup": f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
+                                 f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi",
+                        "color": color
+                    })
                     distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+
+                # --- Add JS for smart label placement ---
+                js = f"""
+                function placeLabels(markerData){{
+                    let map = window.map;
+                    let labels = [];
+                    markerData.forEach(data => {{
+                        let marker = L.marker([data.lat, data.lng], {{
+                            icon: L.icon({{
+                                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-{{}}.png'.replace('{{}}', data.color),
+                                iconSize: [25,41],
+                                iconAnchor: [12,41]
+                            }})
+                        }}).addTo(map);
+                        marker.bindPopup(data.popup);
+                        let tooltip = L.tooltip({{
+                            permanent: true,
+                            direction: 'right',
+                            className: 'smart-tooltip',
+                            offset: [0,0]
+                        }}).setContent('<div style="font-size:16px;font-weight:bold;">' + data.label + '</div>').addTo(map);
+                        marker.bindTooltip(tooltip);
+                        labels.push(tooltip);
+                    }});
+
+                    function getBounds(el){{
+                        let rect = el._container.getBoundingClientRect();
+                        return {{left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom}};
+                    }}
+
+                    function overlaps(a, b){{
+                        return !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom);
+                    }}
+
+                    for(let i=0;i<labels.length;i++){{
+                        let moved = true;
+                        while(moved){{
+                            moved = false;
+                            let aBounds = getBounds(labels[i]);
+                            for(let j=0;j<labels.length;j++){{
+                                if(i===j) continue;
+                                let bBounds = getBounds(labels[j]);
+                                if(overlaps(aBounds,bBounds)){{
+                                    let offset = labels[i].options.offset;
+                                    labels[i].setOffset([offset[0], offset[1]+20]);
+                                    moved = true;
+                                    break;
+                                }}
+                            }}
+                        }}
+                    }}
+                }}
+                placeLabels({marker_data});
+                """
+                m.get_root().html.add_child(Element(f"<script>{js}</script>"))
 
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
                 radius_m = radius_miles.get(area_type,5) * 1609.34
                 folium.Circle(location=input_coords, radius=radius_m, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
-                # --- Adjust permanent tooltip labels to prevent overlap ---
-                components.html("""
-                <script>
-                function adjustLabels() {
-                    const labels = Array.from(document.querySelectorAll('.leaflet-tooltip'));
-                    if (!labels.length) return;
-                    const spacing = 5;
-                    let changed;
-                    do {
-                        changed = false;
-                        for (let i = 0; i < labels.length; i++) {
-                            const a = labels[i].getBoundingClientRect();
-                            for (let j = i + 1; j < labels.length; j++) {
-                                const b = labels[j].getBoundingClientRect();
-                                if (!(a.right + spacing < b.left || a.left - spacing > b.right || a.bottom + spacing < b.top || a.top - spacing > b.bottom)) {
-                                    labels[j].style.transform = `translate(${(j+1)*5}px, ${(j+1)*20}px)`;
-                                    changed = true;
-                                }
-                            }
-                        }
-                    } while (changed);
-                }
-                setTimeout(adjustLabels, 1000);
-                </script>
-                """, height=0)
+                # Patched legend for radius
+                legend_html = f"""
+                    {{% macro html(this, kwargs) %}}
+                    <div style='position: absolute; top: 70px; left: 10px; width: 180px; z-index: 9999;
+                                background-color: white; padding: 10px; border: 2px solid gray;
+                                border-radius: 5px; font-size: 14px; color: black; text-shadow: 1px 1px 2px white;'>
+                        <b>Radius</b><br>
+                        <span style='color:green;'>&#x25CF;</span> {radius_miles.get(area_type,5)}-mile Zone
+                    </div>
+                    {{% endmacro %}}
+                """
+                legend = MacroElement()
+                legend._template = Template(legend_html)
+                m.get_root().add_child(legend)
 
-                # --- Streamlit layout ---
                 col1, col2 = st.columns([5, 2])
                 with col1:
                     st_folium(m, width=950, height=650)
@@ -258,7 +306,6 @@ if input_address:
                         {distance_text.replace(chr(10), "<br>")}
                         </div>
                     """, unsafe_allow_html=True)
-
                 with col2:
                     st.markdown("""
                         <div style="
@@ -282,6 +329,5 @@ if input_address:
                             <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                         </div>
                     """, unsafe_allow_html=True)
-
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
