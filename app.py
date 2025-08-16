@@ -163,7 +163,6 @@ if input_address:
                 st.write(f"Area type detected: **{area_type}**")
 
                 data = load_data()
-
                 data["Distance (miles)"] = data.apply(lambda row: geodesic(input_coords, (row["Latitude"], row["Longitude"])).miles, axis=1)
                 data_sorted = data.sort_values("Distance (miles)").reset_index(drop=True)
 
@@ -187,24 +186,23 @@ if input_address:
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
+                # --- Vertical stacking offsets to prevent overlap ---
                 offsets = {}
                 distance_text = ""
                 for i, row in closest.iterrows():
-                    dest_coords = (row["Latitude"], row["Longitude"])
-                    folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
-                    color = get_marker_color(row["Format - Type of Centre"])
+                    lat, lng = row["Latitude"], row["Longitude"]
                     label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
 
-                    lat, lng = dest_coords
-                    if (lat, lng) in offsets:
-                        offset_count = offsets[(lat, lng)]
-                        lat += 0.00005 * offset_count
-                        lng += 0.00005 * offset_count
-                        offsets[(row["Latitude"], row["Longitude"])] += 1
+                    # Determine vertical offset for stacked labels
+                    key = (round(lat, 6), round(lng, 6))
+                    if key in offsets:
+                        offset_index = offsets[key]
+                        new_lat = lat + 0.00007 * offset_index  # small vertical step
+                        offsets[key] += 1
                     else:
-                        offsets[(lat, lng)] = 1
+                        new_lat = lat
+                        offsets[key] = 1
 
-                    # Final compact horizontal black-label DivIcon
                     label_html = f"""
                     <div style='
                         background-color:white; 
@@ -218,8 +216,9 @@ if input_address:
                         display: inline-block;
                     '>{label}</div>
                     """
+
                     folium.Marker(
-                        location=(lat,lng),
+                        location=(new_lat, lng),
                         popup=(f"#{int(row['Centre Number'])} - {row['Addresses']} | {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} | "
                                f"{row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"),
                         icon=folium.DivIcon(html=label_html)
