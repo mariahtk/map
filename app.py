@@ -187,17 +187,18 @@ if input_address:
                 distance_text = ""
                 label_positions = []
 
+                # Add markers + draggable labels
                 for idx, row in closest.iterrows():
                     dest_coords = (row["Latitude"], row["Longitude"])
-                    label_positions.append({"lat":dest_coords[0],"lng":dest_coords[1]})
-                    folium.PolyLine([input_coords,dest_coords], color="blue", weight=2.5).add_to(m)
-                    color = get_marker_color(row["Format - Type of Centre"])
                     label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
+                    label_positions.append({"lat": dest_coords[0]+0.00005, "lng": dest_coords[1]+0.00005})
 
-                    # Original marker icon
-                    folium.Marker(location=dest_coords, icon=folium.Icon(color=color), popup=f"#{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')} {row.get('State','')} {row.get('Zipcode','')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi").add_to(m)
+                    # Original marker
+                    color = get_marker_color(row["Format - Type of Centre"])
+                    folium.Marker(location=dest_coords, icon=folium.Icon(color=color),
+                                  popup=f"#{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')} {row.get('State','')} {row.get('Zipcode','')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi").add_to(m)
 
-                    # Draggable label beside marker
+                    # Draggable label
                     html_label = f"""
                     <div style="
                         background-color:white;
@@ -214,21 +215,45 @@ if input_address:
                         {label}
                     </div>
                     """
-                    icon = folium.DivIcon(html=html_label)
-                    folium.Marker(location=(dest_coords[0]+0.00005,dest_coords[1]+0.00005), icon=icon, draggable=True).add_to(m)
+                    # Leaflet draggable marker using DivIcon with unique JS variable
+                    m.get_root().html.add_child(folium.Element(f"""
+                    <script>
+                    var originalLatLng{idx} = [{dest_coords[0]+0.00005},{dest_coords[1]+0.00005}];
+                    var labelMarker{idx} = L.marker([{dest_coords[0]+0.00005},{dest_coords[1]+0.00005}], {{
+                        icon: L.divIcon({{html:`{html_label}`, className:'draggable-label'}}),
+                        draggable: true
+                    }}).addTo({{map}});
+                    function resetLabel{idx}() {{
+                        labelMarker{idx}.setLatLng(originalLatLng{idx});
+                    }}
+                    </script>
+                    """))
 
                     distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
+                # Reset labels button inside map
+                reset_all_script = "<button onclick='"
+                for idx in range(len(closest)):
+                    reset_all_script += f"resetLabel{idx}();"
+                reset_all_script += "' style='position:absolute;top:10px;left:10px;z-index:9999;padding:6px;background:white;border:1px solid gray;border-radius:4px;'>Reset Labels</button>"
+                m.get_root().html.add_child(folium.Element(reset_all_script))
+
+                # Draw distance lines
+                for _, row in closest.iterrows():
+                    dest_coords = (row["Latitude"], row["Longitude"])
+                    folium.PolyLine([input_coords,dest_coords], color="blue", weight=2.5).add_to(m)
+
+                # Circle radius
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
                 radius_m = radius_miles.get(area_type,5)*1609.34
-                folium.Circle(location=input_coords,radius=radius_m,color="green",fill=True,fill_opacity=0.2).add_to(m)
+                folium.Circle(location=input_coords, radius=radius_m, color="green", fill=True, fill_opacity=0.2).add_to(m)
 
-                # Radius legend
+                # Legend
                 legend_html = f"""
                     {{% macro html(this, kwargs) %}}
-                    <div style='position:absolute;top:70px;left:10px;width:180px;z-index:9999;
-                                background-color:white;padding:10px;border:2px solid gray;
-                                border-radius:5px;font-size:14px;color:black;text-shadow:1px 1px 2px white;'>
+                    <div style='position: absolute; top: 70px; left: 10px; width: 180px; z-index: 9999;
+                                background-color: white; padding: 10px; border: 2px solid gray;
+                                border-radius: 5px; font-size: 14px; color: black; text-shadow: 1px 1px 2px white;'>
                         <b>Radius</b><br>
                         <span style='color:green;'>&#x25CF;</span> {radius_miles.get(area_type,5)}-mile Zone
                     </div>
@@ -265,23 +290,6 @@ if input_address:
                             <i style="background-color: gold; padding: 5px;">&#9724;</i> Non-Standard Brand
                         </div>
                     """, unsafe_allow_html=True)
-
-                    # Reset labels button
-                    if st.button("Reset Labels"):
-                        reset_script = "<script>\n"
-                        reset_script += "const labelMarkers = document.querySelectorAll('.leaflet-marker-icon');\n"
-                        for idx, pos in enumerate(label_positions):
-                            # offset by 1 because first marker is the green input address
-                            reset_script += f"""
-                            if(labelMarkers[{idx+1}] && labelMarkers[{idx+1}]._leaflet_pos){{
-                                labelMarkers[{idx+1}]._leaflet_pos = L.latLng({pos['lat']+0.00005},{pos['lng']+0.00005});
-                                labelMarkers[{idx+1}].style.transform = '';
-                                labelMarkers[{idx+1}].style.left = '';
-                                labelMarkers[{idx+1}].style.top = '';
-                            }}
-                            """
-                        reset_script += "</script>"
-                        st.components.v1.html(reset_script,height=0)
 
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
