@@ -238,32 +238,19 @@ if input_address:
                     st_folium(m,width=950,height=650)
                     st.markdown(f"<div style='font-size:18px;line-height:1.5;font-weight:bold;padding-top:8px;'>{distance_text.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
 
-                    # --- Export Map as HTML with address, radius legend, and zoom controls ---
+                    # --- Export Map as HTML with address and radius legend ---
                     m.save("closest_centres_map.html")
 
                     # Add address and radius legend at top of HTML
                     with open("closest_centres_map.html","r") as f:
                         html_content = f.read()
-
                     legend_html = f"""
                     <div style='position:absolute; top:10px; left:10px; width:100%; padding:10px; background-color:white; border:2px solid gray; border-radius:5px; font-size:16px; font-weight:bold; z-index:9999;'>
                         Entered Address: {input_address} <br>
                         Radius: {radius_miles.get(area_type,5)}-mile Zone
                     </div>
                     """
-
-                    # Ensure the zoom controls (+/-) remain visible
-                    zoom_html = """
-                    <style>
-                    .leaflet-control-zoom {
-                        z-index: 10000 !important;
-                    }
-                    </style>
-                    """
-
-                    # Inject legend and zoom style directly after <body>
-                    html_content = html_content.replace("<body>", f"<body>{legend_html}{zoom_html}")
-
+                    html_content = html_content.replace("<body>", f"<body>{legend_html}")
                     with open("closest_centres_map.html","w") as f:
                         f.write(html_content)
 
