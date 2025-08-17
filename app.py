@@ -186,9 +186,8 @@ if input_address:
 
                 distance_text = ""
 
-                # Drag radius per area type
-                drag_radius_map = {"CBD": 0.00005, "Suburb": 0.0001, "Rural": 0.0002}
-                max_distance = drag_radius_map.get(area_type, 0.0001)
+                # Fixed tiny drag radius for all labels (~2 meters)
+                max_distance = 0.00002
 
                 for idx, row in closest.iterrows():
                     dest_coords = (row["Latitude"], row["Longitude"])
@@ -230,7 +229,7 @@ if input_address:
                     )
                     m.add_child(label_marker)
 
-                    # JS constraint for drag
+                    # JS constraint for tiny drag
                     constraint_js = f"""
                     <script>
                     var marker = {label_marker.get_name()};
@@ -254,7 +253,6 @@ if input_address:
 
                     distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
-                # Draw area radius circle
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
                 radius_m = radius_miles.get(area_type,5)*1609.34
                 folium.Circle(location=input_coords,radius=radius_m,color="green",fill=True,fill_opacity=0.2).add_to(m)
