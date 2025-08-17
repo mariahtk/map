@@ -40,7 +40,7 @@ def login():
             st.session_state["authenticated"] = True
             st.session_state["user_email"] = email
             st.success("Login successful!")
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Invalid email or password.")
 
@@ -229,34 +229,37 @@ if input_address:
 
                     distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
-                # --- Draw circle and dynamic radius legend ---
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
                 radius_m = radius_miles.get(area_type,5)*1609.34
-                folium.Circle(location=input_coords, radius=radius_m, color="green", fill=True, fill_opacity=0.2).add_to(m)
-
-                legend_html = f"""
-                {{% macro html(this, kwargs) %}}
-                <div style='position: absolute; top: 70px; left: 10px; width: 180px; z-index: 9999;
-                            background-color: white; padding: 10px; border: 2px solid gray;
-                            border-radius: 5px; font-size: 14px; color: black; text-shadow: 1px 1px 2px white;'>
-                    <b>Radius</b><br>
-                    <span style='color:green;'>&#x25CF;</span> {radius_miles.get(area_type,5)}-mile Zone
-                </div>
-                {{% endmacro %}}
-                """
-                legend = MacroElement()
-                legend._template = Template(legend_html)
-                m.get_root().add_child(legend)
+                folium.Circle(location=input_coords,radius=radius_m,color="green",fill=True,fill_opacity=0.2).add_to(m)
 
                 col1,col2 = st.columns([5,2])
                 with col1:
                     st_folium(m,width=950,height=650)
                     st.markdown(f"<div style='font-size:18px;line-height:1.5;font-weight:bold;padding-top:8px;'>{distance_text.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
 
-                    # --- Download Map as HTML ---
+                    # --- Export Map as HTML with address and radius legend ---
                     m.save("closest_centres_map.html")
-                    with open("closest_centres_map.html","r",encoding="utf-8") as f:
-                        st.download_button("📥 Download Map as HTML", f.read(), "closest_centres_map.html")
+
+                    # Add address and radius legend at top of HTML
+                    with open("closest_centres_map.html","r") as f:
+                        html_content = f.read()
+                    legend_html = f"""
+                    <div style='position:absolute; top:10px; left:10px; width:100%; padding:10px; background-color:white; border:2px solid gray; border-radius:5px; font-size:16px; font-weight:bold; z-index:9999;'>
+                        Entered Address: {input_address} <br>
+                        Radius: {radius_miles.get(area_type,5)}-mile Zone
+                    </div>
+                    """
+                    html_content = html_content.replace("<body>", f"<body>{legend_html}")
+                    with open("closest_centres_map.html","w") as f:
+                        f.write(html_content)
+
+                    st.download_button(
+                        label="📥 Download Map as HTML",
+                        data=open("closest_centres_map.html","r").read(),
+                        file_name="closest_centres_map.html",
+                        mime="text/html"
+                    )
 
                 with col2:
                     st.markdown("""
