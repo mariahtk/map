@@ -241,13 +241,13 @@ if input_address:
                     # --- Export Map as HTML with address and radius legend ---
                     m.save("closest_centres_map.html")
 
-                    # Add address and radius legend at top of HTML
+                    # Add address and radius legend below zoom controls
                     with open("closest_centres_map.html","r") as f:
                         html_content = f.read()
                     legend_html = f"""
-                    <div style='position:absolute; top:10px; left:10px; width:100%; padding:10px; background-color:white; border:2px solid gray; border-radius:5px; font-size:16px; font-weight:bold; z-index:9999;'>
+                    <div style='position:absolute; top:55px; left:10px; width:100%; padding:10px; background-color:white; border:2px solid gray; border-radius:5px; font-size:16px; font-weight:bold; z-index:9999;' id='radius-legend'>
                         Entered Address: {input_address} <br>
-                        Radius: {radius_miles.get(area_type,5)}-mile Zone
+                        Radius Zone: {radius_miles.get(area_type,5)}-mile ({area_type}) 
                     </div>
                     """
                     html_content = html_content.replace("<body>", f"<body>{legend_html}")
