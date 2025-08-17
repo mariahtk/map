@@ -10,6 +10,15 @@ import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 
+# Remove top padding so map is close to search bar
+st.markdown("""
+    <style>
+        .block-container {
+            padding-top: 0rem;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 # Hide Streamlit UI elements
 st.markdown("""
     <style>
@@ -186,16 +195,16 @@ if input_address:
 
                 distance_text = ""
 
-                # Fixed tiny drag radius for all labels (~2 meters)
-                max_distance = 0.00002
+                # Extremely tiny drag distance (~millimeters visually)
+                max_distance = 0.000005
 
                 for idx, row in closest.iterrows():
                     dest_coords = (row["Latitude"], row["Longitude"])
-                    folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
+                    folium.PolyLine([input_coords,dest_coords], color="blue", weight=2.5).add_to(m)
                     color = get_marker_color(row["Format - Type of Centre"])
-                    label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
+                    label_text = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
 
-                    # Main marker
+                    # Original marker
                     folium.Marker(
                         location=dest_coords,
                         icon=folium.Icon(color=color),
@@ -216,24 +225,20 @@ if input_address:
                         display:inline-block;
                         text-align:left;
                         ">
-                        {label}
+                        {label_text}
                     </div>
                     """
-                    icon = folium.DivIcon(html=html_label)
-                    label_lat = dest_coords[0] + 0.00005
-                    label_lng = dest_coords[1] + 0.00005
                     label_marker = folium.Marker(
-                        location=(label_lat, label_lng),
-                        icon=icon,
+                        location=(dest_coords[0]+0.00005,dest_coords[1]+0.00005),
+                        icon=folium.DivIcon(html=html_label),
                         draggable=True
-                    )
-                    m.add_child(label_marker)
+                    ).add_to(m)
 
-                    # JS constraint for tiny drag
+                    # Add JS to constrain drag distance
                     constraint_js = f"""
                     <script>
                     var marker = {label_marker.get_name()};
-                    var origin = [{label_lat},{label_lng}];
+                    var origin = [{dest_coords[0]+0.00005},{dest_coords[1]+0.00005}];
                     var maxDistance = {max_distance};
                     marker.on('drag', function(e){{
                         var pos = marker.getLatLng();
