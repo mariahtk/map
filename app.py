@@ -266,22 +266,7 @@ if input_address:
                         </div>
                     """, unsafe_allow_html=True)
 
-                    # Reset labels button
-                    if st.button("Reset Labels"):
-                        reset_script = "<script>\n"
-                        reset_script += "const labelMarkers = document.querySelectorAll('.leaflet-marker-icon');\n"
-                        for idx, pos in enumerate(label_positions):
-                            # offset by 1 because first marker is the green input address
-                            reset_script += f"""
-                            if(labelMarkers[{idx+1}] && labelMarkers[{idx+1}]._leaflet_pos){{
-                                labelMarkers[{idx+1}]._leaflet_pos = L.latLng({pos['lat']+0.00005},{pos['lng']+0.00005});
-                                labelMarkers[{idx+1}].style.transform = '';
-                                labelMarkers[{idx+1}].style.left = '';
-                                labelMarkers[{idx+1}].style.top = '';
-                            }}
-                            """
-                        reset_script += "</script>"
-                        st.components.v1.html(reset_script,height=0)
 
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
+
