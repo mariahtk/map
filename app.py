@@ -10,22 +10,19 @@ import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 
-# Remove top padding so map is close to search bar
+# --- CSS to eliminate spacing above map and between search bar and map ---
 st.markdown("""
-    <style>
-        .block-container {
-            padding-top: 0rem;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
-# Hide Streamlit UI elements
-st.markdown("""
-    <style>
+<style>
+    .block-container {
+        padding-top: 0rem;
+    }
+    div.stTextInput {
+        margin-bottom: 0rem;
+    }
     #MainMenu, footer, header, a[href*="github.com"], .viewerBadge_container__1QSob, .stAppViewerBadge {
         display: none !important;
     }
-    </style>
+</style>
 """, unsafe_allow_html=True)
 
 components.html("""
@@ -195,8 +192,8 @@ if input_address:
 
                 distance_text = ""
 
-                # Extremely tiny drag distance (~millimeters visually)
-                max_distance = 0.000005
+                # Extremely tiny drag distance (~virtually pinned)
+                max_distance = 0.0000005  # ~few centimeters visually
 
                 for idx, row in closest.iterrows():
                     dest_coords = (row["Latitude"], row["Longitude"])
@@ -234,7 +231,7 @@ if input_address:
                         draggable=True
                     ).add_to(m)
 
-                    # Add JS to constrain drag distance
+                    # Constrain drag distance
                     constraint_js = f"""
                     <script>
                     var marker = {label_marker.get_name()};
@@ -307,3 +304,4 @@ if input_address:
 
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
+
