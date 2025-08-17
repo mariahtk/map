@@ -7,6 +7,9 @@ import requests
 import urllib.parse
 from branca.element import Template, MacroElement
 import streamlit.components.v1 as components
+import base64
+import json
+import os
 
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 
@@ -139,6 +142,19 @@ def load_data(file_path="Database IC.xlsx"):
             data[col] = ""
     return data
 
+# --- Read and embed logo as Base64 for PDF ---
+logo_b64 = ""
+logo_path_options = ["IWG Logo.jpg", "IWG Logo.png", "IWG_Logo.jpg", "IWG_Logo.png"]
+for p in logo_path_options:
+    if os.path.exists(p):
+        with open(p, "rb") as f:
+            logo_b64 = base64.b64encode(f.read()).decode("utf-8")
+        logo_ext = p.split(".")[-1].upper()
+        logo_type = "PNG" if logo_ext == "PNG" else "JPEG"
+        break
+else:
+    logo_type = "JPEG"  # default if not found; PDF will just omit logo
+
 st.title("\U0001F4CD Find 5 Closest Centres")
 api_key = "edd4cb8a639240daa178b4c6321a60e6"
 input_address = st.text_input("Enter an address:")
@@ -195,7 +211,11 @@ if input_address:
                     label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
 
                     # Original marker icon
-                    folium.Marker(location=dest_coords, icon=folium.Icon(color=color), popup=f"#{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')} {row.get('State','')} {row.get('Zipcode','')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi").add_to(m)
+                    folium.Marker(
+                        location=dest_coords,
+                        icon=folium.Icon(color=color),
+                        popup=f"#{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')} {row.get('State','')} {row.get('Zipcode','')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"
+                    ).add_to(m)
 
                     # Draggable label beside marker
                     html_label = f"""
@@ -217,7 +237,13 @@ if input_address:
                     icon = folium.DivIcon(html=html_label)
                     folium.Marker(location=(dest_coords[0]+0.00005,dest_coords[1]+0.00005), icon=icon, draggable=True).add_to(m)
 
-                    distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
+                    distance_text += (
+                        f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, "
+                        f"{row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - "
+                        f"Format: {row['Format - Type of Centre']} - "
+                        f"Milestone: {row['Transaction Milestone Status']} - "
+                        f"{row['Distance (miles)']:.2f} miles\n"
+                    )
 
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
                 radius_m = radius_miles.get(area_type,5)*1609.34
@@ -240,35 +266,128 @@ if input_address:
 
                 col1,col2 = st.columns([5,2])
                 with col1:
-                    st_folium(m,width=950,height=650)
-                    st.markdown(f"<div style='font-size:18px;line-height:1.5;font-weight:bold;padding-top:8px;'>{distance_text.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
+                    st_folium(m, width=950, height=650)
+                    st.markdown(
+                        f"<div style='font-size:18px;line-height:1.5;font-weight:bold;padding-top:8px;'>"
+                        f"{distance_text.replace(chr(10),'<br>')}</div>",
+                        unsafe_allow_html=True
+                    )
 
-                    # 🔹 Download Snapshot Button
+                    # ---------- Download as PDF Button (Map + Address + Centres) ----------
+                    # Prepare safe JS strings
+                    details_js = json.dumps(distance_text)  # preserves newlines safely
+                    address_js = json.dumps(input_address)
+                    logo_data_url = ""
+                    if logo_b64:
+                        logo_data_url = f"data:image/{'png' if logo_type=='PNG' else 'jpeg'};base64,{logo_b64}"
+                    logo_js = json.dumps(logo_data_url)
+
                     components.html(f"""
-                        <button id="downloadBtn" style="
+                        <button id="downloadPdfBtn" style="
                             margin-top:15px;
                             padding:10px 20px;
-                            background-color: #4CAF50;
+                            background-color: #007BFF;
                             color: white;
                             border: none;
                             border-radius: 8px;
                             font-size: 16px;
                             cursor: pointer;
-                        ">📷 Download Map Snapshot</button>
+                        ">📄 Download Map + Centres as PDF</button>
 
                         <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+                        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
                         <script>
-                        document.getElementById("downloadBtn").onclick = function() {{
-                            const mapElement = window.parent.document.querySelector('iframe[srcdoc]').contentWindow.document.body;
-                            html2canvas(mapElement).then(canvas => {{
-                                const link = document.createElement("a");
-                                link.download = "map_snapshot.png";
-                                link.href = canvas.toDataURL("image/png");
-                                link.click();
-                            }});
+                        const LOGO_DATA_URL = {logo_js};
+                        const DETAILS_TEXT = {details_js};
+                        const ADDRESS_TEXT = {address_js};
+
+                        function findFoliumIframe() {{
+                            // Try specific srcdoc iframe first
+                            let ifr = window.parent.document.querySelector('iframe[srcdoc]');
+                            if (ifr) return ifr;
+                            // Fallback: last iframe on the page
+                            const all = window.parent.document.querySelectorAll('iframe');
+                            return all.length ? all[all.length - 1] : null;
+                        }}
+
+                        async function captureMapCanvas() {{
+                            const ifr = findFoliumIframe();
+                            if (!ifr) throw new Error("Map iframe not found.");
+
+                            // Access the iframe's document (srcdoc, same-origin)
+                            const doc = ifr.contentDocument || ifr.contentWindow.document;
+                            const target = doc.body;
+
+                            // Give tiles a moment to load
+                            await new Promise(r => setTimeout(r, 800));
+
+                            // Capture using html2canvas
+                            return await html2canvas(target, {{useCORS: true}});
+                        }}
+
+                        document.getElementById("downloadPdfBtn").onclick = async function() {{
+                            try {{
+                                const canvas = await captureMapCanvas();
+                                const imgData = canvas.toDataURL("image/png");
+
+                                const {{ jsPDF }} = window.jspdf;
+                                const pdf = new jsPDF("p", "mm", "a4");
+
+                                // Margins and layout
+                                const marginX = 15;
+                                let cursorY = 20;
+
+                                // Add Logo if available
+                                if (LOGO_DATA_URL) {{
+                                    try {{
+                                        // Fit logo within width 40mm, keep aspect ratio (assume ~1:1 to keep simple)
+                                        pdf.addImage(LOGO_DATA_URL, "{'PNG' if logo_type=='PNG' else 'JPEG'}", marginX, cursorY - 10, 40, 20);
+                                    }} catch(e) {{}}
+                                }}
+
+                                // Title
+                                pdf.setFontSize(16);
+                                pdf.text("Closest Centres Report", marginX, cursorY);
+                                cursorY += 8;
+
+                                // Address line
+                                pdf.setFontSize(12);
+                                const addrLabel = "Address: ";
+                                const addr = ADDRESS_TEXT || "";
+                                const dateStr = new Date().toLocaleDateString();
+                                pdf.text(addrLabel + addr, marginX, cursorY);
+                                cursorY += 6;
+                                pdf.text("Date: " + dateStr, marginX, cursorY);
+                                cursorY += 6;
+
+                                // Map image (fit to page width)
+                                const maxImgW = 180; // A4 width - margins
+                                const imgW = maxImgW;
+                                const imgH = canvas.height * imgW / canvas.width;
+                                pdf.addImage(imgData, "PNG", marginX, cursorY, imgW, imgH);
+                                cursorY += imgH + 8;
+
+                                // Centres details with wrapping + pagination
+                                const maxWidth = 180;
+                                const lines = pdf.splitTextToSize(DETAILS_TEXT, maxWidth);
+                                const lineHeight = 6;
+                                for (let i = 0; i < lines.length; i++) {{
+                                    if (cursorY > 287) {{ // page break threshold
+                                        pdf.addPage();
+                                        cursorY = 20;
+                                    }}
+                                    pdf.text(lines[i], marginX, cursorY);
+                                    cursorY += lineHeight;
+                                }}
+
+                                pdf.save("closest_centres.pdf");
+                            }} catch (err) {{
+                                alert("Could not generate PDF: " + err.message);
+                                console.error(err);
+                            }}
                         }}
                         </script>
-                    """, height=100)
+                    """, height=140)
 
                 with col2:
                     st.markdown("""
