@@ -242,6 +242,34 @@ if input_address:
                 with col1:
                     st_folium(m,width=950,height=650)
                     st.markdown(f"<div style='font-size:18px;line-height:1.5;font-weight:bold;padding-top:8px;'>{distance_text.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
+
+                    # 🔹 Download Snapshot Button
+                    components.html(f"""
+                        <button id="downloadBtn" style="
+                            margin-top:15px;
+                            padding:10px 20px;
+                            background-color: #4CAF50;
+                            color: white;
+                            border: none;
+                            border-radius: 8px;
+                            font-size: 16px;
+                            cursor: pointer;
+                        ">📷 Download Map Snapshot</button>
+
+                        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+                        <script>
+                        document.getElementById("downloadBtn").onclick = function() {{
+                            const mapElement = window.parent.document.querySelector('iframe[srcdoc]').contentWindow.document.body;
+                            html2canvas(mapElement).then(canvas => {{
+                                const link = document.createElement("a");
+                                link.download = "map_snapshot.png";
+                                link.href = canvas.toDataURL("image/png");
+                                link.click();
+                            }});
+                        }}
+                        </script>
+                    """, height=100)
+
                 with col2:
                     st.markdown("""
                         <div style="
@@ -266,7 +294,5 @@ if input_address:
                         </div>
                     """, unsafe_allow_html=True)
 
-
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
-
