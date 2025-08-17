@@ -40,7 +40,7 @@ def login():
             st.session_state["authenticated"] = True
             st.session_state["user_email"] = email
             st.success("Login successful!")
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Invalid email or password.")
 
@@ -233,18 +233,43 @@ if input_address:
                 radius_m = radius_miles.get(area_type,5)*1609.34
                 folium.Circle(location=input_coords,radius=radius_m,color="green",fill=True,fill_opacity=0.2).add_to(m)
 
+                # --- Radius legend embedded within the map ---
+                radius_legend = MacroElement()
+                radius_legend._template = Template("""
+                {% macro html(this, kwargs) %}
+                <div style="
+                    position: fixed; 
+                    top: 10px; 
+                    left: 50px; 
+                    z-index: 9999; 
+                    background-color: white; 
+                    padding: 10px; 
+                    border: 2px solid grey; 
+                    border-radius: 8px;
+                    font-size: 14px;
+                    box-shadow: 2px 2px 6px rgba(0,0,0,0.3);
+                ">
+                <b>Radius Legend</b><br>
+                CBD: 1 mile<br>
+                Suburb: 5 miles<br>
+                Rural: 10 miles
+                </div>
+                {% endmacro %}
+                """)
+                m.get_root().add_child(radius_legend)
+
                 col1,col2 = st.columns([5,2])
                 with col1:
                     st_folium(m,width=950,height=650)
                     st.markdown(f"<div style='font-size:18px;line-height:1.5;font-weight:bold;padding-top:8px;'>{distance_text.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
 
                     # --- Download Map as HTML ---
-                    m.save("closest_centres_map.html")  # save map as HTML
-                    with open("closest_centres_map.html", "r", encoding="utf-8") as f:
-                        html_bytes = f.read().encode('utf-8')
+                    m.save("closest_centres_map.html")
+                    with open("closest_centres_map.html","r",encoding="utf-8") as f:
+                        map_html = f.read()
                     st.download_button(
                         label="📥 Download Map as HTML",
-                        data=html_bytes,
+                        data=map_html,
                         file_name="closest_centres_map.html",
                         mime="text/html"
                     )
