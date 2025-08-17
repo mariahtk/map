@@ -10,19 +10,13 @@ import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 
-# --- CSS to eliminate spacing above map and between search bar and map ---
+# Hide Streamlit UI elements
 st.markdown("""
-<style>
-    .block-container {
-        padding-top: 0rem;
-    }
-    div.stTextInput {
-        margin-bottom: 0rem;
-    }
+    <style>
     #MainMenu, footer, header, a[href*="github.com"], .viewerBadge_container__1QSob, .stAppViewerBadge {
         display: none !important;
     }
-</style>
+    </style>
 """, unsafe_allow_html=True)
 
 components.html("""
@@ -191,24 +185,19 @@ if input_address:
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
                 distance_text = ""
-
-                # Extremely tiny drag distance (~virtually pinned)
-                max_distance = 0.0000005  # ~few centimeters visually
+                label_positions = []
 
                 for idx, row in closest.iterrows():
                     dest_coords = (row["Latitude"], row["Longitude"])
+                    label_positions.append({"lat":dest_coords[0],"lng":dest_coords[1]})
                     folium.PolyLine([input_coords,dest_coords], color="blue", weight=2.5).add_to(m)
                     color = get_marker_color(row["Format - Type of Centre"])
-                    label_text = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
+                    label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
 
-                    # Original marker
-                    folium.Marker(
-                        location=dest_coords,
-                        icon=folium.Icon(color=color),
-                        popup=f"#{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')} {row.get('State','')} {row.get('Zipcode','')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"
-                    ).add_to(m)
+                    # Original marker icon
+                    folium.Marker(location=dest_coords, icon=folium.Icon(color=color), popup=f"#{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')} {row.get('State','')} {row.get('Zipcode','')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi").add_to(m)
 
-                    # Draggable label
+                    # Draggable label beside marker
                     html_label = f"""
                     <div style="
                         background-color:white;
@@ -222,36 +211,11 @@ if input_address:
                         display:inline-block;
                         text-align:left;
                         ">
-                        {label_text}
+                        {label}
                     </div>
                     """
-                    label_marker = folium.Marker(
-                        location=(dest_coords[0]+0.00005,dest_coords[1]+0.00005),
-                        icon=folium.DivIcon(html=html_label),
-                        draggable=True
-                    ).add_to(m)
-
-                    # Constrain drag distance
-                    constraint_js = f"""
-                    <script>
-                    var marker = {label_marker.get_name()};
-                    var origin = [{dest_coords[0]+0.00005},{dest_coords[1]+0.00005}];
-                    var maxDistance = {max_distance};
-                    marker.on('drag', function(e){{
-                        var pos = marker.getLatLng();
-                        var latDiff = pos.lat - origin[0];
-                        var lngDiff = pos.lng - origin[1];
-                        var distance = Math.sqrt(latDiff*latDiff + lngDiff*lngDiff);
-                        if(distance > maxDistance){{
-                            var scale = maxDistance / distance;
-                            var newLat = origin[0] + latDiff*scale;
-                            var newLng = origin[1] + lngDiff*scale;
-                            marker.setLatLng([newLat, newLng]);
-                        }}
-                    }});
-                    </script>
-                    """
-                    components.html(constraint_js, height=0)
+                    icon = folium.DivIcon(html=html_label)
+                    folium.Marker(location=(dest_coords[0]+0.00005,dest_coords[1]+0.00005), icon=icon, draggable=True).add_to(m)
 
                     distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
@@ -302,6 +266,22 @@ if input_address:
                         </div>
                     """, unsafe_allow_html=True)
 
+                    # Reset labels button
+                    if st.button("Reset Labels"):
+                        reset_script = "<script>\n"
+                        reset_script += "const labelMarkers = document.querySelectorAll('.leaflet-marker-icon');\n"
+                        for idx, pos in enumerate(label_positions):
+                            # offset by 1 because first marker is the green input address
+                            reset_script += f"""
+                            if(labelMarkers[{idx+1}] && labelMarkers[{idx+1}]._leaflet_pos){{
+                                labelMarkers[{idx+1}]._leaflet_pos = L.latLng({pos['lat']+0.00005},{pos['lng']+0.00005});
+                                labelMarkers[{idx+1}].style.transform = '';
+                                labelMarkers[{idx+1}].style.left = '';
+                                labelMarkers[{idx+1}].style.top = '';
+                            }}
+                            """
+                        reset_script += "</script>"
+                        st.components.v1.html(reset_script,height=0)
+
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
-
