@@ -7,8 +7,6 @@ import requests
 import urllib.parse
 from branca.element import Template, MacroElement
 import streamlit.components.v1 as components
-import io
-import imgkit
 
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
 
@@ -42,7 +40,7 @@ def login():
             st.session_state["authenticated"] = True
             st.session_state["user_email"] = email
             st.success("Login successful!")
-            st.rerun()
+            st.experimental_rerun()
         else:
             st.error("Invalid email or password.")
 
@@ -240,18 +238,16 @@ if input_address:
                     st_folium(m,width=950,height=650)
                     st.markdown(f"<div style='font-size:18px;line-height:1.5;font-weight:bold;padding-top:8px;'>{distance_text.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
 
-                    # --- Download Map as PNG ---
-                    m.save("temp_map.html")
-                    try:
-                        img_bytes = imgkit.from_file("temp_map.html", False)  # False returns bytes
-                        st.download_button(
-                            label="📥 Download Map as PNG",
-                            data=img_bytes,
-                            file_name="closest_centres_map.png",
-                            mime="image/png"
-                        )
-                    except OSError:
-                        st.warning("📌 Cannot generate PNG: wkhtmltoimage not found. Please install it from https://wkhtmltopdf.org/downloads.html")
+                    # --- Download Map as HTML ---
+                    m.save("closest_centres_map.html")  # save map as HTML
+                    with open("closest_centres_map.html", "r", encoding="utf-8") as f:
+                        html_bytes = f.read().encode('utf-8')
+                    st.download_button(
+                        label="📥 Download Map as HTML",
+                        data=html_bytes,
+                        file_name="closest_centres_map.html",
+                        mime="text/html"
+                    )
 
                 with col2:
                     st.markdown("""
