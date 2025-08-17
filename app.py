@@ -241,15 +241,17 @@ if input_address:
                     st.markdown(f"<div style='font-size:18px;line-height:1.5;font-weight:bold;padding-top:8px;'>{distance_text.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
 
                     # --- Download Map as PNG ---
-                    # Save map temporarily
                     m.save("temp_map.html")
-                    img_bytes = imgkit.from_file("temp_map.html", False)  # False returns bytes
-                    st.download_button(
-                        label="📥 Download Map as PNG",
-                        data=img_bytes,
-                        file_name="closest_centres_map.png",
-                        mime="image/png"
-                    )
+                    try:
+                        img_bytes = imgkit.from_file("temp_map.html", False)  # False returns bytes
+                        st.download_button(
+                            label="📥 Download Map as PNG",
+                            data=img_bytes,
+                            file_name="closest_centres_map.png",
+                            mime="image/png"
+                        )
+                    except OSError:
+                        st.warning("📌 Cannot generate PNG: wkhtmltoimage not found. Please install it from https://wkhtmltopdf.org/downloads.html")
 
                 with col2:
                     st.markdown("""
