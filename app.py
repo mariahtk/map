@@ -5,7 +5,7 @@ import folium
 from streamlit_folium import st_folium
 import requests
 import urllib.parse
-from branca.element import Template, MacroElement, Html
+from branca.element import Template, MacroElement
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Closest Centres Map", layout="wide")
@@ -178,7 +178,6 @@ if input_address:
                         break
                 closest = pd.DataFrame(selected_centres)
 
-                # --- Create Map ---
                 m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
                 folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
 
@@ -234,31 +233,51 @@ if input_address:
                 radius_m = radius_miles.get(area_type,5)*1609.34
                 folium.Circle(location=input_coords,radius=radius_m,color="green",fill=True,fill_opacity=0.2).add_to(m)
 
-                # --- ADD LEGEND DIRECTLY TO MAP ---
-                legend_html = f"""
+                # --- Add radius legend inside map below zoom controls ---
+                radius_text = f"Radius: {radius_miles.get(area_type,5)}-mile Zone"
+                legend_template = f"""
+                {{% macro html(this, kwargs) %}}
                 <div style="
-                    position: absolute; 
-                    top: 70px; left: 10px; 
-                    z-index:9999; 
-                    background-color: white; 
-                    padding: 8px; 
-                    border:2px solid gray; 
+                    position: absolute;
+                    top: 60px;  /* below zoom controls */
+                    left: 10px;
+                    z-index:9999;
+                    background-color: white;
+                    padding: 8px;
+                    border:2px solid gray;
                     border-radius:5px;
-                    font-size:16px;
-                    font-weight:bold;">
-                    Entered Address: {input_address} <br>
-                    Radius Zone: {radius_miles.get(area_type,5)}-mile ({area_type})
+                    font-size:14px;
+                    font-weight:bold;
+                ">
+                    {radius_text}
                 </div>
+                {{% endmacro %}}
                 """
-                m.get_root().html.add_child(Html(legend_html, script=True))
+                legend = MacroElement()
+                legend._template = Template(legend_template)
+                m.get_root().add_child(legend)
 
                 col1,col2 = st.columns([5,2])
                 with col1:
                     st_folium(m,width=950,height=650)
                     st.markdown(f"<div style='font-size:18px;line-height:1.5;font-weight:bold;padding-top:8px;'>{distance_text.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
 
-                    # --- Export Map as HTML ---
+                    # --- Export Map as HTML with address and radius legend ---
                     m.save("closest_centres_map.html")
+
+                    # Add address and radius legend at top of HTML
+                    with open("closest_centres_map.html","r") as f:
+                        html_content = f.read()
+                    legend_html = f"""
+                    <div style='position:absolute; top:10px; left:10px; width:100%; padding:10px; background-color:white; border:2px solid gray; border-radius:5px; font-size:16px; font-weight:bold; z-index:9999;'>
+                        Entered Address: {input_address} <br>
+                        Radius: {radius_miles.get(area_type,5)}-mile Zone
+                    </div>
+                    """
+                    html_content = html_content.replace("<body>", f"<body>{legend_html}")
+                    with open("closest_centres_map.html","w") as f:
+                        f.write(html_content)
+
                     st.download_button(
                         label="📥 Download Map as HTML",
                         data=open("closest_centres_map.html","r").read(),
@@ -292,3 +311,5 @@ if input_address:
 
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
+
+
