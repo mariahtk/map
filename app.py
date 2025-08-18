@@ -273,8 +273,8 @@ if input_address:
                     st_folium(m,width=950,height=650)
                     st.markdown(f"<div style='font-size:18px;line-height:1.5;font-weight:bold;padding-top:8px;'>{distance_text.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
 
-                    # --- Export Map as HTML with only address ---
-                    m.save("closest_centres_map.html")
+                    # --- Export Map as HTML with zoom controls and address only ---
+                    m.save("closest_centres_map.html", include_zoom_control=True)
                     with open("closest_centres_map.html","r") as f:
                         html_content = f.read()
                     legend_html = f"""
