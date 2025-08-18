@@ -233,65 +233,24 @@ if input_address:
                 radius_m = radius_miles.get(area_type,5)*1609.34
                 folium.Circle(location=input_coords,radius=radius_m,color="green",fill=True,fill_opacity=0.2).add_to(m)
 
-                # --- Add radius legend on map ---
-                radius_text = f"Radius: {radius_miles.get(area_type,5)}-mile Zone"
-                legend_template = f"""
-                {{% macro html(this, kwargs) %}}
-                <div style="
-                    position:absolute;
-                    top:60px;  /* below zoom controls */
-                    left: 10px;
-                    z-index:9999;
-                    background-color: white;
-                    padding: 8px;
-                    border:2px solid gray;
-                    border-radius:5px;
-                    font-size:14px;
-                    font-weight:bold;
-                    color: black;
-                    display: flex;
-                    align-items: center;
-                    gap: 6px;
-                ">
-                    <div style="
-                        width: 15px;
-                        height: 15px;
-                        background-color: green;
-                        border-radius: 50%;
-                        border: 1px solid black;
-                    "></div>
-                    {radius_text}
+                # --- Export Map as HTML with address + radius below ---
+                m.save("closest_centres_map.html")
+                with open("closest_centres_map.html","r") as f:
+                    html_content = f.read()
+                legend_html = f"""
+                <div style='position:absolute; top:10px; left:10px; padding:10px; background-color:white; border:2px solid gray; border-radius:5px; font-size:16px; font-weight:bold; z-index:9999;'>
+                    Entered Address: {input_address}<br>
+                    Radius: {radius_miles.get(area_type,5)}-mile Zone
                 </div>
-                {{% endmacro %}}
                 """
-                legend = MacroElement()
-                legend._template = Template(legend_template)
-                m.get_root().add_child(legend)
+                html_content = html_content.replace("<body>", f"<body>{legend_html}")
+                with open("closest_centres_map.html","w") as f:
+                    f.write(html_content)
 
                 col1,col2 = st.columns([5,2])
                 with col1:
                     st_folium(m,width=950,height=650)
                     st.markdown(f"<div style='font-size:18px;line-height:1.5;font-weight:bold;padding-top:8px;'>{distance_text.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
-
-                    # --- Export Map as HTML with zoom controls, address, and radius legend below ---
-                    m.save("closest_centres_map.html")
-                    with open("closest_centres_map.html","r") as f:
-                        html_content = f.read()
-
-                    legend_html = f"""
-                    <div style='position:absolute; top:50px; left:10px; padding:10px; background-color:white; 
-                                border:2px solid gray; border-radius:5px; font-size:16px; font-weight:bold; z-index:9999;'>
-                        <div>Entered Address: {input_address}</div>
-                        <div>Radius: {radius_miles.get(area_type,5)}-mile Zone</div>
-                    </div>
-                    <script>
-                      var zoomControl = L.control.zoom({{position: 'topleft'}}).addTo(window.map || map);
-                    </script>
-                    """
-
-                    html_content = html_content.replace("<body>", f"<body>{legend_html}")
-                    with open("closest_centres_map.html","w") as f:
-                        f.write(html_content)
 
                     st.download_button(
                         label="📥 Download Map as HTML",
