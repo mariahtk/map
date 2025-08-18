@@ -185,6 +185,7 @@ if input_address:
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
                 distance_text = ""
+                max_distance = 0.00002  # tiny drag radius
 
                 for idx, row in closest.iterrows():
                     dest_coords = (row["Latitude"], row["Longitude"])
@@ -192,12 +193,14 @@ if input_address:
                     color = get_marker_color(row["Format - Type of Centre"])
                     label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
 
+                    # Main marker
                     folium.Marker(
                         location=dest_coords,
                         icon=folium.Icon(color=color),
                         popup=f"#{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')} {row.get('State','')} {row.get('Zipcode','')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"
                     ).add_to(m)
 
+                    # Draggable label
                     html_label = f"""
                     <div style="
                         background-color:white;
@@ -217,23 +220,26 @@ if input_address:
                     icon = folium.DivIcon(html=html_label)
                     label_lat = dest_coords[0] + 0.00005
                     label_lng = dest_coords[1] + 0.00005
-                    label_marker = folium.Marker(location=(label_lat, label_lng), icon=icon, draggable=True)
+                    label_marker = folium.Marker(
+                        location=(label_lat, label_lng),
+                        icon=icon,
+                        draggable=True
+                    )
                     m.add_child(label_marker)
 
                     distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
-                # --- Draw radius circle ---
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
                 radius_m = radius_miles.get(area_type,5)*1609.34
                 folium.Circle(location=input_coords,radius=radius_m,color="green",fill=True,fill_opacity=0.2).add_to(m)
 
-                # --- Add radius legend in map ---
-                radius_text = f"{radius_miles.get(area_type,5)}-mile Zone"
+                # --- Add radius legend on map ---
+                radius_text = f"Radius: {radius_miles.get(area_type,5)}-mile Zone"
                 legend_template = f"""
                 {{% macro html(this, kwargs) %}}
                 <div style="
                     position:absolute;
-                    top:110px;  /* below zoom & address box */
+                    top:60px;  /* below zoom controls */
                     left: 10px;
                     z-index:9999;
                     background-color: white;
@@ -267,19 +273,16 @@ if input_address:
                     st_folium(m,width=950,height=650)
                     st.markdown(f"<div style='font-size:18px;line-height:1.5;font-weight:bold;padding-top:8px;'>{distance_text.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
 
-                    # --- Export Map as HTML ---
-                    m.save("closest_centres_map.html", include_zoom_control=True)
+                    # --- Export Map as HTML with only address ---
+                    m.save("closest_centres_map.html")
                     with open("closest_centres_map.html","r") as f:
                         html_content = f.read()
-
-                    # Address box below zoom control
-                    address_html = f"""
-                    <div style='position:absolute; top:40px; left:10px; z-index:9999; background-color:white; padding:8px; border:2px solid gray; border-radius:5px; font-size:16px; font-weight:bold;'>
+                    legend_html = f"""
+                    <div style='position:absolute; top:10px; left:10px; padding:10px; background-color:white; border:2px solid gray; border-radius:5px; font-size:16px; font-weight:bold; z-index:9999;'>
                         Entered Address: {input_address}
                     </div>
                     """
-                    html_content = html_content.replace("<body>", f"<body>{address_html}")
-
+                    html_content = html_content.replace("<body>", f"<body>{legend_html}")
                     with open("closest_centres_map.html","w") as f:
                         f.write(html_content)
 
