@@ -193,14 +193,12 @@ if input_address:
                     color = get_marker_color(row["Format - Type of Centre"])
                     label = f"#{int(row['Centre Number'])} - ({row['Distance (miles)']:.2f} mi)"
 
-                    # Main marker
                     folium.Marker(
                         location=dest_coords,
                         icon=folium.Icon(color=color),
                         popup=f"#{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')} {row.get('State','')} {row.get('Zipcode','')} | {row['Format - Type of Centre']} | {row['Transaction Milestone Status']} | {row['Distance (miles)']:.2f} mi"
                     ).add_to(m)
 
-                    # Draggable label
                     html_label = f"""
                     <div style="
                         background-color:white;
@@ -226,15 +224,14 @@ if input_address:
                         draggable=True
                     )
                     m.add_child(label_marker)
-
                     distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
                 radius_m = radius_miles.get(area_type,5)*1609.34
                 folium.Circle(location=input_coords,radius=radius_m,color="green",fill=True,fill_opacity=0.2).add_to(m)
 
-                # --- Add radius legend on map ---
-                radius_text = f"Radius: {radius_miles.get(area_type,5)}-mile Zone"
+                # --- Add radius legend below zoom controls ---
+                radius_text = f"{radius_miles.get(area_type,5)}-mile Zone"
                 legend_template = f"""
                 {{% macro html(this, kwargs) %}}
                 <div style="
@@ -273,16 +270,18 @@ if input_address:
                     st_folium(m,width=950,height=650)
                     st.markdown(f"<div style='font-size:18px;line-height:1.5;font-weight:bold;padding-top:8px;'>{distance_text.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
 
-                    # --- Export Map as HTML with zoom controls and address only ---
+                    # --- Export Map as HTML with zoom controls and address at top ---
                     m.save("closest_centres_map.html", include_zoom_control=True)
                     with open("closest_centres_map.html","r") as f:
                         html_content = f.read()
+
                     legend_html = f"""
                     <div style='position:absolute; top:10px; left:10px; padding:10px; background-color:white; border:2px solid gray; border-radius:5px; font-size:16px; font-weight:bold; z-index:9999;'>
                         Entered Address: {input_address}
                     </div>
                     """
                     html_content = html_content.replace("<body>", f"<body>{legend_html}")
+
                     with open("closest_centres_map.html","w") as f:
                         f.write(html_content)
 
