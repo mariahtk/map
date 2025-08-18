@@ -233,14 +233,14 @@ if input_address:
                 radius_m = radius_miles.get(area_type,5)*1609.34
                 folium.Circle(location=input_coords,radius=radius_m,color="green",fill=True,fill_opacity=0.2).add_to(m)
 
-                # --- Folium radius legend (moved to right) ---
+                # --- Add radius legend on map (Streamlit app) ---
                 radius_text = f"Radius: {radius_miles.get(area_type,5)}-mile Zone"
                 legend_template = f"""
                 {{% macro html(this, kwargs) %}}
                 <div style="
                     position:absolute;
-                    top:60px;
-                    right: 10px;
+                    top:60px;  /* below zoom controls */
+                    left: 10px;
                     z-index:9999;
                     background-color: white;
                     padding: 8px;
@@ -273,7 +273,7 @@ if input_address:
                     st_folium(m,width=950,height=650)
                     st.markdown(f"<div style='font-size:18px;line-height:1.5;font-weight:bold;padding-top:8px;'>{distance_text.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
 
-                    # --- Export Map as HTML with address and radius on the right ---
+                    # --- Export Map as HTML with address + radius on the RIGHT ---
                     m.save("closest_centres_map.html")
                     with open("closest_centres_map.html","r") as f:
                         html_content = f.read()
@@ -292,6 +292,7 @@ if input_address:
                         z-index:9999;
                     '>
                         Entered Address: {input_address}<br>
+                        Radius: {radius_miles.get(area_type,5)}-mile Zone
                     </div>
                     """
                     html_content = html_content.replace("<body>", f"<body>{legend_html}")
@@ -331,4 +332,3 @@ if input_address:
 
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
-
