@@ -156,7 +156,7 @@ if input_address:
                 st.error("\u274C Address not found. Try again.")
             else:
                 location = data_geo['results'][0]
-                input_coords = (location['geometry']['lat'], location['geometry']['lng'])
+                input_coords = (location['geometry']['lat'],location['geometry']['lng'])
                 area_type = infer_area_type(location)
                 st.write(f"Area type detected: **{area_type}**")
 
@@ -233,14 +233,14 @@ if input_address:
                 radius_m = radius_miles.get(area_type,5)*1609.34
                 folium.Circle(location=input_coords,radius=radius_m,color="green",fill=True,fill_opacity=0.2).add_to(m)
 
-                # --- Add radius legend on map ---
+                # --- Folium radius legend (moved to right) ---
                 radius_text = f"Radius: {radius_miles.get(area_type,5)}-mile Zone"
                 legend_template = f"""
                 {{% macro html(this, kwargs) %}}
                 <div style="
                     position:absolute;
-                    top:60px;  /* below zoom controls */
-                    left: 10px;
+                    top:60px;
+                    right: 10px;
                     z-index:9999;
                     background-color: white;
                     padding: 8px;
@@ -273,13 +273,26 @@ if input_address:
                     st_folium(m,width=950,height=650)
                     st.markdown(f"<div style='font-size:18px;line-height:1.5;font-weight:bold;padding-top:8px;'>{distance_text.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
 
-                    # --- Export Map as HTML with only address ---
+                    # --- Export Map as HTML with address and radius on the right ---
                     m.save("closest_centres_map.html")
                     with open("closest_centres_map.html","r") as f:
                         html_content = f.read()
+
                     legend_html = f"""
-                    <div style='position:absolute; top:10px; left:10px; padding:10px; background-color:white; border:2px solid gray; border-radius:5px; font-size:16px; font-weight:bold; z-index:9999;'>
-                        Entered Address: {input_address}
+                    <div style='
+                        position:absolute;
+                        top:10px;
+                        right:10px;
+                        padding:10px;
+                        background-color:white;
+                        border:2px solid gray;
+                        border-radius:5px;
+                        font-size:16px;
+                        font-weight:bold;
+                        z-index:9999;
+                    '>
+                        Entered Address: {input_address}<br>
+                        Radius: {radius_miles.get(area_type,5)}-mile Zone
                     </div>
                     """
                     html_content = html_content.replace("<body>", f"<body>{legend_html}")
