@@ -292,7 +292,6 @@ if input_address:
                         z-index:9999;
                     '>
                         Entered Address: {input_address}<br>
-                        Radius: {radius_miles.get(area_type,5)}-mile Zone
                     </div>
                     """
                     html_content = html_content.replace("<body>", f"<body>{legend_html}")
@@ -332,3 +331,4 @@ if input_address:
 
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
+
