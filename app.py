@@ -233,7 +233,7 @@ if input_address:
                 radius_m = radius_miles.get(area_type,5)*1609.34
                 folium.Circle(location=input_coords,radius=radius_m,color="green",fill=True,fill_opacity=0.2).add_to(m)
 
-                # --- Add radius legend inside map below zoom controls ---
+                # --- Add radius legend inside map below zoom controls (green circle + black text) ---
                 radius_text = f"Radius: {radius_miles.get(area_type,5)}-mile Zone"
                 legend_template = f"""
                 {{% macro html(this, kwargs) %}}
@@ -248,7 +248,18 @@ if input_address:
                     border-radius:5px;
                     font-size:14px;
                     font-weight:bold;
+                    color: black;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
                 ">
+                    <div style="
+                        width: 15px;
+                        height: 15px;
+                        background-color: green;
+                        border-radius: 50%;
+                        border: 1px solid black;
+                    "></div>
                     {radius_text}
                 </div>
                 {{% endmacro %}}
@@ -269,9 +280,9 @@ if input_address:
                     with open("closest_centres_map.html","r") as f:
                         html_content = f.read()
                     legend_html = f"""
-                    <div style='position:absolute; top:10px; left:10px; width:100%; padding:10px; background-color:white; border:2px solid gray; border-radius:5px; font-size:16px; font-weight:bold; z-index:9999;'>
-                        Entered Address: {input_address} <br>
-                        Radius: {radius_miles.get(area_type,5)}-mile Zone
+                    <div style='position:absolute; top:10px; left:10px; width:100%; padding:10px; background-color:white; border:2px solid gray; border-radius:5px; font-size:16px; font-weight:bold; z-index:9999; display:flex; align-items:center; gap:6px;'>
+                        <div style='width:15px; height:15px; background-color:green; border-radius:50%; border:1px solid black;'></div>
+                        Entered Address: {input_address} | Radius: {radius_miles.get(area_type,5)}-mile Zone
                     </div>
                     """
                     html_content = html_content.replace("<body>", f"<body>{legend_html}")
@@ -311,5 +322,3 @@ if input_address:
 
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
-
-
