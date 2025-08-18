@@ -273,15 +273,22 @@ if input_address:
                     st_folium(m,width=950,height=650)
                     st.markdown(f"<div style='font-size:18px;line-height:1.5;font-weight:bold;padding-top:8px;'>{distance_text.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
 
-                    # --- Export Map as HTML with only address ---
+                    # --- Export Map as HTML with zoom controls, address, and radius legend below ---
                     m.save("closest_centres_map.html")
                     with open("closest_centres_map.html","r") as f:
                         html_content = f.read()
+
                     legend_html = f"""
-                    <div style='position:absolute; top:10px; left:10px; padding:10px; background-color:white; border:2px solid gray; border-radius:5px; font-size:16px; font-weight:bold; z-index:9999;'>
-                        Entered Address: {input_address}
+                    <div style='position:absolute; top:50px; left:10px; padding:10px; background-color:white; 
+                                border:2px solid gray; border-radius:5px; font-size:16px; font-weight:bold; z-index:9999;'>
+                        <div>Entered Address: {input_address}</div>
+                        <div>Radius: {radius_miles.get(area_type,5)}-mile Zone</div>
                     </div>
+                    <script>
+                      var zoomControl = L.control.zoom({{position: 'topleft'}}).addTo(window.map || map);
+                    </script>
                     """
+
                     html_content = html_content.replace("<body>", f"<body>{legend_html}")
                     with open("closest_centres_map.html","w") as f:
                         f.write(html_content)
@@ -319,6 +326,3 @@ if input_address:
 
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
-
-
-
