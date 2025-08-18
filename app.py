@@ -273,7 +273,7 @@ if input_address:
                     st_folium(m,width=950,height=650)
                     st.markdown(f"<div style='font-size:18px;line-height:1.5;font-weight:bold;padding-top:8px;'>{distance_text.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
 
-                    # --- Export Map as HTML with address + radius on the RIGHT ---
+                    # --- Export Map as HTML with address + radius CENTERED ---
                     m.save("closest_centres_map.html")
                     with open("closest_centres_map.html","r") as f:
                         html_content = f.read()
@@ -282,7 +282,8 @@ if input_address:
                     <div style='
                         position:absolute;
                         top:10px;
-                        right:10px;
+                        left:50%;
+                        transform: translateX(-50%);
                         padding:10px;
                         background-color:white;
                         border:2px solid gray;
