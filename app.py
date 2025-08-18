@@ -178,15 +178,19 @@ if input_address:
                         break
                 closest = pd.DataFrame(selected_centres)
 
-                m = folium.Map(location=input_coords, zoom_start=14, zoom_control=True, control_scale=True)
+                # --- Create map with zoom control ---
+                m = folium.Map(
+                    location=input_coords,
+                    zoom_start=14,
+                    zoom_control=True,  # <-- ensures +/- buttons appear
+                    control_scale=True
+                )
                 folium.Marker(location=input_coords, popup=f"Your Address: {input_address}", icon=folium.Icon(color="green")).add_to(m)
 
                 def get_marker_color(ftype):
                     return {"Regus":"blue","HQ":"darkblue","Signature":"purple","Spaces":"black","Non-Standard Brand":"gold"}.get(ftype,"red")
 
                 distance_text = ""
-                max_distance = 0.00002  # tiny drag radius
-
                 for idx, row in closest.iterrows():
                     dest_coords = (row["Latitude"], row["Longitude"])
                     folium.PolyLine([input_coords, dest_coords], color="blue", weight=2.5).add_to(m)
@@ -229,11 +233,12 @@ if input_address:
 
                     distance_text += f"Centre #{int(row['Centre Number'])} - {row['Addresses']}, {row.get('City','')}, {row.get('State','')} {row.get('Zipcode','')} - Format: {row['Format - Type of Centre']} - Milestone: {row['Transaction Milestone Status']} - {row['Distance (miles)']:.2f} miles\n"
 
+                # Add radius circle
                 radius_miles = {"CBD":1,"Suburb":5,"Rural":10}
                 radius_m = radius_miles.get(area_type,5)*1609.34
                 folium.Circle(location=input_coords,radius=radius_m,color="green",fill=True,fill_opacity=0.2).add_to(m)
 
-                # --- Add radius legend on map ---
+                # --- Radius legend ---
                 radius_text = f"Radius: {radius_miles.get(area_type,5)}-mile Zone"
                 legend_template = f"""
                 {{% macro html(this, kwargs) %}}
@@ -273,7 +278,7 @@ if input_address:
                     st_folium(m,width=950,height=650)
                     st.markdown(f"<div style='font-size:18px;line-height:1.5;font-weight:bold;padding-top:8px;'>{distance_text.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
 
-                    # --- Export Map as HTML with only address ---
+                    # --- Export Map as HTML with address & zoom controls ---
                     m.save("closest_centres_map.html")
                     with open("closest_centres_map.html","r") as f:
                         html_content = f.read()
