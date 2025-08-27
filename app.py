@@ -24,7 +24,7 @@ components.html("""
 setInterval(() => {
   const badges = document.querySelectorAll(
     '.viewerBadge_container__1QSob, .stAppViewerBadge, a[href*="github.com"]');
-  badges.forEach(badge => badge.style.display = 'none';
+  badges.forEach(badge => badge.style.display = 'none');
 }, 500);
 </script>
 """, height=0)
@@ -330,6 +330,31 @@ if input_address:
                         </div>
                     """, unsafe_allow_html=True)
 
+                    # --- New system update box ---
+                    st.markdown("""
+                        <div style="
+                            background-color:#fff8dc;  /* light yellow */
+                            padding:14px;
+                            border:2px solid #b5a642;
+                            border-radius:10px;
+                            width:100%;
+                            margin-top:20px;
+                            color:#222;
+                            font-size:14px;
+                            line-height:1.5;
+                            box-shadow: 2px 2px 6px rgba(0,0,0,0.1);
+                            display:flex;
+                            align-items:flex-start;
+                            gap:10px;
+                        ">
+                            <div style="font-size:18px;">ℹ️</div>
+                            <div>
+                                <b>System Update:</b><br>
+                                For clarity, centre labels can be repositioned if they overlap — simply <b>click and drag</b> the text boxes on the map.<br><br>
+                                If a broader view is required, please use the <b>Download HTML</b> button below to generate a larger, shareable version of the map.
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
-
