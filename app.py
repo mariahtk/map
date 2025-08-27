@@ -351,13 +351,14 @@ if input_address:
                             <div>
                                 <b>System Update:</b><br>
                                 For clarity, centre labels can be repositioned if they overlap. Simply <b>click and drag</b> the text boxes on the map. Ensure the text boxes remain fully visible.<br><br>
-                                If a broader view is required, please use the <b>Download HTML</b> button below to generate a larger, shareable version of the map.
+                                If a broader view is required, please use the <b>Download HTML</b> button below to generate a larger version of the map.
                             </div>
                         </div>
                     """, unsafe_allow_html=True)
 
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
+
 
 
 
