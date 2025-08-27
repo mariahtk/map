@@ -350,7 +350,7 @@ if input_address:
                             <div style="font-size:18px;">ℹ️</div>
                             <div>
                                 <b>System Update:</b><br>
-                                For clarity, centre labels can be repositioned if they overlap — simply <b>click and drag</b> the text boxes on the map.<br><br>
+                                For clarity, centre labels can be repositioned if they overlap. Simply <b>click and drag</b> the text boxes on the map.<br><br>
                                 If a broader view is required, please use the <b>Download HTML</b> button below to generate a larger, shareable version of the map.
                             </div>
                         </div>
@@ -358,3 +358,4 @@ if input_address:
 
     except Exception as ex:
         st.error(f"Unexpected error: {ex}")
+
